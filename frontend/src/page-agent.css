@@ -1,0 +1,40 @@
+.page-agent-fab {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4), inset 0 0 12px rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9999;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: floatOrb 3s ease-in-out infinite;
+}
+
+.page-agent-fab:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.6), inset 0 0 12px rgba(255,255,255,0.4);
+  animation-play-state: paused;
+}
+
+.page-agent-fab:active {
+  transform: translateY(0) scale(0.95);
+}
+
+.page-agent-fab svg {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+@keyframes floatOrb {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
