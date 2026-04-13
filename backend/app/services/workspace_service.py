@@ -67,6 +67,32 @@ def initialize_database(db: Session) -> None:
         if key not in existing_keys:
             db.add(WorkspacePanel(key=key, payload=snapshot[key]))
 
+    # Migrate LLM providers if json config exists
+    from pathlib import Path
+    import json
+    from app.models.llm_provider import LLMProviderModel
+    
+    config_file = Path(__file__).resolve().parents[3] / "llm_providers.json"
+    if config_file.exists() and db.query(LLMProviderModel).count() == 0:
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                active_id = data.get("active_provider_id")
+                for p in data.get("providers", []):
+                    db.add(LLMProviderModel(
+                        id=p.get("id"),
+                        name=p.get("name"),
+                        base_url=p.get("base_url"),
+                        api_key=p.get("api_key"),
+                        model=p.get("model"),
+                        is_active=(p.get("id") == active_id)
+                    ))
+            import os
+            os.remove(config_file)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to migrate llm_providers.json: {e}")
+
     db.commit()
     asset_index_service.initialize_seed_assets(db)
 

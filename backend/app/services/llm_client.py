@@ -4,20 +4,52 @@ import re
 from typing import Any
 
 from app.core.config import settings
+from app.db.session import SessionLocal
+from app.models.llm_provider import LLMProviderModel
 
 logger = logging.getLogger(__name__)
 
 
 class _BaseLLMClient:
+    def _get_active_provider(self):
+        try:
+            with SessionLocal() as db:
+                return db.query(LLMProviderModel).filter(LLMProviderModel.is_active == True).first()
+        except Exception as e:
+            logger.error(f"Error querying active LLM provider: {e}")
+            return None
+
+    @property
+    def is_llm_ready(self) -> bool:
+        provider = self._get_active_provider()
+        if provider and provider.api_key:
+            return True
+        return settings.llm_ready
+
+    @property
+    def current_model(self) -> str:
+        provider = self._get_active_provider()
+        if provider and provider.model:
+            return provider.model
+        return settings.llm_model
+
     def _build_client(self):
         try:
             from openai import OpenAI
         except ImportError as exc:  # pragma: no cover - depends on runtime install state
             raise RuntimeError("openai package is not installed.") from exc
 
-        base_url = (settings.llm_base_url or "").strip() or None
+        provider = self._get_active_provider()
+        
+        if provider:
+            base_url = (provider.base_url or "").strip() or None
+            api_key = (provider.api_key or "").strip()
+        else:
+            base_url = (settings.llm_base_url or "").strip() or None
+            api_key = (settings.llm_api_key or "").strip()
+
         return OpenAI(
-            api_key=(settings.llm_api_key or "").strip(),
+            api_key=api_key,
             base_url=base_url,
             timeout=float(settings.llm_timeout_seconds),
         )
@@ -48,7 +80,7 @@ class LLMReviewClient(_BaseLLMClient):
         clauses: list[dict[str, str]],
         rule_issues: list[dict[str, str]],
     ) -> list[dict[str, str]]:
-        if not settings.llm_ready:
+        if not self.is_llm_ready:
             return []
 
         prompt = self._build_prompt(
@@ -61,7 +93,7 @@ class LLMReviewClient(_BaseLLMClient):
         try:
             client = self._build_client()
             response = client.responses.create(
-                model=settings.llm_model,
+                model=self.current_model,
                 instructions=self._system_prompt(),
                 input=prompt,
             )
@@ -208,7 +240,7 @@ class LLMGenerationClient(_BaseLLMClient):
         extracted_fields: dict[str, str],
         generation_todos: list[str],
     ) -> dict[str, Any] | None:
-        if not settings.llm_ready:
+        if not self.is_llm_ready:
             return None
 
         prompt = self._build_prompt(
@@ -227,7 +259,7 @@ class LLMGenerationClient(_BaseLLMClient):
         try:
             client = self._build_client()
             response = client.responses.create(
-                model=settings.llm_model,
+                model=self.current_model,
                 instructions=self._system_prompt(),
                 input=prompt,
             )
@@ -319,7 +351,7 @@ class LLMGenerationClient(_BaseLLMClient):
         routed_assets: list[str],
         extracted_fields: dict[str, str],
     ) -> dict[str, Any] | None:
-        if not settings.llm_ready:
+        if not self.is_llm_ready:
             return None
 
         schema = {
@@ -342,7 +374,7 @@ class LLMGenerationClient(_BaseLLMClient):
         try:
             client = self._build_client()
             response = client.responses.create(
-                model=settings.llm_model,
+                model=self.current_model,
                 instructions=(
                     "你是企业投标文件修订助手。"
                     "你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。"
@@ -372,7 +404,7 @@ class LLMDecisionClient(_BaseLLMClient):
         extracted_fields: dict[str, str],
         rule_hits: list[dict[str, str]],
     ) -> dict[str, Any] | None:
-        if not settings.llm_ready:
+        if not self.is_llm_ready:
             return None
 
         prompt = self._build_prompt(
@@ -385,7 +417,7 @@ class LLMDecisionClient(_BaseLLMClient):
         try:
             client = self._build_client()
             response = client.responses.create(
-                model=settings.llm_model,
+                model=self.current_model,
                 instructions=self._system_prompt(),
                 input=prompt,
             )

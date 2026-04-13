@@ -20,6 +20,7 @@ from app.models.review_job import ReviewJob
 from app.models.rule_config import RuleConfig
 from app.models.rule_statistics import RuleStatistics
 from app.models.workspace_panel import WorkspacePanel
+from app.models.llm_provider import LLMProviderModel
 
 __all__ = [
     "GenerationJob",
@@ -30,6 +31,7 @@ __all__ = [
     "KnowledgeAssetIndexJobRecord",
     "KnowledgeAssetSourceRecord",
     "KnowledgeAssetWorkflowRecord",
+    "LLMProviderModel",
     "ProjectAssetPreferenceRecord",
     "ProjectDocument",
     "ProjectDocumentVersion",
