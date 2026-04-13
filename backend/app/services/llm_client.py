@@ -92,12 +92,16 @@ class LLMReviewClient(_BaseLLMClient):
 
         try:
             client = self._build_client()
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=self.current_model,
-                instructions=self._system_prompt(),
-                input=prompt,
+                messages=[
+                    {"role": "system", "content": self._system_prompt()},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2048,
             )
-            content = (response.output_text or "").strip()
+            content = (response.choices[0].message.content or "").strip()
             if not content:
                 logger.warning("LLM semantic review returned empty content.")
                 return []
@@ -258,12 +262,16 @@ class LLMGenerationClient(_BaseLLMClient):
 
         try:
             client = self._build_client()
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=self.current_model,
-                instructions=self._system_prompt(),
-                input=prompt,
+                messages=[
+                    {"role": "system", "content": self._system_prompt()},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2048,
             )
-            content = (response.output_text or "").strip()
+            content = (response.choices[0].message.content or "").strip()
             if not content:
                 logger.warning("LLM bid generation returned empty content for section %s.", section_title)
                 return None
@@ -373,17 +381,16 @@ class LLMGenerationClient(_BaseLLMClient):
 
         try:
             client = self._build_client()
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=self.current_model,
-                instructions=(
-                    "你是企业投标文件修订助手。"
-                    "你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。"
-                    "不得编造资质、案例、参数或商务承诺。"
-                    "输出必须是 JSON 对象。"
-                ),
-                input=prompt,
+                messages=[
+                    {"role": "system", "content": "你是企业投标文件修订助手。你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。不得编造资质、案例、参数或商务承诺。输出必须是 JSON 对象。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2048,
             )
-            content = (response.output_text or "").strip()
+            content = (response.choices[0].message.content or "").strip()
             if not content:
                 return None
             payload = self._parse_json_payload(content)
@@ -416,12 +423,16 @@ class LLMDecisionClient(_BaseLLMClient):
 
         try:
             client = self._build_client()
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=self.current_model,
-                instructions=self._system_prompt(),
-                input=prompt,
+                messages=[
+                    {"role": "system", "content": self._system_prompt()},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2048,
             )
-            content = (response.output_text or "").strip()
+            content = (response.choices[0].message.content or "").strip()
             if not content:
                 logger.warning("LLM decision evaluation returned empty content.")
                 return None
