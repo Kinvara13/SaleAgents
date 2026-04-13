@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from docx import Document
 from fastapi import HTTPException, status
+from openpyxl import load_workbook
 from pypdf import PdfReader
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -522,7 +523,6 @@ class ParsingService:
 
     def _extract_text_from_file(self, *, filename: str, file_bytes: bytes) -> tuple[str, str]:
         import zipfile
-        import pandas as pd
 
         def _parse_bytes(name: str, data: bytes) -> str:
             suffix = self._file_suffix(name)
@@ -546,11 +546,19 @@ class ParsingService:
                     return f"[解析PDF失败 {name}: {e}]"
             if suffix in {"xlsx", "xls"}:
                 try:
-                    dfs = pd.read_excel(BytesIO(data), sheet_name=None)
+                    wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
                     text_parts = []
-                    for sheet_name, df in dfs.items():
+                    for sheet_name in wb.sheetnames:
+                        ws = wb[sheet_name]
                         text_parts.append(f"--- Sheet: {sheet_name} ---")
-                        text_parts.append(df.to_string(index=False))
+                        rows_data = []
+                        for row in ws.iter_rows(values_only=True):
+                            row_values = [str(cell) if cell is not None else "" for cell in row]
+                            if any(v.strip() for v in row_values):
+                                rows_data.append("\t".join(row_values))
+                        if rows_data:
+                            text_parts.append("\n".join(rows_data))
+                    wb.close()
                     return "\n".join(text_parts)
                 except Exception as e:
                     return f"[解析Excel失败 {name}: {e}]"
@@ -580,8 +588,6 @@ class ParsingService:
         return text.strip(), "已解析"
 
     def _extract_text_from_single_file(self, filename: str, file_bytes: bytes) -> str:
-        import pandas as pd
-
         suffix = self._file_suffix(filename)
         if suffix in {"txt", "md"}:
             return file_bytes.decode("utf-8", errors="ignore").strip()
@@ -603,11 +609,19 @@ class ParsingService:
                 return f"[解析PDF失败 {filename}: {e}]"
         if suffix in {"xlsx", "xls"}:
             try:
-                dfs = pd.read_excel(BytesIO(file_bytes), sheet_name=None)
+                wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
                 text_parts = []
-                for sheet_name, df in dfs.items():
+                for sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
                     text_parts.append(f"--- Sheet: {sheet_name} ---")
-                    text_parts.append(df.to_string(index=False))
+                    rows_data = []
+                    for row in ws.iter_rows(values_only=True):
+                        row_values = [str(cell) if cell is not None else "" for cell in row]
+                        if any(v.strip() for v in row_values):
+                            rows_data.append("\t".join(row_values))
+                    if rows_data:
+                        text_parts.append("\n".join(rows_data))
+                wb.close()
                 return "\n".join(text_parts)
             except Exception as e:
                 return f"[解析Excel失败 {filename}: {e}]"
