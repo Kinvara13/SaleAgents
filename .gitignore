@@ -11,3 +11,14 @@ frontend/node_modules/
 frontend/dist/
 coverage/
 
+._*
+
+backend/bid_agent.db
+backend/sale_agents.db
+backend/server.log
+logs/
+*.log
+*.egg-info/
+.run.pid
+backend/uv.lock
+

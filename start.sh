@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# -----------------------------------------------------------------------------
+# 一键启动脚本：启动 SaleAgents 后端与前端服务
+# 使用本地 SQLite 作为数据库
+# -----------------------------------------------------------------------------
+
+# 设置严格模式：遇到错误即退出
+set -e
+
+# 获取脚本所在目录的绝对路径，确保在任何地方执行都正确
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="${PROJECT_ROOT}/logs"
+PID_FILE="${PROJECT_ROOT}/.run.pid"
+
+# 创建日志目录
+mkdir -p "${LOG_DIR}"
+
+echo "========================================================="
+echo "🚀 正在启动 SaleAgents 项目..."
+echo "========================================================="
+
+# 检查是否已经在运行
+if [ -f "${PID_FILE}" ]; then
+    echo "⚠️ 发现已存在的进程锁文件 (${PID_FILE})。"
+    echo "请先执行 ./stop.sh 停止服务，或手动删除该文件。"
+    exit 1
+fi
+
+# 记录进程 ID
+> "${PID_FILE}"
+
+# ---------------------------------------------------------
+# 1. 启动后端服务 (FastAPI / Uvicorn)
+# ---------------------------------------------------------
+echo "[1/2] 正在启动后端服务 (端口: 8000)..."
+cd "${PROJECT_ROOT}/backend"
+
+# 检查并激活虚拟环境
+if [ ! -d ".venv" ]; then
+    echo "  > 未找到虚拟环境 (.venv)，正在创建..."
+    python3 -m venv .venv
+    source .venv/bin/activate
+    echo "  > 正在安装依赖..."
+    pip install -e . -q
+else
+    source .venv/bin/activate
+fi
+
+# 确保环境变量使用 SQLite
+export DATABASE_URL_OVERRIDE="sqlite:///./bid_agent.db"
+
+# 启动后端 (后台运行)
+nohup uvicorn app.main:app --reload --port 8000 > "${LOG_DIR}/backend.log" 2>&1 &
+BACKEND_PID=$!
+echo "${BACKEND_PID}" >> "${PID_FILE}"
+echo "  ✓ 后端已启动 (PID: ${BACKEND_PID})，日志: logs/backend.log"
+
+# ---------------------------------------------------------
+# 2. 启动前端服务 (Vite)
+# ---------------------------------------------------------
+echo "[2/2] 正在启动前端服务 (端口: 5173)..."
+cd "${PROJECT_ROOT}/frontend"
+
+# 检查 node_modules
+if [ ! -d "node_modules" ]; then
+    echo "  > 未找到 node_modules，正在安装前端依赖..."
+    npm install
+fi
+
+# 启动前端 (后台运行)
+nohup npm run dev > "${LOG_DIR}/frontend.log" 2>&1 &
+FRONTEND_PID=$!
+echo "${FRONTEND_PID}" >> "${PID_FILE}"
+echo "  ✓ 前端已启动 (PID: ${FRONTEND_PID})，日志: logs/frontend.log"
+
+# ---------------------------------------------------------
+echo "========================================================="
+echo "✅ 所有服务启动成功！"
+echo "🌐 前端访问地址: http://localhost:5173"
+echo "🔌 后端 API 地址: http://localhost:8000"
+echo "🛑 停止服务请执行: ./stop.sh"
+echo "========================================================="

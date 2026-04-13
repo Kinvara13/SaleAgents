@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiGetText, apiPatch, apiPost, apiPostForm } from "../lib/api";
-import { getWorkspaceData as getMockWorkspaceData } from "../data/mockApi";
+// mock data removed - use real API only
 import type {
   ExtractedField,
   GenerationJob,
@@ -152,8 +152,9 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
     }
 
     return data;
-  } catch {
-    return applyFocusedWorkspace(await getMockWorkspaceData());
+  } catch (err) {
+    console.error("Failed to load workspace data from API:", err);
+    throw new Error("后端服务未启动，请确认 API 连通后重试。");
   }
 }
 
@@ -574,6 +575,14 @@ export async function runProjectGeneration(
 export async function getLatestGenerationJob(): Promise<GenerationJob | null> {
   try {
     return await apiGet<GenerationJob>("/generation/jobs/latest");
+  } catch {
+    return null;
+  }
+}
+
+export async function getLatestGenerationJobByProject(projectId: string): Promise<GenerationJob | null> {
+  try {
+    return await apiGet<GenerationJob>(`/generation/projects/${projectId}/latest`);
   } catch {
     return null;
   }

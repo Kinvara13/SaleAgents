@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: bid-agent-postgres
+    environment:
+      POSTGRES_DB: bid_agent
+      POSTGRES_USER: bid_agent
+      POSTGRES_PASSWORD: bid_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    container_name: bid-agent-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  pgdata:
+  miniodata:

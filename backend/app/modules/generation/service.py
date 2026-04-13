@@ -507,6 +507,20 @@ class GenerationService:
             )
         return GenerationJobResponse.model_validate(job)
 
+    def get_latest_job_by_project(self, db: Session, project_id: str) -> GenerationJobResponse:
+        job = db.scalars(
+            select(GenerationJob)
+            .where(GenerationJob.project_id == project_id)
+            .order_by(GenerationJob.created_at.desc())
+            .limit(1)
+        ).first()
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No generation job found for this project.",
+            )
+        return GenerationJobResponse.model_validate(job)
+
     def list_job_sections(
         self, db: Session, job_id: str
     ) -> list[GenerationSectionResponse]:

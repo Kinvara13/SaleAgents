@@ -6,7 +6,7 @@
 
 - `backend`：FastAPI
 - `frontend`：React + Vite + TypeScript
-- `database`：PostgreSQL + pgvector 初始化脚本
+- `database`：PostgreSQL + pgvector 初始化脚本。前期使用SQLite作为本地兜底。
 - `storage/cache`：本地或现有环境中的 PostgreSQL、Redis、对象存储
 
 ## 目录结构
@@ -138,4 +138,7 @@ http://localhost:5173
 - 等待所有章节生成完毕后，点击页面右上角的 **导出为 Word**。
 - 系统会将大模型生成好的分块内容拼接成一份完整的 `.docx` 文件并下载到本地。
 
-> **提示**：如果想要使用页面左下角的悬浮球唤起 **PageAgent**（自然语言操控 UI），可以直接点击该紫蓝色悬浮球，输入“帮我新建一个商机”即可体验 AI 自动操作网页。
+> **提示**：如果想要使用页面右下角的悬浮球唤起 **PageAgent**（自然语言操控 UI），可以直接点击该紫蓝色悬浮球，输入“帮我新建一个商机”即可体验 AI 自动操作网页。
+
+
+todo：应标文件需要上传模板

@@ -243,6 +243,18 @@ export function ParsingPage({ data }: ParsingPageProps) {
     );
   };
 
+  // Helper to clean garbled file paths from zip extraction
+  const cleanSourceText = (text: string) => {
+    if (!text) return text;
+    // Match lines like === some/path/to/file.ext === or === zip -> file ===
+    return text.replace(/^===\s*(.+?)\s*===$/gm, (match, path) => {
+      const parts = path.split(' -> ');
+      const lastPart = parts[parts.length - 1];
+      const fileName = lastPart.split('/').pop()?.split('\\').pop() || lastPart;
+      return `=== ${fileName} ===`;
+    });
+  };
+
   useEffect(() => {
     if (activeSection?.title) {
       // Find the mark element and scroll it into view
@@ -263,16 +275,6 @@ export function ParsingPage({ data }: ParsingPageProps) {
         description="按项目上传招标文件，抽取资格、评分、格式和关键商务要求，再直接流向回标生成。"
         actions={
           <>
-            <Select
-              className="workspace-select"
-              value={selectedProjectId || ""}
-              onChange={(val) => setSelectedProjectId(val)}
-              options={
-                data.projectRows.length === 0
-                  ? [{ label: "暂无项目", value: "" }]
-                  : data.projectRows.map((p) => ({ label: p.name, value: p.id || "" }))
-              }
-            />
             <label className="primary-button" style={{ display: "inline-flex", alignItems: "center", cursor: isUploading ? "wait" : "pointer" }}>
               {isUploading ? (
                 <>
@@ -314,26 +316,42 @@ export function ParsingPage({ data }: ParsingPageProps) {
         }
       />
 
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: -12 }}>
+        <span style={{ fontSize: "13px", color: "rgba(139, 200, 255, 0.72)", letterSpacing: "0.06em" }}>当前项目</span>
+        <Select
+          className="workspace-select"
+          value={selectedProjectId || ""}
+          onChange={(val) => setSelectedProjectId(val)}
+          options={
+            data.projectRows.length === 0
+              ? [{ label: "暂无项目", value: "" }]
+              : data.projectRows.map((p) => ({ label: p.name, value: p.id || "" }))
+          }
+        />
+      </div>
+
       {statusMessage ? <p className="form-success">{statusMessage}</p> : null}
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
 
-      <section className="parse-layout">
-        <article className="workspace-card section-nav-card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="section-card-head" style={{ marginBottom: '16px' }}>
-            <h3>文件解析清单</h3>
+      <section className="parse-layout" style={{ display: "grid", gridTemplateColumns: "22% 1fr 22%", gap: 20 }}>
+        <aside className="workspace-card" style={{ padding: "1rem", overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>
+          <div className="section-card-head" style={{ marginBottom: "12px" }}>
+            <div>
+              <p className="eyebrow">File Tree</p>
+              <h3>文件解析清单</h3>
+            </div>
             <span className="badge">{Object.keys(groupedSections).length} 个文件</span>
           </div>
           
           {context?.debug_info && (
-            <div style={{ fontSize: '11px', color: '#a0aec0', padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', marginBottom: '8px', borderRadius: '4px' }}>
+            <div style={{ fontSize: '11px', color: '#a0aec0', padding: '6px 10px', background: 'rgba(255, 255, 255, 0.05)', marginBottom: '8px', borderRadius: '6px' }}>
               ZIP内共 {context.debug_info.total_files_in_zip} 个文件，成功解析 {context.debug_info.parsed_count} 个
               {context.debug_info.skipped_count > 0 && <span>，跳过 {context.debug_info.skipped_count} 个</span>}
             </div>
           )}
-          <div className="file-section-tree" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0', overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {Object.keys(groupedSections).length > 0 ? (
               Object.entries(groupedSections).map(([fileName, sections]) => {
-                // 如果有跳过原因，可以从 parsed_files 中找到
                 const parsedFileInfo = context?.parsed_files?.find(f => f.file_name === fileName);
                 const isSkipped = !!parsedFileInfo?.skip_reason;
                 const isUnsupported = parsedFileInfo?.parse_status === '不支持';
@@ -341,7 +359,7 @@ export function ParsingPage({ data }: ParsingPageProps) {
                 return (
                   <div key={fileName} className={`tree-file-group ${activeFileName === fileName ? 'active' : ''}`} style={{ 
                     background: 'rgba(10, 29, 50, 0.4)', 
-                    borderRadius: '6px', 
+                    borderRadius: '8px', 
                     overflow: 'hidden', 
                     border: activeFileName === fileName ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(119, 180, 255, 0.1)',
                     opacity: (isSkipped || isUnsupported) ? 0.6 : 1
@@ -350,8 +368,8 @@ export function ParsingPage({ data }: ParsingPageProps) {
                       className="tree-file-header" 
                       onClick={() => !isSkipped && !isUnsupported && handleFileSelect(fileName)}
                       style={{ 
-                        padding: '8px 12px', 
-                        fontSize: '13px', 
+                        padding: '8px 10px', 
+                        fontSize: '12px', 
                         fontWeight: 600, 
                         color: '#dce9ff', 
                         borderBottom: sections.length > 0 && !isSkipped && !isUnsupported ? '1px solid rgba(119, 180, 255, 0.1)' : 'none', 
@@ -365,12 +383,12 @@ export function ParsingPage({ data }: ParsingPageProps) {
                     >
                       <span>{getFileIcon(parsedFileInfo?.file_type || fileName.split('.').pop() || '')}</span>
                       <span style={{ flex: 1 }}>{fileName.split('/').pop() || fileName}</span>
-                      {isUnsupported && <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 'normal' }}>不支持</span>}
-                      {isSkipped && !isUnsupported && <span style={{ color: '#eab308', fontSize: '12px', fontWeight: 'normal' }}>跳过</span>}
+                      {isUnsupported && <span style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'normal' }}>不支持</span>}
+                      {isSkipped && !isUnsupported && <span style={{ color: '#eab308', fontSize: '11px', fontWeight: 'normal' }}>跳过</span>}
                     </div>
                     
                     {(!isSkipped && !isUnsupported) && (
-                      <div className="tree-file-sections" style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
                         {sections.map(section => (
                           <button
                             key={section.title}
@@ -386,13 +404,13 @@ export function ParsingPage({ data }: ParsingPageProps) {
                               borderBottom: '1px solid rgba(119, 180, 255, 0.05)', 
                               borderRadius: 0, 
                               margin: 0,
-                              padding: '8px 12px 8px 24px',
+                              padding: '6px 10px 6px 20px',
                               background: activeSection?.title === section.title && activeFileName === fileName ? 'rgba(59, 130, 246, 0.15)' : 'transparent'
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                              <strong>{section.title}</strong>
-                              <em style={{ fontSize: '11px', color: section.state === '待确认' ? '#f59e0b' : '#10b981' }}>
+                              <strong style={{ fontSize: '12px' }}>{section.title}</strong>
+                              <em style={{ fontSize: '10px', color: section.state === '待确认' ? '#f59e0b' : '#10b981' }}>
                                 {section.state}
                               </em>
                             </div>
@@ -404,57 +422,74 @@ export function ParsingPage({ data }: ParsingPageProps) {
                 );
               })
             ) : (
-              <p className="muted-caption" style={{ padding: '12px' }}>暂无解析结果，请上传招标文件。</p>
+              <p className="muted-caption" style={{ padding: '12px', fontSize: '13px' }}>暂无解析结果，请上传招标文件。</p>
             )}
           </div>
-        </article>
+        </aside>
 
-        <article className="workspace-card document-preview-card">
-          <div className="section-card-head" style={{ flexWrap: 'nowrap' }}>
-            <h3 style={{ whiteSpace: 'nowrap', margin: 0 }}>招标原文预览</h3>
-            <span className="muted-caption" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>
-              {activeSection ? `${activeSection.title} ${activeSection.page ? `/ ${activeSection.page}` : ''}` : "暂无章节"}
-            </span>
-          </div>
-          <div className="document-preview">
-            <div className="document-note">
-              <strong>解析状态</strong>
-              <p>
-                {context?.parsed_files && context.parsed_files.length > 0
-                  ? `共 ${context.parsed_files.length} 个文件，已解析 ${context.parsed_files.filter(f => f.parse_status === '已解析').length} 个`
-                  : context?.documents && context.documents.length > 0
-                    ? `${context.documents[0].file_name} · ${context.documents[0].parse_status}`
-                    : "当前项目还没有上传招标文件，先从台账页进入项目，再上传文件。"}
-              </p>
+        <main style={{ minWidth: 0 }}>
+          <article className="workspace-card" style={{ padding: "1rem", minHeight: "calc(100vh - 200px)" }}>
+            <div className="section-card-head" style={{ flexWrap: 'nowrap', marginBottom: '12px' }}>
+              <div>
+                <p className="eyebrow">Document Preview</p>
+                <h3 style={{ margin: 0 }}>招标原文预览</h3>
+              </div>
+              <span className="muted-caption" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>
+                {activeSection ? `${activeSection.title} ${activeSection.page ? `/ ${activeSection.page}` : ''}` : "暂无章节"}
+              </span>
             </div>
-            
-            <div 
-              className="document-note parsed-text-container" 
-              style={{ 
-                overflowY: 'auto',
-                maxHeight: 'calc(100vh - 380px)',
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              <strong>{activeSection ? `${activeSection.title} 原文` : '关键段落'}</strong>
-              <p>
-                {sectionSourceText 
-                  ? sectionSourceText 
-                  : context?.source_excerpt 
-                    ? renderHighlightedText(context.source_excerpt, activeSection?.title) 
-                    : "选择左侧章节查看对应原文，或上传招标文件开始解析。"}
-              </p>
+            <div style={{ 
+              padding: '16px', 
+              borderRadius: '14px', 
+              background: 'rgba(6, 20, 35, 0.74)', 
+              border: '1px solid rgba(120, 184, 255, 0.08)',
+              overflowY: 'auto',
+              overflowX: 'auto',
+              maxHeight: 'calc(100vh - 320px)'
+            }}>
+              <div style={{ 
+                padding: '12px 14px', 
+                borderRadius: '12px', 
+                background: 'rgba(17, 54, 92, 0.54)', 
+                border: '1px solid rgba(124, 189, 255, 0.14)',
+                marginBottom: '14px'
+              }}>
+                <strong style={{ fontSize: '12px', color: '#83c7ff', letterSpacing: '0.12em', textTransform: 'uppercase' }}>解析状态</strong>
+                <p style={{ margin: '8px 0 0', color: 'rgba(217, 232, 255, 0.76)', lineHeight: '1.6', fontSize: '13px' }}>
+                  {context?.parsed_files && context.parsed_files.length > 0
+                    ? `共 ${context.parsed_files.length} 个文件，已解析 ${context.parsed_files.filter(f => f.parse_status === '已解析').length} 个`
+                    : context?.documents && context.documents.length > 0
+                      ? `${context.documents[0].file_name} · ${context.documents[0].parse_status}`
+                      : "当前项目还没有上传招标文件，先从台账页进入项目，再上传文件。"}
+                </p>
+              </div>
+              
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: '1.8', color: 'rgba(216, 231, 255, 0.85)' }}>
+                <strong style={{ display: 'block', fontSize: '12px', color: '#83c7ff', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  {activeSection ? `${activeSection.title} 原文` : '关键段落'}
+                </strong>
+                <p style={{ margin: 0 }}>
+                  {sectionSourceText 
+                    ? cleanSourceText(sectionSourceText)
+                    : context?.source_excerpt 
+                      ? renderHighlightedText(cleanSourceText(context.source_excerpt), activeSection?.title) 
+                      : "选择左侧章节查看对应原文，或上传招标文件开始解析。"}
+                </p>
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
+        </main>
 
-        <article className="workspace-card field-panel-card">
-          <div className="section-card-head" style={{ flexWrap: 'nowrap' }}>
-            <h3 style={{ whiteSpace: 'nowrap', margin: 0 }}>结构化要求</h3>
-            <span className="muted-caption" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>
-              项目级字段可直接校正，随后流向回标生成
-            </span>
+        <aside className="workspace-card" style={{ padding: "1rem", overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>
+          <div className="section-card-head" style={{ flexWrap: 'nowrap', marginBottom: '12px' }}>
+            <div>
+              <p className="eyebrow">Extracted Fields</p>
+              <h3 style={{ margin: 0 }}>结构化要求</h3>
+            </div>
           </div>
+          <p className="muted-caption" style={{ fontSize: '12px', marginBottom: '12px' }}>
+            项目级字段可直接校正，随后流向回标生成
+          </p>
           <div className="field-list">
             {extractedFields.map((field) => {
               const isEditing = editingFieldLabel === field.label;
@@ -479,11 +514,11 @@ export function ParsingPage({ data }: ParsingPageProps) {
                         onChange={(event) => setEditingFieldValue(event.target.value)}
                         rows={3}
                       />
-                      <div className="review-action-row" style={{ display: "flex", gap: 12 }}>
-                        <button className="primary-button" type="button" onClick={handleSaveField} disabled={isSavingField}>
-                          {isSavingField ? "保存中..." : "保存校正"}
+                      <div className="review-action-row" style={{ display: "flex", gap: 8 }}>
+                        <button className="primary-button" type="button" onClick={handleSaveField} disabled={isSavingField} style={{ padding: '8px 12px', fontSize: '13px' }}>
+                          {isSavingField ? "保存中..." : "保存"}
                         </button>
-                        <button className="ghost-button" type="button" onClick={() => setEditingFieldLabel("")}>
+                        <button className="ghost-button" type="button" onClick={() => setEditingFieldLabel("")} style={{ padding: '8px 12px', fontSize: '13px' }}>
                           取消
                         </button>
                       </div>
@@ -491,7 +526,7 @@ export function ParsingPage({ data }: ParsingPageProps) {
                   ) : (
                     <>
                       <strong>{field.value}</strong>
-                      <button className="link-button" type="button" onClick={() => startEditField(field)}>
+                      <button className="link-button" type="button" onClick={() => startEditField(field)} style={{ fontSize: '12px' }}>
                         校正字段
                       </button>
                     </>
@@ -500,7 +535,7 @@ export function ParsingPage({ data }: ParsingPageProps) {
               );
             })}
           </div>
-        </article>
+        </aside>
       </section>
     </div>
   );

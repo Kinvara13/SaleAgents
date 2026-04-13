@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
+import { Select } from "../components/Select";
 import type { WorkspaceData } from "../types";
 import { getLatestDecisionJob, runProjectDecision, updateProject, type ProjectDecisionJob } from "../services/workspace";
 
@@ -9,9 +10,21 @@ type DecisionPageProps = {
 };
 
 export function DecisionPage({ data }: DecisionPageProps) {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const projectId = searchParams.get("projectId");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlProjectId = searchParams.get("projectId");
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
+    urlProjectId || (data.projectRows.length > 0 ? data.projectRows[0].id : undefined)
+  );
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      setSearchParams({ projectId: selectedProjectId });
+    }
+  }, [selectedProjectId, setSearchParams]);
+
+  const projectId = selectedProjectId;
 
   const [job, setJob] = useState<ProjectDecisionJob | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,18 +32,24 @@ export function DecisionPage({ data }: DecisionPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId) {
+      setJob(null);
+      return;
+    }
 
     let mounted = true;
     setLoading(true);
+    setError(null);
     getLatestDecisionJob(projectId)
       .then((res) => {
         if (mounted) setJob(res);
       })
       .catch((err) => {
-        // 404 means no job yet, which is fine.
-        if (mounted && err.message && !err.message.includes("404")) {
-          setError(err.message);
+        if (mounted) {
+          setJob(null);
+          if (err.message && !err.message.includes("404")) {
+            setError(err.message);
+          }
         }
       })
       .finally(() => {
@@ -79,80 +98,97 @@ export function DecisionPage({ data }: DecisionPageProps) {
     handleStatusChange("bid_prep", "确认应答");
   };
 
-  // 兜底逻辑：如果 URL 没有 projectId，或者没有真实 job 数据，则回退到 mock data
-  const isRealProject = !!projectId;
-  const aiReasons = isRealProject ? (job?.ai_reasons || []) : data.aiReasons;
-  const scoreCards = isRealProject ? (job?.score?.dimensions || []) : data.scoreCards;
-  const ruleHits = isRealProject ? (job?.rule_hits || []) : data.ruleHits;
-  const pendingChecks = isRealProject ? (job?.pending_checks || []) : data.pendingChecks;
-  const totalScore = isRealProject ? (job?.score?.total || 0) : 84;
+  const aiReasons = job?.ai_reasons || [];
+  const scoreCards = job?.score?.dimensions || [];
+  const ruleHits = job?.rule_hits || [];
+  const pendingChecks = job?.pending_checks || [];
+  const totalScore = job?.score?.total || 0;
 
   const vetoCount = ruleHits.filter((r) => r.level === "P0").length;
   const highRiskCount = ruleHits.filter((r) => r.level === "P1").length;
   const pendingCount = pendingChecks.length;
 
+  const selectedProjectName = data.projectRows.find(p => p.id === projectId)?.name || projectId || "";
+
   return (
     <div className="workspace-page">
       <PageHeader
         eyebrow="Response Strategy"
-        title={`应答策略 ${projectId ? ` - ${projectId}` : ""}`}
+        title="应答策略"
         description="沉淀资格门槛、评分点与风险判断，为回标编写和合同审查提供统一推进建议。"
         actions={
           <>
-            {projectId && (
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={handleRunDecision}
-                disabled={!projectId || loading}
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin" style={{ marginRight: '8px', height: '16px', width: '16px' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    大模型评估中...
-                  </>
-                ) : "刷新策略评估"}
-              </button>
-            )}
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={handleRunDecision}
+              disabled={!projectId || loading}
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin" style={{ marginRight: '8px', height: '16px', width: '16px' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  大模型评估中...
+                </>
+              ) : "刷新策略评估"}
+            </button>
             <button 
-                className="ghost-button action-btn-danger" 
-                onClick={() => handleStatusChange("lost", "放弃跟进")}
-                disabled={!projectId || isUpdatingStatus}
-              >
-                {isUpdatingStatus ? "处理中..." : "放弃跟进"}
-              </button>
-              <button 
-                className="primary-button" 
-                onClick={handleGoToGeneration} 
-                disabled={!projectId || isUpdatingStatus}
-              >
-                {isUpdatingStatus ? (
-                  <>
-                    <svg className="animate-spin" style={{ marginRight: '8px', height: '16px', width: '16px' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    流转至回标编写
-                  </>
-                ) : "确认应答并生成提纲"}
-              </button>
+              className="ghost-button action-btn-danger" 
+              onClick={() => handleStatusChange("lost", "放弃跟进")}
+              disabled={!projectId || isUpdatingStatus}
+            >
+              {isUpdatingStatus ? "处理中..." : "放弃跟进"}
+            </button>
+            <button 
+              className="primary-button" 
+              onClick={handleGoToGeneration} 
+              disabled={!projectId || isUpdatingStatus}
+            >
+              {isUpdatingStatus ? (
+                <>
+                  <svg className="animate-spin" style={{ marginRight: '8px', height: '16px', width: '16px' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  流转至回标编写
+                </>
+              ) : "确认应答并生成提纲"}
+            </button>
           </>
         }
       />
 
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: -12 }}>
+        <span style={{ fontSize: "13px", color: "rgba(139, 200, 255, 0.72)", letterSpacing: "0.06em" }}>当前项目</span>
+        <Select
+          className="workspace-select"
+          value={selectedProjectId || ""}
+          onChange={(val) => setSelectedProjectId(val)}
+          options={
+            data.projectRows.length === 0
+              ? [{ label: "暂无项目", value: "" }]
+              : data.projectRows.map((p) => ({ label: p.name, value: p.id || "" }))
+          }
+        />
+      </div>
+
       {error && (
-        <div style={{ padding: "12px", background: "#fef2f2", color: "#b91c1c", marginBottom: "24px", borderRadius: "6px" }}>
+        <div style={{ padding: "12px", background: "rgba(220, 38, 38, 0.15)", color: "#fca5a5", marginBottom: "24px", borderRadius: "14px", border: "1px solid rgba(220, 38, 38, 0.3)" }}>
           获取策略失败：{error}
         </div>
       )}
 
-      {(!job && projectId && !loading) ? (
+      {!projectId ? (
+        <div className="workspace-card" style={{ textAlign: "center", padding: "48px 24px" }}>
+          <h3>请选择项目</h3>
+          <p className="muted-caption" style={{ marginBottom: "24px" }}>在上方项目选择器中选择一个项目，查看其应答策略。</p>
+        </div>
+      ) : (!job && !loading) ? (
         <div className="workspace-card" style={{ textAlign: "center", padding: "48px 24px" }}>
           <h3>尚未生成应答策略</h3>
-          <p className="muted-caption" style={{ marginBottom: "24px" }}>当前项目还未进行提取字段评估和智能策略生成。</p>
+          <p className="muted-caption" style={{ marginBottom: "24px" }}>当前项目「{selectedProjectName}」还未进行提取字段评估和智能策略生成。</p>
           <button className="primary-button" onClick={handleRunDecision}>
             立即生成策略
           </button>

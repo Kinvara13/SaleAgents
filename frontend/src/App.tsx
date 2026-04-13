@@ -5,6 +5,7 @@ import { PageAgentFab } from "./components/PageAgentFab";
 import { Sidebar } from "./components/Sidebar";
 import { DecisionPage } from "./pages/DecisionPage";
 import { GenerationPage } from "./pages/GenerationPage";
+import { LogsPage } from "./pages/LogsPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ParsingPage } from "./pages/ParsingPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -109,6 +110,7 @@ export default function App() {
               }
             />
             <Route path="/llm-config" element={<LLMConfigPage />} />
+            <Route path="/logs" element={<LogsPage />} />
           </Routes>
         </main>
         <PageAgentFab />

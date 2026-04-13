@@ -15,69 +15,8 @@ from app.schemas.workspace import (
 
 
 def build_default_projects() -> list[ProjectSummary]:
-    return [
-        ProjectSummary(
-            id="project-001",
-            name="智慧园区安防平台建设项目",
-            status="待决策",
-            owner="张敏",
-            client="海岚科技",
-            deadline="03-24 18:00",
-            amount="¥ 420 万",
-            risk="P1",
-            module_progress={
-                "decision": "ready",
-                "generation": "blocked",
-                "review": "pending",
-            },
-        ),
-        ProjectSummary(
-            id="project-002",
-            name="城市云网融合支撑平台采购",
-            status="生成中",
-            owner="王凯",
-            client="星瀚信息",
-            deadline="03-27 09:30",
-            amount="¥ 860 万",
-            risk="P2",
-            module_progress={
-                "decision": "done",
-                "generation": "in_progress",
-                "review": "pending",
-            },
-        ),
-        ProjectSummary(
-            id="project-003",
-            name="智慧能源运营中心升级项目",
-            status="审核中",
-            owner="陈雨",
-            client="辰曜能源",
-            deadline="03-29 17:00",
-            amount="¥ 510 万",
-            risk="P0",
-            module_progress={
-                "decision": "done",
-                "generation": "done",
-                "review": "in_progress",
-            },
-        ),
-        ProjectSummary(
-            id="project-004",
-            name="工业互联网边缘节点扩容",
-            status="已立项",
-            owner="李卓",
-            client="北辰制造",
-            deadline="04-01 14:00",
-            amount="¥ 300 万",
-            risk="P3",
-            module_progress={
-                "decision": "done",
-                "generation": "pending",
-                "review": "pending",
-            },
-        ),
-    ]
-
+    # mock 假数据已清除，仅保留真实项目
+    return []
 
 def build_default_workspace() -> WorkspaceData:
     return WorkspaceData(

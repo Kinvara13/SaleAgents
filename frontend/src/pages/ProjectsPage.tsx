@@ -91,7 +91,7 @@ export function ProjectsPage({ data, onProjectCreated }: ProjectsPageProps) {
         }
       />
 
-      <section className="mini-metric-grid">
+      <section className="mini-metric-grid mini-metric-horizontal">
         {data.projectStats.map((item) => (
           <article key={item.label} className={`mini-metric mini-metric-${item.tone}`}>
             <span>{item.label}</span>

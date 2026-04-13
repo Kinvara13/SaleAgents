@@ -193,6 +193,11 @@ def get_latest_generation_job(db: Session = Depends(get_db)) -> GenerationJobRes
     return generation_service.get_latest_job(db)
 
 
+@router.get("/projects/{project_id}/latest", response_model=GenerationJobResponse)
+def get_latest_generation_job_by_project(project_id: str, db: Session = Depends(get_db)) -> GenerationJobResponse:
+    return generation_service.get_latest_job_by_project(db, project_id)
+
+
 @router.get("/jobs/{job_id}", response_model=GenerationJobResponse)
 def get_generation_job(job_id: str, db: Session = Depends(get_db)) -> GenerationJobResponse:
     return generation_service.get_job(db, job_id)
