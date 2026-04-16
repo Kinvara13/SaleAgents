@@ -38,10 +38,16 @@ cd "${PROJECT_ROOT}/backend"
 # 检查并激活虚拟环境
 if [ ! -d ".venv" ]; then
     echo "  > 未找到虚拟环境 (.venv)，正在创建..."
-    python3 -m venv .venv
+    # 使用 Python 3.11（如果可用）
+    if command -v python3.11 &> /dev/null; then
+        python3.11 -m venv .venv
+    else
+        python3 -m venv .venv
+    fi
     source .venv/bin/activate
     echo "  > 正在安装依赖..."
-    pip install -e . -q
+    pip install --upgrade pip setuptools wheel -q
+    pip install -r requirements.txt uvicorn -q
 else
     source .venv/bin/activate
 fi
