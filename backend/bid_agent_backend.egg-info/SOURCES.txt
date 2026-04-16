@@ -69,6 +69,7 @@ app/services/object_storage.py
 app/services/parsing_service.py
 app/services/rule_config_service.py
 app/services/workspace_service.py
+bid_agent_backend.egg-info/._PKG-INFO
 bid_agent_backend.egg-info/._SOURCES.txt
 bid_agent_backend.egg-info/._dependency_links.txt
 bid_agent_backend.egg-info/._requires.txt

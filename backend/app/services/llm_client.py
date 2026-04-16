@@ -33,26 +33,68 @@ class _BaseLLMClient:
             return provider.model
         return settings.llm_model
 
-    def _build_client(self):
-        try:
-            from openai import OpenAI
-        except ImportError as exc:  # pragma: no cover - depends on runtime install state
-            raise RuntimeError("openai package is not installed.") from exc
-
+    def _chat_completion(self, system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 2048) -> str | None:
         provider = self._get_active_provider()
         
         if provider:
             base_url = (provider.base_url or "").strip() or None
             api_key = (provider.api_key or "").strip()
+            model = provider.model
+            protocol = getattr(provider, "protocol", "openai")
         else:
             base_url = (settings.llm_base_url or "").strip() or None
             api_key = (settings.llm_api_key or "").strip()
+            model = settings.llm_model
+            protocol = "openai"
 
-        return OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=float(settings.llm_timeout_seconds),
-        )
+        if protocol == "anthropic":
+            import httpx
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            url = base_url or "https://api.anthropic.com/v1"
+            if not url.endswith("/messages"):
+                url = url.rstrip("/") + "/messages"
+                
+            payload = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system_prompt,
+                "messages": [
+                    {"role": "user", "content": user_prompt}
+                ]
+            }
+            
+            response = httpx.post(url, headers=headers, json=payload, timeout=float(settings.llm_timeout_seconds))
+            response.raise_for_status()
+            data = response.json()
+            return data.get("content", [{}])[0].get("text", "")
+            
+        else: # openai
+            try:
+                from openai import OpenAI
+            except ImportError as exc:
+                raise RuntimeError("openai package is not installed.") from exc
+
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=float(settings.llm_timeout_seconds),
+            )
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content
 
     def _parse_json_payload(self, content: str) -> dict[str, Any]:
         candidate = content.strip()
@@ -91,17 +133,13 @@ class LLMReviewClient(_BaseLLMClient):
         )
 
         try:
-            client = self._build_client()
-            response = client.chat.completions.create(
-                model=self.current_model,
-                messages=[
-                    {"role": "system", "content": self._system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
+            content = self._chat_completion(
+                system_prompt=self._system_prompt(),
+                user_prompt=prompt,
                 temperature=0.3,
                 max_tokens=2048,
             )
-            content = (response.choices[0].message.content or "").strip()
+            content = (content or "").strip()
             if not content:
                 logger.warning("LLM semantic review returned empty content.")
                 return []
@@ -261,17 +299,13 @@ class LLMGenerationClient(_BaseLLMClient):
         )
 
         try:
-            client = self._build_client()
-            response = client.chat.completions.create(
-                model=self.current_model,
-                messages=[
-                    {"role": "system", "content": self._system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
+            content = self._chat_completion(
+                system_prompt=self._system_prompt(),
+                user_prompt=prompt,
                 temperature=0.3,
                 max_tokens=2048,
             )
-            content = (response.choices[0].message.content or "").strip()
+            content = (content or "").strip()
             if not content:
                 logger.warning("LLM bid generation returned empty content for section %s.", section_title)
                 return None
@@ -380,17 +414,13 @@ class LLMGenerationClient(_BaseLLMClient):
         )
 
         try:
-            client = self._build_client()
-            response = client.chat.completions.create(
-                model=self.current_model,
-                messages=[
-                    {"role": "system", "content": "你是企业投标文件修订助手。你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。不得编造资质、案例、参数或商务承诺。输出必须是 JSON 对象。"},
-                    {"role": "user", "content": prompt},
-                ],
+            content = self._chat_completion(
+                system_prompt="你是企业投标文件修订助手。你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。不得编造资质、案例、参数或商务承诺。输出必须是 JSON 对象。",
+                user_prompt=prompt,
                 temperature=0.3,
                 max_tokens=2048,
             )
-            content = (response.choices[0].message.content or "").strip()
+            content = (content or "").strip()
             if not content:
                 return None
             payload = self._parse_json_payload(content)
@@ -422,17 +452,13 @@ class LLMDecisionClient(_BaseLLMClient):
         )
 
         try:
-            client = self._build_client()
-            response = client.chat.completions.create(
-                model=self.current_model,
-                messages=[
-                    {"role": "system", "content": self._system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
+            content = self._chat_completion(
+                system_prompt=self._system_prompt(),
+                user_prompt=prompt,
                 temperature=0.3,
                 max_tokens=2048,
             )
-            content = (response.choices[0].message.content or "").strip()
+            content = (content or "").strip()
             if not content:
                 logger.warning("LLM decision evaluation returned empty content.")
                 return None

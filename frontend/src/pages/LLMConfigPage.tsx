@@ -8,6 +8,7 @@ interface LLMProvider {
   base_url: string;
   api_key_masked: string;
   model: string;
+  protocol: string;
 }
 
 interface LLMConfig {
@@ -16,10 +17,12 @@ interface LLMConfig {
 }
 
 interface NewProvider {
+  id?: string;
   name: string;
   base_url: string;
   api_key: string;
   model: string;
+  protocol: string;
 }
 
 const API_BASE = "/api/v1";
@@ -30,16 +33,16 @@ export function LLMConfigPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "" });
+  const [addForm, setAddForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
   const [addSaving, setAddSaving] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
-  const [editForm, setEditForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "" });
+  const [editForm, setEditForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
   const [editSaving, setEditSaving] = useState(false);
 
   const [testModal, setTestModal] = useState<{ open: boolean; provider?: LLMProvider }>({ open: false });
-  const [testForm, setTestForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "" });
+  const [testForm, setTestForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; response_time_ms?: number } | null>(null);
 
@@ -73,7 +76,7 @@ export function LLMConfigPage() {
       if (!res.ok) throw new Error("Failed to add");
       await fetchConfig();
       setIsAddModalOpen(false);
-      setAddForm({ name: "", base_url: "", api_key: "", model: "" });
+      setAddForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
     } catch {
       setError("添加失败");
     } finally {
@@ -107,6 +110,7 @@ export function LLMConfigPage() {
       base_url: provider.base_url,
       api_key: "",
       model: provider.model,
+      protocol: provider.protocol || "openai",
     });
     setIsEditModalOpen(true);
   }
@@ -120,6 +124,7 @@ export function LLMConfigPage() {
         name: editForm.name,
         base_url: editForm.base_url,
         model: editForm.model,
+        protocol: editForm.protocol,
       };
       if (editForm.api_key.trim()) {
         payload.api_key = editForm.api_key;
@@ -133,7 +138,7 @@ export function LLMConfigPage() {
       await fetchConfig();
       setIsEditModalOpen(false);
       setEditingProvider(null);
-      setEditForm({ name: "", base_url: "", api_key: "", model: "" });
+      setEditForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
     } catch {
       setError("修改失败");
     } finally {
@@ -143,9 +148,9 @@ export function LLMConfigPage() {
 
   function openTestModal(provider?: LLMProvider) {
     if (provider) {
-      setTestForm({ name: provider.name, base_url: provider.base_url, api_key: "", model: provider.model });
+      setTestForm({ id: provider.id, name: provider.name, base_url: provider.base_url, api_key: "", model: provider.model, protocol: provider.protocol || "openai" });
     } else {
-      setTestForm({ name: "", base_url: "", api_key: "", model: "" });
+      setTestForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" });
     }
     setTestResult(null);
     setTestModal({ open: true, provider });
@@ -219,6 +224,10 @@ export function LLMConfigPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "8px" }}>
                   <div style={{ fontSize: "0.85rem" }}>
+                    <span style={{ color: "#64748b" }}>协议：</span>
+                    <span style={{ color: "#dce9ff", fontFamily: "monospace" }}>{provider.protocol === "anthropic" ? "Anthropic" : "OpenAI"}</span>
+                  </div>
+                  <div style={{ fontSize: "0.85rem" }}>
                     <span style={{ color: "#64748b" }}>模型：</span>
                     <span style={{ color: "#dce9ff", fontFamily: "monospace" }}>{provider.model}</span>
                   </div>
@@ -258,10 +267,10 @@ export function LLMConfigPage() {
         isOpen={isAddModalOpen}
         title="添加模型"
         maxWidth="520px"
-        onClose={() => { setIsAddModalOpen(false); setAddForm({ name: "", base_url: "", api_key: "", model: "" }); }}
+        onClose={() => { setIsAddModalOpen(false); setAddForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" }); }}
         footer={
           <>
-            <button className="ghost-button" onClick={() => { setIsAddModalOpen(false); setAddForm({ name: "", base_url: "", api_key: "", model: "" }); }}>
+            <button className="ghost-button" onClick={() => { setIsAddModalOpen(false); setAddForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" }); }}>
               取消
             </button>
             <button className="primary-button" form="add-model-form" type="submit" disabled={addSaving}>
@@ -276,8 +285,19 @@ export function LLMConfigPage() {
             <input type="text" placeholder="例如：小米 Mimo" value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} required />
           </label>
           <label className="form-field">
+            <span>协议类型</span>
+            <Select 
+              value={addForm.protocol} 
+              onChange={(val) => setAddForm({ ...addForm, protocol: val })}
+              options={[
+                { value: "openai", label: "OpenAI 兼容协议" },
+                { value: "anthropic", label: "Anthropic (Messages) 协议" }
+              ]}
+            />
+          </label>
+          <label className="form-field">
             <span>API Base URL</span>
-            <input type="text" placeholder="https://api.example.com/v1" value={addForm.base_url} onChange={(e) => setAddForm({ ...addForm, base_url: e.target.value })} required />
+            <input type="text" placeholder={addForm.protocol === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.example.com/v1"} value={addForm.base_url} onChange={(e) => setAddForm({ ...addForm, base_url: e.target.value })} required />
           </label>
           <label className="form-field">
             <span>API Key</span>
@@ -285,7 +305,7 @@ export function LLMConfigPage() {
           </label>
           <label className="form-field">
             <span>模型名称</span>
-            <input type="text" placeholder="例如：gpt-4o、mimo-v2-pro" value={addForm.model} onChange={(e) => setAddForm({ ...addForm, model: e.target.value })} required />
+            <input type="text" placeholder="例如：gpt-4o、claude-3-5-sonnet" value={addForm.model} onChange={(e) => setAddForm({ ...addForm, model: e.target.value })} required />
           </label>
         </form>
       </Modal>
@@ -295,10 +315,10 @@ export function LLMConfigPage() {
         isOpen={isEditModalOpen}
         title={`编辑模型：${editingProvider?.name || ""}`}
         maxWidth="520px"
-        onClose={() => { setIsEditModalOpen(false); setEditingProvider(null); setEditForm({ name: "", base_url: "", api_key: "", model: "" }); }}
+        onClose={() => { setIsEditModalOpen(false); setEditingProvider(null); setEditForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" }); }}
         footer={
           <>
-            <button className="ghost-button" onClick={() => { setIsEditModalOpen(false); setEditingProvider(null); setEditForm({ name: "", base_url: "", api_key: "", model: "" }); }}>
+            <button className="ghost-button" onClick={() => { setIsEditModalOpen(false); setEditingProvider(null); setEditForm({ name: "", base_url: "", api_key: "", model: "", protocol: "openai" }); }}>
               取消
             </button>
             <button className="primary-button" form="edit-model-form" type="submit" disabled={editSaving}>
@@ -311,6 +331,17 @@ export function LLMConfigPage() {
           <label className="form-field">
             <span>配置名称</span>
             <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+          </label>
+          <label className="form-field">
+            <span>协议类型</span>
+            <Select 
+              value={editForm.protocol} 
+              onChange={(val) => setEditForm({ ...editForm, protocol: val })}
+              options={[
+                { value: "openai", label: "OpenAI 兼容协议" },
+                { value: "anthropic", label: "Anthropic (Messages) 协议" }
+              ]}
+            />
           </label>
           <label className="form-field">
             <span>API Base URL</span>
@@ -346,12 +377,23 @@ export function LLMConfigPage() {
       >
         <form id="test-model-form" onSubmit={handleTest} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <label className="form-field">
-            <span>API Base URL</span>
-            <input type="text" placeholder="https://api.example.com/v1" value={testForm.base_url} onChange={(e) => setTestForm({ ...testForm, base_url: e.target.value })} required />
+            <span>协议类型</span>
+            <Select 
+              value={testForm.protocol} 
+              onChange={(val) => setTestForm({ ...testForm, protocol: val })}
+              options={[
+                { value: "openai", label: "OpenAI 兼容协议" },
+                { value: "anthropic", label: "Anthropic (Messages) 协议" }
+              ]}
+            />
           </label>
           <label className="form-field">
-            <span>API Key</span>
-            <input type="password" placeholder="sk-..." value={testForm.api_key} onChange={(e) => setTestForm({ ...testForm, api_key: e.target.value })} required />
+            <span>API Base URL</span>
+            <input type="text" placeholder={testForm.protocol === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.example.com/v1"} value={testForm.base_url} onChange={(e) => setTestForm({ ...testForm, base_url: e.target.value })} required />
+          </label>
+          <label className="form-field">
+            <span>API Key {testModal.provider && <em style={{ fontSize: "0.8em", color: "#64748b" }}>（留空则使用已保存的密钥）</em>}</span>
+            <input type="password" placeholder="sk-..." value={testForm.api_key} onChange={(e) => setTestForm({ ...testForm, api_key: e.target.value })} required={!testModal.provider} />
           </label>
           <label className="form-field">
             <span>模型名称</span>

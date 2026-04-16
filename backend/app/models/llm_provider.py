@@ -14,6 +14,7 @@ class LLMProviderModel(Base):
     base_url: Mapped[str] = mapped_column(String(255), nullable=False)
     api_key: Mapped[str] = mapped_column(String(255), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
+    protocol: Mapped[str] = mapped_column(String(64), nullable=False, default="openai")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

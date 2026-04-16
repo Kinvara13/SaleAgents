@@ -85,6 +85,7 @@ def initialize_database(db: Session) -> None:
                         base_url=p.get("base_url"),
                         api_key=p.get("api_key"),
                         model=p.get("model"),
+                        protocol=p.get("protocol", "openai"),
                         is_active=(p.get("id") == active_id)
                     ))
             import os
