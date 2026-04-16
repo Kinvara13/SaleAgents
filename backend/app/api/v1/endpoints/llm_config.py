@@ -12,7 +12,7 @@ class LLMProvider(BaseModel):
     id: str | None = None
     name: str
     base_url: str
-    api_key: str
+    api_key: str = ""
     model: str
     protocol: str = "openai"
 

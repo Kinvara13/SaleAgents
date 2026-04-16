@@ -125,10 +125,8 @@ export function LLMConfigPage() {
         base_url: editForm.base_url,
         model: editForm.model,
         protocol: editForm.protocol,
+        api_key: editForm.api_key.trim(),
       };
-      if (editForm.api_key.trim()) {
-        payload.api_key = editForm.api_key;
-      }
       const res = await fetch(`${API_BASE}/llm-config/${editingProvider.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
