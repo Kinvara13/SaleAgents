@@ -38,6 +38,11 @@ export function LLMConfigPage() {
   const [editForm, setEditForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "" });
   const [editSaving, setEditSaving] = useState(false);
 
+  const [testModal, setTestModal] = useState<{ open: boolean; provider?: LLMProvider }>({ open: false });
+  const [testForm, setTestForm] = useState<NewProvider>({ name: "", base_url: "", api_key: "", model: "" });
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; response_time_ms?: number } | null>(null);
+
   useEffect(() => {
     fetchConfig();
   }, []);
@@ -136,6 +141,35 @@ export function LLMConfigPage() {
     }
   }
 
+  function openTestModal(provider?: LLMProvider) {
+    if (provider) {
+      setTestForm({ name: provider.name, base_url: provider.base_url, api_key: "", model: provider.model });
+    } else {
+      setTestForm({ name: "", base_url: "", api_key: "", model: "" });
+    }
+    setTestResult(null);
+    setTestModal({ open: true, provider });
+  }
+
+  async function handleTest(e: React.FormEvent) {
+    e.preventDefault();
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/llm-config/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testForm),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ success: false, message: "测试请求失败，请检查网络" });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   if (loading) return <div className="page-loading">加载中...</div>;
 
   return (
@@ -199,6 +233,9 @@ export function LLMConfigPage() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: "8px", marginLeft: "16px" }}>
+                <button className="primary-button" style={{ padding: "6px 14px", fontSize: "0.8rem", background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", color: "#34d399" }} onClick={() => openTestModal(provider)}>
+                  测试
+                </button>
                 {config.active_provider_id !== provider.id && (
                   <button className="primary-button" style={{ padding: "6px 14px", fontSize: "0.8rem" }} onClick={() => handleActivate(provider.id)}>
                     激活
@@ -288,6 +325,64 @@ export function LLMConfigPage() {
             <input type="text" value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} required />
           </label>
         </form>
+      </Modal>
+
+      {/* 测试模型弹窗 */}
+      <Modal
+        isOpen={testModal.open}
+        title="测试模型连接"
+        maxWidth="520px"
+        onClose={() => { setTestModal({ open: false }); setTestResult(null); }}
+        footer={
+          <>
+            <button className="ghost-button" onClick={() => { setTestModal({ open: false }); setTestResult(null); }}>
+              关闭
+            </button>
+            <button className="primary-button" form="test-model-form" type="submit" disabled={testing} style={{ background: testing ? "rgba(16,185,129,0.5)" : "rgba(16,185,129,0.8)", borderColor: "rgba(16,185,129,0.4)" }}>
+              {testing ? "测试中..." : "开始测试"}
+            </button>
+          </>
+        }
+      >
+        <form id="test-model-form" onSubmit={handleTest} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <label className="form-field">
+            <span>API Base URL</span>
+            <input type="text" placeholder="https://api.example.com/v1" value={testForm.base_url} onChange={(e) => setTestForm({ ...testForm, base_url: e.target.value })} required />
+          </label>
+          <label className="form-field">
+            <span>API Key</span>
+            <input type="password" placeholder="sk-..." value={testForm.api_key} onChange={(e) => setTestForm({ ...testForm, api_key: e.target.value })} required />
+          </label>
+          <label className="form-field">
+            <span>模型名称</span>
+            <input type="text" placeholder="例如：gpt-4o、mimo-v2-pro" value={testForm.model} onChange={(e) => setTestForm({ ...testForm, model: e.target.value })} required />
+          </label>
+        </form>
+
+        {testResult && (
+          <div style={{
+            marginTop: "12px",
+            padding: "14px 16px",
+            borderRadius: "8px",
+            background: testResult.success ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+            border: `1px solid ${testResult.success ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`,
+            color: testResult.success ? "#34d399" : "#ef4444",
+            fontSize: "0.9rem",
+            lineHeight: "1.5",
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: "6px" }}>
+              {testResult.success ? "✅ 测试成功" : "❌ 测试失败"}
+            </div>
+            <div style={{ color: testResult.success ? "#a7f3d0" : "#fca5a5", wordBreak: "break-all" }}>
+              {testResult.message}
+            </div>
+            {testResult.response_time_ms && (
+              <div style={{ marginTop: "6px", fontSize: "0.8rem", opacity: 0.7 }}>
+                响应耗时：{testResult.response_time_ms}ms
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
