@@ -86,6 +86,7 @@ class GenerationContext:
     generation_todos: list[str]
     parse_sections: list[str]
     extracted_fields: dict[str, str]
+    technical_spec_text: str = ""
 
 
 class GenerationService:
@@ -151,7 +152,8 @@ class GenerationService:
     ) -> GenerationProjectContextResponse:
         project = self._get_project(db, project_id)
         extracted_fields = parsing_service.project_fields_map(db, project_id)
-        parse_sections = [item.title for item in parsing_service.get_project_context(db, project_id).parse_sections]
+        parsing_context = parsing_service.get_project_context(db, project_id)
+        parse_sections = [item.title for item in parsing_context.parse_sections]
         preferences = self.get_project_asset_preferences(db, project_id)
         if not extracted_fields:
             extracted_fields = {item.label: item.value for item in get_extracted_fields(db)}
@@ -201,6 +203,7 @@ class GenerationService:
             section_titles=list(DEFAULT_SECTION_TITLES["标准回标模板"]),
             fixed_asset_titles=preferences.fixed_asset_titles,
             excluded_asset_titles=preferences.excluded_asset_titles,
+            source_excerpt=parsing_context.source_excerpt or "",
         )
 
     def create_job_from_project(
@@ -791,6 +794,7 @@ class GenerationService:
             generation_todos=get_generation_todos(db),
             parse_sections=[item.title for item in get_parse_sections(db)],
             extracted_fields=extracted_fields,
+            technical_spec_text=payload.technical_spec_text or "",
         )
 
     def _build_context_from_job(self, db: Session, job: GenerationJob | GenerationJobResponse) -> GenerationContext:
@@ -809,6 +813,7 @@ class GenerationService:
                     service_commitment=project_context.service_commitment,
                     selected_asset_titles=project_context.selected_asset_titles,
                     section_titles=project_context.section_titles,
+                    technical_spec_text=project_context.source_excerpt or "",
                 ),
             )
         return self._build_context(
@@ -817,6 +822,7 @@ class GenerationService:
                 project_id=job.project_id,
                 project_name=job.project_name,
                 template_name=job.template_name,
+                technical_spec_text=project_context.source_excerpt or "",
             ),
         )
 
@@ -842,6 +848,50 @@ class GenerationService:
         if title == "商务偏离说明":
             return self._render_business_response(context, routed_assets) + score_focus
         return self._render_generic_section(title, context, section_no, routed_assets) + score_focus
+
+    def _extract_relevant_spec_text(self, full_text: str, section_title: str) -> str:
+        """从招标原文（34K字）提取与当前章节最相关的段落（约3K字）。"""
+        if not full_text or len(full_text) <= 6000:
+            return full_text
+        # 每个章节对应的关键词
+        keywords_by_section = {
+            "总体技术方案": ["技术", "功能", "架构", "模块", "接口", "性能", "指标", "部署", "安全", "网络", "服务器", "数据库", "系统接口", "数据", "分析", "管理"],
+            "项目理解与建设目标": ["项目", "背景", "目标", "需求", "概述", "内容", "范围"],
+            "实施计划与里程碑": ["实施", "交付", "工期", "周期", "验收", "里程碑", "计划", "调试", "测试", "上线", "培训", "部署"],
+            "售后服务方案": ["服务", "售后", "维保", "质保", "响应", "SLA", "故障", "维护", "支持"],
+            "商务偏离说明": ["商务", "付款", "报价", "价格", "合同", "偏离", "资质"],
+            "公司概况与资质": ["资质", "案例", "业绩", "公司", "证书", "业绩", "团队", "能力"],
+        }
+        # 通用关键词（所有章节都关注）
+        general_keywords = ["★", "实质性", "必须", "要求", "主要", "关键", "核心"]
+        keywords = keywords_by_section.get(section_title, general_keywords)
+        # 提取包含关键词的段落
+        import re
+        paragraphs = re.split(r"\n(?=\S)", full_text)
+        scored = []
+        for para in paragraphs:
+            if len(para.strip()) < 30:
+                continue
+            score = sum(1 for kw in keywords if kw in para)
+            score += sum(0.5 for kw in general_keywords if kw in para)
+            # 包含长技术描述的段落优先
+            if len(para) > 200:
+                score += 1
+            if score > 0:
+                scored.append((score, len(para), para))
+        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        result_lines = []
+        char_count = 0
+        max_chars = 4000
+        for score, length, para in scored:
+            if char_count + length > max_chars:
+                break
+            result_lines.append(para)
+            char_count += length + 2
+        if not result_lines:
+            # 没有匹配则取前6K字
+            return full_text[:6000]
+        return "\n\n".join(result_lines)
 
     def _render_project_understanding(self, context: GenerationContext, routed_assets: list[RoutedAsset]) -> str:
         summary = context.project_summary or "当前项目以招标文件要求为主线，需形成覆盖技术、交付和服务承诺的完整应答。"
@@ -1007,6 +1057,7 @@ class GenerationService:
             selected_assets=routed_asset_payloads or context.selected_assets,
             extracted_fields=context.extracted_fields,
             generation_todos=context.generation_todos,
+            technical_spec_text=self._extract_relevant_spec_text(context.technical_spec_text, title),
         )
         if generated is not None:
             return {

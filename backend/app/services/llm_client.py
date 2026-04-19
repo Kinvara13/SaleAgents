@@ -35,7 +35,7 @@ class _BaseLLMClient:
 
     def _chat_completion(self, system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 2048) -> str | None:
         provider = self._get_active_provider()
-        
+
         if provider:
             base_url = (provider.base_url or "").strip() or None
             api_key = (provider.api_key or "").strip()
@@ -57,7 +57,7 @@ class _BaseLLMClient:
             url = base_url or "https://api.anthropic.com/v1"
             if not url.endswith("/messages"):
                 url = url.rstrip("/") + "/messages"
-                
+
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
@@ -67,12 +67,12 @@ class _BaseLLMClient:
                     {"role": "user", "content": user_prompt}
                 ]
             }
-            
+
             response = httpx.post(url, headers=headers, json=payload, timeout=float(settings.llm_timeout_seconds))
             response.raise_for_status()
             data = response.json()
             return data.get("content", [{}])[0].get("text", "")
-            
+
         else: # openai
             try:
                 from openai import OpenAI
@@ -153,9 +153,9 @@ class LLMReviewClient(_BaseLLMClient):
         return (
             "你是资深企业法务审查助手。"
             "你的任务是补充规则引擎没有稳定覆盖的语义风险。"
-            "只基于给定合同条款输出高置信度问题，不要臆造条款，不要泛泛而谈。"
+            "只基于给定合同条款输出高置信度问题,不要臆造条款,不要泛泛而谈。"
             "重点识别模糊责任、隐含范围扩张、单方变更、绝对结果承诺、缺少前置条件或免责边界。"
-            "输出必须是 JSON 对象，不要带 Markdown 代码块。"
+            "输出必须是 JSON 对象,不要带 Markdown 代码块。"
         )
 
     def _build_prompt(
@@ -192,14 +192,14 @@ class LLMReviewClient(_BaseLLMClient):
         }
 
         return (
-            f"合同名称：{contract_name}\n"
-            f"合同类型：{contract_type}\n"
-            f"已由规则引擎命中的问题标题：{json.dumps(existing_rule_titles, ensure_ascii=False)}\n"
-            f"请补充最多 {max_issues} 条“规则之外”的语义风险，避免重复已有规则结论。\n"
-            "优先输出高价值问题；如果没有明确语义风险，则返回 {\"issues\":[]}。\n"
-            "返回字段要求：\n"
+            f"合同名称:{contract_name}\n"
+            f"合同类型:{contract_type}\n"
+            f"已由规则引擎命中的问题标题:{json.dumps(existing_rule_titles, ensure_ascii=False)}\n"
+            f"请补充最多 {max_issues} 条『规则之外』的语义风险,避免重复已有规则结论。\n"
+            "优先输出高价值问题;如果没有明确语义风险,则返回 {\"issues\":[]}。\n"
+            "返回字段要求:\n"
             f"{json.dumps(schema, ensure_ascii=False)}\n"
-            "合同条款如下：\n"
+            "合同条款如下:\n"
             f"{chr(10).join(clause_lines)}"
         )
 
@@ -281,6 +281,7 @@ class LLMGenerationClient(_BaseLLMClient):
         selected_assets: list[str],
         extracted_fields: dict[str, str],
         generation_todos: list[str],
+        technical_spec_text: str = "",
     ) -> dict[str, Any] | None:
         if not self.is_llm_ready:
             return None
@@ -296,6 +297,7 @@ class LLMGenerationClient(_BaseLLMClient):
             selected_assets=selected_assets,
             extracted_fields=extracted_fields,
             generation_todos=generation_todos,
+            technical_spec_text=technical_spec_text,
         )
 
         try:
@@ -303,7 +305,7 @@ class LLMGenerationClient(_BaseLLMClient):
                 system_prompt=self._system_prompt(),
                 user_prompt=prompt,
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=4096,
             )
             content = (content or "").strip()
             if not content:
@@ -319,7 +321,9 @@ class LLMGenerationClient(_BaseLLMClient):
         return (
             "你是企业投标文件编写助手。"
             "你的任务是根据项目摘要、招标要求、交付约束和可选素材，生成单个回标章节。"
-            "内容必须专业、克制、可直接进入正式回标文件。"
+            "内容必须专业、详尽、可直接进入正式回标文件。"
+            "技术方案章节必须包含：子章节标题、架构描述、功能说明、接口说明、关键技术参数。"
+            "商务/实施章节必须包含：具体条款、分级标准、执行流程、责任矩阵。"
             "不要虚构资质、业绩、参数或客户事实；不确定的信息只能写成待补充或建议补充。"
             "输出必须是 JSON 对象，不要带 Markdown 代码块。"
         )
@@ -337,26 +341,36 @@ class LLMGenerationClient(_BaseLLMClient):
         selected_assets: list[str],
         extracted_fields: dict[str, str],
         generation_todos: list[str],
+        technical_spec_text: str = "",
     ) -> str:
         schema = {
-            "content": "使用 Markdown 的章节正文，必须以二级标题开头，例如 ## 总体技术方案",
+            "content": "使用 Markdown 的章节正文,必须以二级标题开头,例如 ## 总体技术方案",
             "citations": 3,
             "todos": 1,
         }
 
+        spec_section = (
+            f"技术规范原文摘录（优先从中提取技术要求、功能描述、接口规范）：\n{technical_spec_text[:8000]}\n"
+            if technical_spec_text
+            else ""
+        )
+
         return (
-            f"项目名称：{project_name}\n"
-            f"客户名称：{client_name}\n"
-            f"章节标题：{section_title}\n"
-            f"项目摘要：{project_summary or '待补充'}\n"
-            f"招标要求：{tender_requirements or '待补充'}\n"
-            f"交付时限：{delivery_deadline or '待补充'}\n"
-            f"服务承诺：{service_commitment or '待补充'}\n"
-            f"可引用素材：{json.dumps(selected_assets, ensure_ascii=False)}\n"
-            f"抽取字段：{json.dumps(extracted_fields, ensure_ascii=False)}\n"
-            f"待确认事项：{json.dumps(generation_todos[:5], ensure_ascii=False)}\n"
+            f"项目名称:{project_name}\n"
+            f"客户名称:{client_name}\n"
+            f"章节标题:{section_title}\n"
+            f"项目摘要:{project_summary or '待补充'}\n"
+            f"招标要求:{tender_requirements or '待补充'}\n"
+            f"交付时限:{delivery_deadline or '待补充'}\n"
+            f"服务承诺:{service_commitment or '待补充'}\n"
+            f"可引用素材:{json.dumps(selected_assets, ensure_ascii=False)}\n"
+            f"抽取字段:{json.dumps(extracted_fields, ensure_ascii=False)}\n"
+            f"待确认事项:{json.dumps(generation_todos[:5], ensure_ascii=False)}\n"
+            + spec_section +
             "请只生成当前这个章节，不要输出整份标书。"
-            "如果输入不足，请在内容中明确标出“待补充”，不要编造。"
+            "如果输入不足，请在内容中明确标出『待补充』，不要编造。"
+            "章节正文必须包含三级以上子标题（###），每个子章节必须有实质性内容（不少于100字）。"
+            "技术方案章节每个功能点必须包含：功能名称、技术描述、实现方式、关键参数。"
             "返回字段要求：\n"
             f"{json.dumps(schema, ensure_ascii=False)}"
         )
@@ -397,28 +411,28 @@ class LLMGenerationClient(_BaseLLMClient):
             return None
 
         schema = {
-            "content": "修订后的 Markdown 章节正文，必须以二级标题开头",
+            "content": "修订后的 Markdown 章节正文,必须以二级标题开头",
             "citations": 3,
             "todos": 0,
         }
         prompt = (
-            f"章节标题：{section_title}\n"
-            f"当前章节内容：{current_content[:12000]}\n"
-            f"待补评分点：{json.dumps(missing_requirements, ensure_ascii=False)}\n"
-            f"自检问题：{json.dumps(check_notes, ensure_ascii=False)}\n"
-            f"可引用素材：{json.dumps(routed_assets, ensure_ascii=False)}\n"
-            f"项目字段：{json.dumps(extracted_fields, ensure_ascii=False)}\n"
-            "请在不编造事实的前提下修订该章节，优先补足未覆盖评分点和显性缺口。"
-            "无法确认的内容可以保留“待补充”，但不要遗漏评分项响应。"
-            f"返回 JSON：{json.dumps(schema, ensure_ascii=False)}"
+            f"章节标题:{section_title}\n"
+            f"当前章节内容:{current_content[:12000]}\n"
+            f"待补评分点:{json.dumps(missing_requirements, ensure_ascii=False)}\n"
+            f"自检问题:{json.dumps(check_notes, ensure_ascii=False)}\n"
+            f"可引用素材:{json.dumps(routed_assets, ensure_ascii=False)}\n"
+            f"项目字段:{json.dumps(extracted_fields, ensure_ascii=False)}\n"
+            "请在不编造事实的前提下修订该章节,优先补足未覆盖评分点和显性缺口。"
+            "无法确认的内容可以保留『待补充』,但不要遗漏评分项响应。"
+            f"返回 JSON:{json.dumps(schema, ensure_ascii=False)}"
         )
 
         try:
             content = self._chat_completion(
-                system_prompt="你是企业投标文件修订助手。你的任务是根据评分缺口和自检问题，对单个章节做二轮修订。不得编造资质、案例、参数或商务承诺。输出必须是 JSON 对象。",
+                system_prompt="你是企业投标文件修订助手。你的任务是根据评分缺口和自检问题,对单个章节做二轮修订。不得编造资质、案例、参数或商务承诺。输出必须是 JSON 对象。",
                 user_prompt=prompt,
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=8192,
             )
             content = (content or "").strip()
             if not content:
@@ -456,7 +470,7 @@ class LLMDecisionClient(_BaseLLMClient):
                 system_prompt=self._system_prompt(),
                 user_prompt=prompt,
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=8192,
             )
             content = (content or "").strip()
             if not content:
@@ -469,9 +483,9 @@ class LLMDecisionClient(_BaseLLMClient):
 
     def _system_prompt(self) -> str:
         return (
-            "你是资深招投标决策专家。你的任务是根据项目基本信息、前面从长篇标书中提取的详细关键要求（特别是**评分重点**和**必备资质**）以及硬性规则卡口结果，输出多维度的评估打分、决策原因摘要以及待确认事项。\n"
-            "你的评估必须真实反映给定的信息。如果评分重点中对技术参数或类似业绩要求极高，你应该在打分和风险提示中体现出来。\n"
-            "输出必须是符合以下结构的 JSON 对象，请确保它是一个合法的 JSON，不要带有 markdown 代码块标记：\n"
+            "你是资深招投标决策专家。你的任务是根据项目基本信息、前面从长篇标书中提取的详细关键要求(特别是**评分重点**和**必备资质**)以及硬性规则卡口结果,输出多维度的评估打分、决策原因摘要以及待确认事项。\n"
+            "你的评估必须真实反映给定的信息。如果评分重点中对技术参数或类似业绩要求极高,你应该在打分和风险提示中体现出来。\n"
+            "输出必须是符合以下结构的 JSON 对象,请确保它是一个合法的 JSON,不要带有 markdown 代码块标记:\n"
             "{\n"
             '  "score": {\n'
             '    "total": 85,\n'
@@ -482,7 +496,7 @@ class LLMDecisionClient(_BaseLLMClient):
             '      {"label": "竞争与环境", "score": 88, "note": "常规项目..."}\n'
             '    ]\n'
             '  },\n'
-            '  "ai_reasons": ["资质门槛达标，满足基本要求", "技术评分比重高，需重点准备XX方案", "预算明确，利润空间可见"],\n'
+            '  "ai_reasons": ["资质门槛达标,满足基本要求", "技术评分比重高,需重点准备XX方案", "预算明确,利润空间可见"],\n'
             '  "pending_checks": ["需确认是否满足近期类似业绩要求", "需业务进一步确认付款账期能否接受"]\n'
             "}"
         )
@@ -497,13 +511,13 @@ class LLMDecisionClient(_BaseLLMClient):
     ) -> str:
         fields_str = json.dumps(extracted_fields, ensure_ascii=False, indent=2)
         rules_str = json.dumps(rule_hits, ensure_ascii=False, indent=2)
-        
+
         return (
-            f"项目名称：{project_name}\n"
-            f"客户名称：{client_name}\n"
-            f"从招标文件提取的关键要求详情（核心依据）：\n{fields_str}\n"
-            f"硬性规则卡口结果：\n{rules_str}\n\n"
-            "请基于以上信息，生成深度且专业的综合评估决策。注意总分应该等于各维度加权或算术平均。ai_reasons 请控制在3-5条内，重点提炼核心赢单点或失单风险。"
+            f"项目名称:{project_name}\n"
+            f"客户名称:{client_name}\n"
+            f"从招标文件提取的关键要求详情(核心依据):\n{fields_str}\n"
+            f"硬性规则卡口结果:\n{rules_str}\n\n"
+            "请基于以上信息,生成深度且专业的综合评估决策。注意总分应该等于各维度加权或算术平均。ai_reasons 请控制在3-5条内,重点提炼核心赢单点或失单风险。"
         )
 
 llm_review_client = LLMReviewClient()

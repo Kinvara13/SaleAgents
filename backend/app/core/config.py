@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_base_url: str | None = None
     llm_model: str = "gpt-4o-mini"
-    llm_timeout_seconds: int = 45
+    llm_timeout_seconds: int = 180
     llm_max_review_issues: int = 5
 
     model_config = SettingsConfigDict(

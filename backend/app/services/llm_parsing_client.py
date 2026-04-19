@@ -1,40 +1,45 @@
 from typing import Any
 import json
 import re
-from openai import OpenAI
-from app.core.config import settings
+
+from app.models.llm_provider import LLMProviderModel
+
 
 class LLMParsingClient:
-    def __init__(self, api_key: str, base_url: str, model_name: str):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model_name = model_name
-        self._build_client()
-
-    def _build_client(self):
-        try:
-            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        except ImportError:
-            self.client = None
-
-    def _parse_json_payload(self, content: str) -> dict[str, Any]:
-        match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-        if not match:
-            match = re.search(r"```\s*(.*?)\s*```", content, re.DOTALL)
-        json_str = match.group(1) if match else content
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            return {}
-
     def extract_tender_fields(self, text: str) -> dict[str, Any]:
-        if not self.client:
+        """使用数据库中激活的 LLM Provider 进行解析"""
+        from app.db.session import SessionLocal
+        from openai import OpenAI
+
+        try:
+            with SessionLocal() as db:
+                provider = db.query(LLMProviderModel).filter(
+                    LLMProviderModel.is_active == True
+                ).first()
+
+                if not provider or not provider.api_key:
+                    print("No active LLM provider found in database")
+                    return {}
+
+                client = OpenAI(
+                    api_key=provider.api_key,
+                    base_url=provider.base_url,
+                    timeout=45.0,
+                )
+
+                model = provider.model
+                protocol = getattr(provider, "protocol", "openai")
+
+                return self._call_llm(client, model, protocol, text)
+        except Exception as e:
+            print(f"LLM Parsing error: {e}")
             return {}
-        
+
+    def _call_llm(self, client, model: str, protocol: str, text: str) -> dict[str, Any]:
         prompt = """
         你是一个专业的招投标文档解析专家。请仔细阅读以下招标文件内容（可能包含招标公告、技术规范、评审办法、合同条款、附件表格等），并提取出以下关键信息。
         如果某些信息在文档中找不到，请填写 "待补充"。
-        
+
         要求提取的字段：
         1. 项目名称
         2. 招标编号
@@ -62,27 +67,72 @@ class LLMParsingClient:
           "服务承诺": {"value": "...", "confidence": "80%"}
         }
         ```
-        
+
         待解析文本(截取前80000字以防超出长度)：
         """ + text[:80000]
 
+        system_prompt = "你是一个专业的招投标解析AI助手。"
+        user_prompt = prompt
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "你是一个专业的招投标解析AI助手。"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-            )
-            content = response.choices[0].message.content or ""
+            if protocol == "anthropic":
+                import httpx
+                headers = {
+                    "x-api-key": client.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                }
+                base_url_raw = client.base_url
+                if hasattr(base_url_raw, "rstrip"):
+                    base_url_str = str(base_url_raw)
+                else:
+                    base_url_str = str(base_url_raw) if base_url_raw else "https://api.anthropic.com/v1"
+                if not base_url_str.endswith("/messages"):
+                    base_url_str = base_url_str.rstrip("/") + "/messages"
+
+                payload = {
+                    "model": model,
+                    "max_tokens": 2048,
+                    "temperature": 0.1,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": user_prompt}],
+                }
+
+                response = httpx.post(base_url_str, headers=headers, json=payload, timeout=45.0)
+                response.raise_for_status()
+                data = response.json()
+                content = data.get("content", [{}])[0].get("text", "")
+            else:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.1,
+                )
+                content = response.choices[0].message.content or ""
+
             return self._parse_json_payload(content)
         except Exception as e:
-            print(f"LLM Parsing error: {e}")
+            print(f"LLM call error: {e}")
             return {}
 
-llm_parsing_client = LLMParsingClient(
-    api_key=settings.llm_api_key,
-    base_url=settings.llm_base_url,
-    model_name=settings.llm_model,
-)
+    def _parse_json_payload(self, content: str) -> dict[str, Any]:
+        match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
+        if not match:
+            match = re.search(r"```\s*(.*?)\s*```", content, re.DOTALL)
+        json_str = match.group(1) if match else content
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            match2 = re.search(r"\{.*\}", json_str, re.DOTALL)
+            if match2:
+                try:
+                    return json.loads(match2.group(0))
+                except Exception:
+                    pass
+            return {}
+
+
+llm_parsing_client = LLMParsingClient()

@@ -113,6 +113,7 @@ class GenerationJobCreateRequest(BaseModel):
     service_commitment: str = Field(default="", max_length=4000)
     selected_asset_titles: list[str] = Field(default_factory=list)
     section_titles: list[str] = Field(default_factory=list)
+    technical_spec_text: str = Field(default="", max_length=50000)
 
 
 class GenerationProjectContextResponse(BaseModel):
@@ -128,6 +129,7 @@ class GenerationProjectContextResponse(BaseModel):
     section_titles: list[str] = Field(default_factory=list)
     fixed_asset_titles: list[str] = Field(default_factory=list)
     excluded_asset_titles: list[str] = Field(default_factory=list)
+    source_excerpt: str = ""
 
 
 class GenerationProjectRunRequest(BaseModel):
