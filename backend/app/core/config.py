@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     app_port: int = 8000
     api_prefix: str = "/api/v1"
     frontend_origins: str = "http://localhost:5173"
+    secret_key: str = "your-secret-key-change-in-production"
+    access_token_expire_minutes: int = 60 * 24  # 1 day
+    refresh_token_expire_days: int = 7
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432

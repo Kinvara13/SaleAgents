@@ -263,9 +263,40 @@ def export_generation_job(job_id: str, db: Session = Depends(get_db)) -> str:
 
 @router.get("/jobs/{job_id}/export/docx")
 def export_generation_job_docx(job_id: str, db: Session = Depends(get_db)) -> Response:
+    """导出 job 为 Word（无模板，纯样式生成）。"""
     docx_bytes = generation_service.export_job_docx(db, job_id)
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename=generation-{job_id}.docx"},
+    )
+
+
+@router.post("/jobs/{job_id}/export/docx")
+async def export_generation_job_docx_with_template(
+    job_id: str,
+    template: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    导出 job 为 Word，支持上传 Word 模板文件。
+
+    模板中的占位符格式：
+      - {{项目名称}}、{{模板}}、{{状态}}、{{章节数}}、{{生成时间}}
+      - {{章节标题}}（如 {{项目理解与建设目标}}）：替换为对应章节的格式化内容
+    """
+    template_bytes: bytes | None = None
+    if template and template.filename:
+        template_bytes = await template.read()
+
+    docx_bytes = generation_service.export_job_docx(
+        db,
+        job_id,
+        template_bytes=template_bytes,
+    )
+    filename = f"回标文件_{job_id}.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

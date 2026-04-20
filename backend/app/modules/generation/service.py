@@ -7,6 +7,9 @@ from typing import Any
 from uuid import uuid4
 
 from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -716,27 +719,49 @@ class GenerationService:
 
         return "\n".join(lines)
 
-    def export_job_docx(self, db: Session, job_id: str) -> bytes:
+    def export_job_docx(
+        self,
+        db: Session,
+        job_id: str,
+        template_bytes: bytes | None = None,
+    ) -> bytes:
+        """
+        导出 job 为 Word 文档。
+
+        Args:
+            db: 数据库会话
+            job_id: 生成任务 ID
+            template_bytes: 可选，Word 模板文件字节流。
+                           如果传入，优先使用模板占位符填充；
+                           不传则基于 python-docx 样式生成。
+        """
         job_resp = self.get_job(db, job_id)
         sections = self.list_job_sections(db, job_id)
 
-        document = Document()
-        document.add_heading(f"回标文件：{job_resp.project_name}", level=0)
-        document.add_paragraph(f"模板：{job_resp.template_name}")
-        document.add_paragraph(f"状态：{job_resp.overall_progress}")
-        document.add_paragraph(f"章节数：{job_resp.section_count}")
-        document.add_paragraph(f"生成时间：{job_resp.created_at.strftime('%Y-%m-%d %H:%M')}")
+        sections_data = [
+            {
+                "title": s.title,
+                "content": s.content,
+                "citations": s.citations or "",
+                "todos": s.todos or "",
+            }
+            for s in sections
+        ]
 
-        for section in sections:
-            document.add_heading(section.title, level=1)
-            for block in self._split_markdown_blocks(section.content):
-                document.add_paragraph(block)
-            document.add_paragraph(f"引用 {section.citations} 条 · 待确认 {section.todos} 项")
+        metadata = {
+            "项目名称": job_resp.project_name,
+            "模板": job_resp.template_name,
+            "状态": job_resp.overall_progress or "已生成",
+            "章节数": str(job_resp.section_count),
+            "生成时间": job_resp.created_at.strftime("%Y-%m-%d %H:%M"),
+        }
 
-        buffer = BytesIO()
-        document.save(buffer)
-        buffer.seek(0)
-        return buffer.read()
+        exporter = TemplateDocxExporter(template_bytes=template_bytes)
+        return exporter.export(
+            sections=sections_data,
+            project_name=job_resp.project_name,
+            metadata=metadata,
+        )
 
     def _get_section(self, db: Session, job_id: str, section_id: str) -> GenerationSectionRecord:
         section = db.get(GenerationSectionRecord, section_id)
@@ -1537,6 +1562,281 @@ class GenerationService:
             .where(GenerationSectionAssetRef.section_id == section_id)
             .order_by(GenerationSectionAssetRef.score.desc())
         ).all()
+
+
+PLACEHOLDER_PATTERN = re.compile(r"\{\{([^}]+)\}\}")
+
+
+class MarkdownToDocxConverter:
+    """将 Markdown 内容转换为格式化的 Word 段落。"""
+
+    def __init__(self, document: Document):
+        self.document = document
+
+    def add_markdown(self, content: str) -> None:
+        """解析 Markdown 并将各元素添加到 Word 文档。"""
+        lines = content.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            # 跳过空白行
+            if not line.strip():
+                i += 1
+                continue
+
+            # 代码块 ```...```
+            if line.strip().startswith("```"):
+                code_lines: list[str] = []
+                i += 1
+                while i < len(lines) and not lines[i].strip().startswith("```"):
+                    code_lines.append(lines[i])
+                    i += 1
+                self._add_code_block("\n".join(code_lines))
+                i += 1
+                continue
+
+            # 表格 | col1 | col2 |
+            if line.strip().startswith("|"):
+                table_lines = []
+                while i < len(lines) and lines[i].strip().startswith("|"):
+                    table_lines.append(lines[i])
+                    i += 1
+                self._add_table(table_lines)
+                continue
+
+            # ATX 标题 ### ## #
+            m = re.match(r"^(#{1,6})\s+(.+)$", line)
+            if m:
+                level = len(m.group(1))
+                self._add_heading(m.group(2), level)
+                i += 1
+                continue
+
+            # 列表项 - 或 * 或数字 .
+            if re.match(r"^\s*[-*+]\s+", line) or re.match(r"^\s*\d+\.\s+", line):
+                bullet_lines = []
+                while i < len(lines) and (re.match(r"^\s*[-*+]\s+", lines[i]) or re.match(r"^\s*\d+\.\s+", lines[i])):
+                    bullet_lines.append(lines[i])
+                    i += 1
+                self._add_bullet_list(bullet_lines)
+                continue
+
+            # 普通段落（可能是多行组成一段）
+            paragraph_lines = [line]
+            i += 1
+            while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("|") \
+                and not lines[i].strip().startswith("```") \
+                and not re.match(r"^(#{1,6})\s+", lines[i]) \
+                and not re.match(r"^\s*[-*+]\s+", lines[i]) \
+                and not re.match(r"^\s*\d+\.\s+", lines[i]):
+                paragraph_lines.append(lines[i])
+                i += 1
+            self._add_paragraph(" ".join(paragraph_lines))
+
+    def _add_heading(self, text: str, level: int) -> None:
+        """添加标题，level 1-6 映射到 Word Heading 1-6。"""
+        text = text.strip()
+        if not text:
+            return
+        # 去掉可能的 ATX 关闭标记 ###
+        text = re.sub(r"\s*#+\s*$", "", text)
+        self.document.add_heading(text, level=min(level, 9))  # Word 最大支持 9 级
+
+    def _add_paragraph(self, text: str) -> None:
+        """添加普通段落，支持 **bold** 和 *italic。"""
+        text = text.strip()
+        if not text:
+            return
+        p = self.document.add_paragraph()
+        self._add_formatted_runs(p, text)
+
+    def _add_bullet_list(self, lines: list[str]) -> None:
+        """添加项目列表。"""
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # 去掉列表标记
+            content = re.sub(r"^\s*[-*+]\s+", "", line)
+            content = re.sub(r"^\s*\d+\.\s+", "", content)
+            p = self.document.add_paragraph(style="List Bullet")
+            self._add_formatted_runs(p, content)
+
+    def _add_code_block(self, code: str) -> None:
+        """添加代码块（等宽字体，左边框）。"""
+        code = code.strip()
+        if not code:
+            return
+        p = self.document.add_paragraph(style="Quote")
+        run = p.add_run(code)
+        run.font.name = "Courier New"
+        run.font.size = Pt(9)
+        p.paragraph_format.left_indent = Pt(20)
+
+    def _add_table(self, lines: list[str]) -> None:
+        """将 Markdown 表格转换为 Word 表格。"""
+        if len(lines) < 2:
+            return
+        rows_data = []
+        for line in lines:
+            # 跳过 Markdown 表格分隔行 |---|---|
+            if re.match(r"^\|\s*[-:]+\s*(\|\s*[-:]+\s*)+$", line):
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if cells:
+                rows_data.append(cells)
+        if not rows_data:
+            return
+        # 以最长行为准补齐
+        max_cols = max(len(row) for row in rows_data)
+        table = self.document.add_table(rows=len(rows_data), cols=max_cols)
+        table.style = "Table Grid"
+        for r_idx, row_data in enumerate(rows_data):
+            for c_idx, cell_text in enumerate(row_data):
+                if c_idx < max_cols:
+                    cell = table.cell(r_idx, c_idx)
+                    cell.text = cell_text
+        self.document.add_paragraph()  # 表格后空行
+
+    def _add_formatted_runs(self, paragraph: "Paragraph", text: str) -> None:
+        """将 text 中的 **bold** 和 *italic 解析为 Word runs。"""
+        # 按 ** 或 * 分隔，但处理转义
+        parts = re.split(r"(\*\*[^*]+\*\*|\*[^*]+\*)", text)
+        for part in parts:
+            if part.startswith("**") and part.endswith("**"):
+                run = paragraph.add_run(part[2:-2])
+                run.bold = True
+            elif part.startswith("*") and part.endswith("*") and not part.startswith("**"):
+                run = paragraph.add_run(part[1:-1])
+                run.italic = True
+            else:
+                paragraph.add_run(part)
+
+
+class TemplateDocxExporter:
+    """基于 Word 模板的文档导出器，支持 {{placeholder}} 占位符替换。"""
+
+    def __init__(self, template_bytes: bytes | None = None):
+        self.template_bytes = template_bytes
+
+    def export(
+        self,
+        sections: list[dict],  # [{title: str, content: str, citations: str, todos: str}]
+        project_name: str,
+        metadata: dict,  # {key: value} 注入所有 {{key}} 占位符
+    ) -> bytes:
+        """
+        如果传入了模板字节流，则打开模板并替换占位符；
+        否则基于 python-docx 内置样式生成文档。
+        """
+        if self.template_bytes:
+            doc = Document(BytesIO(self.template_bytes))
+        else:
+            doc = Document()
+
+        if self.template_bytes:
+            self._replace_placeholders(doc, metadata)
+            self._replace_sections(doc, sections)
+        else:
+            self._build_from_scratch(doc, sections, project_name, metadata)
+
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.read()
+
+    def _replace_placeholders(self, doc: Document, metadata: dict) -> None:
+        """遍历模板段落，替换 {{key}} 占位符。"""
+        for para in doc.paragraphs:
+            if not PLACEHOLDER_PATTERN.search(para.text):
+                continue
+            full_text = para.text
+            for key, value in metadata.items():
+                placeholder = f"{{{{{key}}}}}"
+                if placeholder in full_text:
+                    full_text = full_text.replace(placeholder, str(value))
+            # 重建 paragraph，清除富文本占位符
+            if para.text != full_text:
+                p = para._element
+                for run in para.runs:
+                    r = run._element
+                    r.getparent().remove(r)
+                para.clear()
+                para.add_run(full_text)
+
+    def _replace_sections(self, doc: Document, sections: list[dict]) -> None:
+        """遍历模板段落，将 {{section_title}} 占位符替换为 AI 生成的格式化章节内容。"""
+        converter = MarkdownToDocxConverter(doc)
+        # 收集需要替换的段落
+        placeholder_paras: list[tuple[OxmlElement, str, str]] = []
+        for para in doc.paragraphs:
+            matches = PLACEHOLDER_PATTERN.findall(para.text)
+            for title in matches:
+                placeholder_paras.append((para._element, title, para.text))
+
+        # 按标题匹配章节
+        for para_elem, title, full_text in placeholder_paras:
+            matched_section = next(
+                (s for s in sections if s.get("title", "").strip() == title.strip()), None
+            )
+            if not matched_section:
+                continue
+            content = matched_section.get("content", "")
+            citations = matched_section.get("citations", "")
+            todos = matched_section.get("todos", "")
+
+            # 在段落位置插入格式化内容
+            parent = para_elem.getparent()
+            idx = list(parent).index(para_elem)
+            parent.remove(para_elem)
+
+            # 添加章节标题
+            h = doc.add_heading(title, level=1)
+            for run in h.runs:
+                run.font.size = Pt(14)
+
+            # 添加 Markdown 内容
+            converter.add_markdown(content)
+
+            # 添加引用+待确认
+            if citations or todos:
+                p = doc.add_paragraph()
+                parts = []
+                if citations:
+                    parts.append(f"引用 {citations} 条")
+                if todos:
+                    parts.append(f"待确认 {todos} 项")
+                p.add_run(" · ".join(parts)).italic = True
+
+    def _build_from_scratch(
+        self,
+        doc: Document,
+        sections: list[dict],
+        project_name: str,
+        metadata: dict,
+    ) -> None:
+        """无模板时，基于 python-docx 样式生成完整文档。"""
+        doc.add_heading(f"回标文件：{project_name}", level=0)
+        for key, value in metadata.items():
+            p = doc.add_paragraph()
+            p.add_run(f"{key}：").bold = True
+            p.add_run(str(value))
+        for section in sections:
+            doc.add_heading(section.get("title", ""), level=1)
+            converter = MarkdownToDocxConverter(doc)
+            converter.add_markdown(section.get("content", ""))
+            citations = section.get("citations", "")
+            todos = section.get("todos", "")
+            if citations or todos:
+                p = doc.add_paragraph()
+                parts = []
+                if citations:
+                    parts.append(f"引用 {citations} 条")
+                if todos:
+                    parts.append(f"待确认 {todos} 项")
+                run = p.add_run(" · ".join(parts))
+                run.italic = True
 
 
 generation_service = GenerationService()
