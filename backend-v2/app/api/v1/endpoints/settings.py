@@ -3,11 +3,16 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from pydantic import BaseModel
-from app.schemas.settings import AIConfigResponse, AIConfigUpdateRequest, MaterialResponse, RuleResponse, RuleCreateRequest
+from app.schemas.settings import (
+    AIConfigResponse, AIConfigUpdateRequest, AIConfigCreateRequest,
+    MaterialResponse, RuleResponse, RuleCreateRequest,
+)
 from app.services import settings_service
 
 router = APIRouter()
 
+
+# ---- Legacy single-config endpoints (keep for backward compat) ----
 
 @router.get("/ai-config", response_model=AIConfigResponse)
 def get_ai_config(db: Session = Depends(get_db)) -> AIConfigResponse:
@@ -15,12 +20,14 @@ def get_ai_config(db: Session = Depends(get_db)) -> AIConfigResponse:
     if cfg:
         return AIConfigResponse(
             id=cfg.id,
+            name=cfg.name,
             provider=cfg.provider,
             api_key=cfg.api_key,
             base_url=cfg.base_url,
             model=cfg.model,
             temperature=float(cfg.temperature),
             max_tokens=cfg.max_tokens,
+            is_active=cfg.is_active,
         )
     return AIConfigResponse()
 
@@ -41,14 +48,126 @@ def patch_ai_config(
     )
     return AIConfigResponse(
         id=cfg.id,
+        name=cfg.name,
         provider=cfg.provider,
         api_key=cfg.api_key,
         base_url=cfg.base_url,
         model=cfg.model,
         temperature=float(cfg.temperature),
         max_tokens=cfg.max_tokens,
+        is_active=cfg.is_active,
     )
 
+
+# ---- AI Config Management (List) ----
+
+@router.get("/ai-configs", response_model=list[AIConfigResponse])
+def get_ai_configs(db: Session = Depends(get_db)) -> list[AIConfigResponse]:
+    configs = settings_service.list_ai_configs(db)
+    return [
+        AIConfigResponse(
+            id=c.id,
+            name=c.name,
+            provider=c.provider,
+            api_key=c.api_key,
+            base_url=c.base_url,
+            model=c.model,
+            temperature=float(c.temperature),
+            max_tokens=c.max_tokens,
+            is_active=c.is_active,
+        )
+        for c in configs
+    ]
+
+
+@router.post("/ai-configs", response_model=AIConfigResponse, status_code=201)
+def create_ai_config(
+    payload: AIConfigCreateRequest,
+    db: Session = Depends(get_db),
+) -> AIConfigResponse:
+    cfg = settings_service.create_ai_config(
+        db,
+        name=payload.name,
+        provider=payload.provider,
+        api_key=payload.api_key,
+        base_url=payload.base_url,
+        model=payload.model,
+        temperature=payload.temperature,
+        max_tokens=payload.max_tokens,
+    )
+    return AIConfigResponse(
+        id=cfg.id,
+        name=cfg.name,
+        provider=cfg.provider,
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        model=cfg.model,
+        temperature=float(cfg.temperature),
+        max_tokens=cfg.max_tokens,
+        is_active=cfg.is_active,
+    )
+
+
+@router.patch("/ai-configs/{config_id}", response_model=AIConfigResponse)
+def patch_ai_config_by_id(
+    config_id: str,
+    payload: AIConfigUpdateRequest,
+    db: Session = Depends(get_db),
+) -> AIConfigResponse:
+    cfg = settings_service.update_ai_config_by_id(
+        db, config_id,
+        name=payload.name,
+        provider=payload.provider,
+        api_key=payload.api_key,
+        base_url=payload.base_url,
+        model=payload.model,
+        temperature=payload.temperature,
+        max_tokens=payload.max_tokens,
+    )
+    if not cfg:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+    return AIConfigResponse(
+        id=cfg.id,
+        name=cfg.name,
+        provider=cfg.provider,
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        model=cfg.model,
+        temperature=float(cfg.temperature),
+        max_tokens=cfg.max_tokens,
+        is_active=cfg.is_active,
+    )
+
+
+@router.delete("/ai-configs/{config_id}", status_code=204)
+def delete_ai_config(config_id: str, db: Session = Depends(get_db)) -> None:
+    ok = settings_service.delete_ai_config(db, config_id)
+    if not ok:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+
+
+@router.post("/ai-configs/{config_id}/activate", response_model=AIConfigResponse)
+def activate_ai_config(config_id: str, db: Session = Depends(get_db)) -> AIConfigResponse:
+    cfg = settings_service.activate_ai_config(db, config_id)
+    if not cfg:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+    return AIConfigResponse(
+        id=cfg.id,
+        name=cfg.name,
+        provider=cfg.provider,
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        model=cfg.model,
+        temperature=float(cfg.temperature),
+        max_tokens=cfg.max_tokens,
+        is_active=cfg.is_active,
+    )
+
+
+# ---- Materials ----
 
 @router.get("/materials", response_model=list[MaterialResponse])
 def get_materials(db: Session = Depends(get_db)) -> list[MaterialResponse]:
@@ -93,6 +212,8 @@ async def upload_material(
         created_at=mat.created_at.isoformat(),
     )
 
+
+# ---- Rules ----
 
 @router.get("/rules", response_model=list[RuleResponse])
 def get_rules(db: Session = Depends(get_db)) -> list[RuleResponse]:

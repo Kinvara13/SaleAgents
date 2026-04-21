@@ -520,6 +520,113 @@ class LLMDecisionClient(_BaseLLMClient):
             "请基于以上信息,生成深度且专业的综合评估决策。注意总分应该等于各维度加权或算术平均。ai_reasons 请控制在3-5条内,重点提炼核心赢单点或失单风险。"
         )
 
+
+class LLMPreEvaluationClient(_BaseLLMClient):
+    """LLM client for pre-evaluation (tender document analysis)."""
+
+    def analyze(self, *, source_text: str) -> dict[str, Any]:
+        if not self.is_llm_ready:
+            return self._fallback_result()
+
+        try:
+            content = self._chat_completion(
+                system_prompt=self._system_prompt(),
+                user_prompt=self._build_prompt(source_text),
+                temperature=0.2,
+                max_tokens=4096,
+            )
+            content = (content or "").strip()
+            if not content:
+                logger.warning("Pre-evaluation LLM returned empty content.")
+                return self._fallback_result()
+            payload = self._parse_json_payload(content)
+            return self._normalize_result(payload)
+        except Exception as exc:
+            logger.warning("Pre-evaluation LLM analysis failed: %s", exc)
+            return self._fallback_result()
+
+    def _system_prompt(self) -> str:
+        return (
+            "你是资深招投标文件分析专家。请从以下招标文件内容中提取关键信息。"
+            "输出必须是符合以下结构的 JSON 对象，不要带 Markdown 代码块标记：\n"
+            "{\n"
+            '  "review_method": {\n'
+            '    "method": "综合评分法 / 最低价法 / 其他",\n'
+            '    "description": "评审方法的简要说明",\n'
+            '    "key_points": ["要点1", "要点2"]\n'
+            '  },\n'
+            '  "tech_review_table": [\n'
+            '    {"item": "评审项名称", "score": "分值(数字或文字)", "criteria": "评分标准"}\n'
+            '  ],\n'
+            '  "starred_items": [\n'
+            '    {"item": "关键注意事项", "importance": "high|medium|low", "suggestion": "应对建议"}\n'
+            '  ],\n'
+            '  "summary": "对该招标文件的整体评估摘要，包括投标策略建议"\n'
+            "}"
+        )
+
+    def _build_prompt(self, source_text: str) -> str:
+        truncated = source_text[:15000]
+        return (
+            "请分析以下招标文件内容，提取评审办法、技术评审表、星标项和整体摘要。\n\n"
+            f"文件内容：\n{truncated}\n\n"
+            "请返回 JSON 格式的分析结果。"
+        )
+
+    def _normalize_result(self, payload: dict[str, Any]) -> dict[str, Any]:
+        review_method = payload.get("review_method", {})
+        if isinstance(review_method, list):
+            review_method = review_method[0] if review_method else {}
+        if not isinstance(review_method, dict):
+            review_method = {"method": "", "description": "", "key_points": []}
+
+        tech_table = payload.get("tech_review_table", [])
+        if not isinstance(tech_table, list):
+            tech_table = []
+        tech_table = [
+            {
+                "item": str(item.get("item", "")),
+                "score": str(item.get("score", "")),
+                "criteria": str(item.get("criteria", "")),
+            }
+            for item in tech_table
+            if isinstance(item, dict)
+        ]
+
+        starred = payload.get("starred_items", [])
+        if not isinstance(starred, list):
+            starred = []
+        starred = [
+            {
+                "item": str(item.get("item", "")),
+                "importance": str(item.get("importance", "medium")),
+                "suggestion": str(item.get("suggestion", "")),
+            }
+            for item in starred
+            if isinstance(item, dict)
+        ]
+
+        summary = str(payload.get("summary", "")).strip()
+        if not summary:
+            summary = "分析完成，请查看详细结果。"
+
+        return {
+            "review_method": review_method,
+            "tech_review_table": tech_table,
+            "starred_items": starred,
+            "summary": summary,
+        }
+
+    def _fallback_result(self) -> dict[str, Any]:
+        return {
+            "review_method": {"method": "未能识别", "description": "LLM 未配置或分析失败", "key_points": []},
+            "tech_review_table": [],
+            "starred_items": [],
+            "summary": "由于 LLM 未配置或分析过程出错，无法提供详细分析结果。请检查 AI 配置后重试。",
+        }
+
+
 llm_review_client = LLMReviewClient()
 llm_generation_client = LLMGenerationClient()
 llm_decision_client = LLMDecisionClient()
+llm_pre_evaluation_client = LLMPreEvaluationClient()

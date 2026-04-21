@@ -3,6 +3,18 @@ from pydantic import BaseModel
 
 class AIConfigResponse(BaseModel):
     id: str | None = None
+    name: str = "未命名配置"
+    provider: str = "zhipu"
+    api_key: str = ""
+    base_url: str = ""
+    model: str = "glm-4"
+    temperature: float = 0.7
+    max_tokens: int = 4096
+    is_active: bool = False
+
+
+class AIConfigUpdateRequest(BaseModel):
+    name: str = "未命名配置"
     provider: str = "zhipu"
     api_key: str = ""
     base_url: str = ""
@@ -11,7 +23,8 @@ class AIConfigResponse(BaseModel):
     max_tokens: int = 4096
 
 
-class AIConfigUpdateRequest(BaseModel):
+class AIConfigCreateRequest(BaseModel):
+    name: str = "未命名配置"
     provider: str = "zhipu"
     api_key: str = ""
     base_url: str = ""

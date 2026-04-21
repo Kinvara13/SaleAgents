@@ -37,6 +37,95 @@ def update_ai_config(db: Session, provider: str, api_key: str, base_url: str, mo
     return cfg
 
 
+# ---- AI Config Management (List) ----
+
+def list_ai_configs(db: Session) -> list[AIConfig]:
+    return db.query(AIConfig).order_by(AIConfig.updated_at.desc()).all()
+
+
+def create_ai_config(
+    db: Session,
+    name: str,
+    provider: str,
+    api_key: str,
+    base_url: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> AIConfig:
+    cfg = AIConfig(
+        id=f"aicfg_{uuid4().hex[:12]}",
+        name=name,
+        provider=provider,
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        temperature=str(temperature),
+        max_tokens=max_tokens,
+        is_active=False,
+    )
+    db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def update_ai_config_by_id(
+    db: Session,
+    config_id: str,
+    name: str | None = None,
+    provider: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> AIConfig | None:
+    cfg = db.query(AIConfig).filter(AIConfig.id == config_id).first()
+    if not cfg:
+        return None
+    if name is not None:
+        cfg.name = name
+    if provider is not None:
+        cfg.provider = provider
+    if api_key is not None:
+        cfg.api_key = api_key
+    if base_url is not None:
+        cfg.base_url = base_url
+    if model is not None:
+        cfg.model = model
+    if temperature is not None:
+        cfg.temperature = str(temperature)
+    if max_tokens is not None:
+        cfg.max_tokens = max_tokens
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def delete_ai_config(db: Session, config_id: str) -> bool:
+    cfg = db.query(AIConfig).filter(AIConfig.id == config_id).first()
+    if not cfg:
+        return False
+    db.delete(cfg)
+    db.commit()
+    return True
+
+
+def activate_ai_config(db: Session, config_id: str) -> AIConfig | None:
+    cfg = db.query(AIConfig).filter(AIConfig.id == config_id).first()
+    if not cfg:
+        return None
+    # Deactivate all others
+    db.query(AIConfig).update({AIConfig.is_active: False})
+    cfg.is_active = True
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+# ---- Materials ----
+
 def list_materials(db: Session) -> list[Material]:
     return db.query(Material).order_by(Material.created_at.desc()).all()
 
@@ -61,6 +150,8 @@ def delete_material(db: Session, material_id: str) -> None:
         db.delete(mat)
         db.commit()
 
+
+# ---- Rules ----
 
 def list_rules(db: Session) -> list[Rule]:
     return db.query(Rule).order_by(Rule.created_at.desc()).all()

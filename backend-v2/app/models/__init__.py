@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.settings import AIConfig, Material, Rule
 from app.models.tender import Tender
 from app.models.technical_case import TechnicalCase
+from app.models.pre_evaluation import PreEvaluationJob
 
 __all__ = [
     "Project",
@@ -19,4 +20,5 @@ __all__ = [
     "Rule",
     "Tender",
     "TechnicalCase",
+    "PreEvaluationJob",
 ]
