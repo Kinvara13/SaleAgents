@@ -24,7 +24,7 @@ export interface BusinessDocumentDetail extends BusinessDocumentSummary {
 
 export async function listBusinessDocuments(projectId: string): Promise<BusinessDocumentSummary[]> {
   const res = await api.get<BusinessDocumentSummary[]>(
-    `/api/v1/projects/${projectId}/business-documents`
+    `/projects/${projectId}/business-documents`
   )
   return res.data
 }
@@ -34,7 +34,7 @@ export async function getBusinessDocumentDetail(
   docId: string
 ): Promise<BusinessDocumentDetail> {
   const res = await api.get<BusinessDocumentDetail>(
-    `/api/v1/projects/${projectId}/business-documents/${docId}`
+    `/projects/${projectId}/business-documents/${docId}`
   )
   return res.data
 }
@@ -45,7 +45,7 @@ export async function updateBusinessDocument(
   payload: { editable_content?: string; status?: string }
 ): Promise<BusinessDocumentDetail> {
   const res = await api.patch<BusinessDocumentDetail>(
-    `/api/v1/projects/${projectId}/business-documents/${docId}`,
+    `/projects/${projectId}/business-documents/${docId}`,
     payload
   )
   return res.data

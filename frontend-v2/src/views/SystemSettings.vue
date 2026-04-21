@@ -149,6 +149,7 @@
 </template>
 
 <script setup lang="ts">
+import api from '@/services/api'
 import { ref, onMounted } from 'vue'
 
 const tabs = [
@@ -164,13 +165,11 @@ const savingAI = ref(false)
 const showRuleModal = ref(false)
 const ruleForm = ref({ name: '', rule_type: 'general', content: '' })
 
-const API_BASE = '/api/v1'
 
 async function loadAIConfig() {
   try {
-    const res = await fetch(`${API_BASE}/settings/ai-config`)
-    if (res.ok) {
-      const cfg = await res.json()
+    const res = await api.get('/settings/ai-config')
+      const cfg = res.data
       aiForm.value = { ...aiForm.value, ...cfg }
     }
   } catch (e) { console.error(e) }
@@ -179,19 +178,15 @@ async function loadAIConfig() {
 async function saveAIConfig() {
   savingAI.value = true
   try {
-    await fetch(`${API_BASE}/settings/ai-config`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(aiForm.value)
-    })
+    await api.patch('/settings/ai-config', aiForm.value)
   } catch (e) { console.error(e) }
   finally { savingAI.value = false }
 }
 
 async function loadMaterials() {
   try {
-    const res = await fetch(`${API_BASE}/settings/materials`)
-    if (res.ok) materials.value = await res.json()
+    const res = await api.get('/settings/materials')
+    materials.value = res.data
   } catch (e) { console.error(e) }
 }
 
@@ -204,31 +199,27 @@ async function handleMaterialUpload(event: Event) {
   formData.append('name', file.name)
   formData.append('material_type', 'general')
   try {
-    await fetch(`${API_BASE}/settings/materials/upload`, { method: 'POST', body: formData })
+    await api.post('/settings/materials/upload', body: formData )
     await loadMaterials()
   } catch (e) { console.error(e) }
   finally { input.value = '' }
 }
 
 async function deleteMaterial(id: string) {
-  await fetch(`${API_BASE}/settings/materials/${id}`, { method: 'DELETE' }).catch(() => {})
+  await api.delete('/settings/materials/${id}').catch(() => {})
   await loadMaterials()
 }
 
 async function loadRules() {
   try {
-    const res = await fetch(`${API_BASE}/settings/rules`)
-    if (res.ok) rules.value = await res.json()
+    const res = await api.get('/settings/rules')
+    rules.value = res.data
   } catch (e) { console.error(e) }
 }
 
 async function handleCreateRule() {
   try {
-    await fetch(`${API_BASE}/settings/rules`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(ruleForm.value)
-    })
+    await api.post('/settings/rules', ruleForm.value)
     showRuleModal.value = false
     ruleForm.value = { name: '', rule_type: 'general', content: '' }
     await loadRules()
@@ -236,7 +227,7 @@ async function handleCreateRule() {
 }
 
 async function deleteRule(id: string) {
-  await fetch(`${API_BASE}/settings/rules/${id}`, { method: 'DELETE' }).catch(() => {})
+  await api.delete('/settings/rules/${id}').catch(() => {})
   await loadRules()
 }
 

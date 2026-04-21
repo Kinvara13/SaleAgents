@@ -68,6 +68,6 @@ export interface PricingResponse {
  * @returns 计算结果包含报价明细、竞品模拟得分和总评分
  */
 export async function calculatePricing(payload: PricingPayload): Promise<PricingResponse> {
-  const res = await api.post<PricingResponse>('/api/v1/pricing/calculate', payload)
+  const res = await api.post<PricingResponse>('/pricing/calculate', payload)
   return res.data
 }

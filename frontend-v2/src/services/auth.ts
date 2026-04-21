@@ -14,7 +14,7 @@ export interface UserInfo {
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {
-  const res = await api.post<LoginResponse>('/api/v1/auth/login', { username, password })
+  const res = await api.post<LoginResponse>('/auth/login', { username, password })
   const { access_token, refresh_token } = res.data
   localStorage.setItem('sa_token', access_token)
   localStorage.setItem('sa_refresh_token', refresh_token)
@@ -22,7 +22,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 }
 
 export async function refreshToken(refresh_token: string): Promise<LoginResponse> {
-  const res = await api.post<LoginResponse>('/api/v1/auth/refresh', { refresh_token })
+  const res = await api.post<LoginResponse>('/auth/refresh', { refresh_token })
   const { access_token } = res.data
   localStorage.setItem('sa_token', access_token)
   if (res.data.refresh_token) {
@@ -32,7 +32,7 @@ export async function refreshToken(refresh_token: string): Promise<LoginResponse
 }
 
 export async function getMe(): Promise<UserInfo> {
-  const res = await api.get<UserInfo>('/api/v1/auth/me')
+  const res = await api.get<UserInfo>('/auth/me')
   return res.data
 }
 

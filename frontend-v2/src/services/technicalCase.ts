@@ -48,7 +48,7 @@ export interface CreateTechnicalCasePayload {
 
 export async function listTechnicalCases(projectId: string): Promise<TechnicalCaseSummary[]> {
   const res = await api.get<TechnicalCaseSummary[]>(
-    `/api/v1/projects/${projectId}/technical-cases`
+    `/projects/${projectId}/technical-cases`
   )
   return res.data
 }
@@ -58,7 +58,7 @@ export async function getTechnicalCaseDetail(
   caseId: string
 ): Promise<TechnicalCaseDetail> {
   const res = await api.get<TechnicalCaseDetail>(
-    `/api/v1/projects/${projectId}/technical-cases/${caseId}`
+    `/projects/${projectId}/technical-cases/${caseId}`
   )
   return res.data
 }
@@ -68,7 +68,7 @@ export async function createTechnicalCase(
   payload: CreateTechnicalCasePayload
 ): Promise<TechnicalCaseDetail> {
   const res = await api.post<TechnicalCaseDetail>(
-    `/api/v1/projects/${projectId}/technical-cases`,
+    `/projects/${projectId}/technical-cases`,
     payload
   )
   return res.data
@@ -80,7 +80,7 @@ export async function updateTechnicalCase(
   payload: Partial<CreateTechnicalCasePayload & { status?: string; video_url?: string }>
 ): Promise<TechnicalCaseDetail> {
   const res = await api.patch<TechnicalCaseDetail>(
-    `/api/v1/projects/${projectId}/technical-cases/${caseId}`,
+    `/projects/${projectId}/technical-cases/${caseId}`,
     payload
   )
   return res.data
@@ -90,7 +90,7 @@ export async function deleteTechnicalCase(
   projectId: string,
   caseId: string
 ): Promise<void> {
-  await api.delete(`/api/v1/projects/${projectId}/technical-cases/${caseId}`)
+  await api.delete(`/projects/${projectId}/technical-cases/${caseId}`)
 }
 
 export async function searchTechnicalCases(
@@ -98,7 +98,7 @@ export async function searchTechnicalCases(
   params: { primary_item?: string; secondary_item?: string; keyword?: string }
 ): Promise<TechnicalCaseSummary[]> {
   const res = await api.get<TechnicalCaseSummary[]>(
-    `/api/v1/projects/${projectId}/technical-cases-search/search`,
+    `/projects/${projectId}/technical-cases-search/search`,
     { params }
   )
   return res.data

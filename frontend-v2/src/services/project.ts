@@ -30,25 +30,25 @@ export async function listProjects(status?: string, mine?: boolean): Promise<Pro
   const params: Record<string, string | boolean> = {}
   if (status) params.status = status
   if (mine) params.mine = mine
-  const res = await api.get<Project[]>('/api/v1/projects', { params })
+  const res = await api.get<Project[]>('/projects', { params })
   return res.data
 }
 
 export async function getProject(id: string): Promise<Project> {
-  const res = await api.get<Project>(`/api/v1/projects/${id}`)
+  const res = await api.get<Project>(`/projects/${id}`)
   return res.data
 }
 
 export async function createProject(payload: ProjectCreateRequest): Promise<Project> {
-  const res = await api.post<Project>('/api/v1/projects', payload)
+  const res = await api.post<Project>('/projects', payload)
   return res.data
 }
 
 export async function updateProject(id: string, payload: ProjectUpdateRequest): Promise<Project> {
-  const res = await api.patch<Project>(`/api/v1/projects/${id}`, payload)
+  const res = await api.patch<Project>(`/projects/${id}`, payload)
   return res.data
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await api.delete(`/api/v1/projects/${id}`)
+  await api.delete(`/projects/${id}`)
 }

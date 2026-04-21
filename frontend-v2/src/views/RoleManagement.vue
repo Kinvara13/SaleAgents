@@ -56,7 +56,7 @@ function roleClass(id: string) {
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/v1/users/roles/list')
+    const res = await api.get('/users/roles/list')
     if (res.ok) roles.value = await res.json()
   } catch (e) { console.error('Load roles failed:', e) }
 })

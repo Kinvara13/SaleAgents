@@ -16,7 +16,7 @@ export interface ParsingSectionDetail extends ParsingSection {
 }
 
 export async function listParsingSections(projectId: string): Promise<ParsingSection[]> {
-  const res = await api.get<ParsingSection[]>(`/api/v1/parsing/${projectId}/sections`)
+  const res = await api.get<ParsingSection[]>(`/parsing/${projectId}/sections`)
   return res.data
 }
 
@@ -25,7 +25,7 @@ export async function getParsingSectionDetail(
   sectionId: string
 ): Promise<ParsingSectionDetail> {
   const res = await api.get<ParsingSectionDetail>(
-    `/api/v1/parsing/${projectId}/sections/${sectionId}`
+    `/parsing/${projectId}/sections/${sectionId}`
   )
   return res.data
 }
@@ -36,7 +36,7 @@ export async function updateParsingSection(
   content: string
 ): Promise<ParsingSectionDetail> {
   const res = await api.patch<ParsingSectionDetail>(
-    `/api/v1/parsing/${projectId}/sections/${sectionId}`,
+    `/parsing/${projectId}/sections/${sectionId}`,
     { content }
   )
   return res.data
@@ -46,7 +46,7 @@ export async function uploadAndParse(projectId: string, file: File): Promise<Par
   const formData = new FormData()
   formData.append('file', file)
   const res = await api.post<ParsingSection[]>(
-    `/api/v1/parsing/${projectId}/upload`,
+    `/parsing/${projectId}/upload`,
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } }
   )
@@ -72,12 +72,12 @@ export interface Tender {
 }
 
 export async function listTenders(): Promise<Tender[]> {
-  const res = await api.get<Tender[]>('/api/v1/tenders')
+  const res = await api.get<Tender[]>('/tenders')
   return res.data
 }
 
 export async function getTender(id: string): Promise<Tender> {
-  const res = await api.get<Tender>(`/api/v1/tenders/${id}`)
+  const res = await api.get<Tender>(`/tenders/${id}`)
   return res.data
 }
 
@@ -85,7 +85,7 @@ export async function submitDecision(
   id: string,
   payload: { decision: 'bid' | 'reject'; reason?: string }
 ): Promise<Tender> {
-  const res = await api.post<Tender>(`/api/v1/tenders/${id}/decision`, payload)
+  const res = await api.post<Tender>(`/tenders/${id}/decision`, payload)
   return res.data
 }
 
@@ -93,7 +93,7 @@ export async function uploadBidDocument(id: string, file: File): Promise<Tender>
   const formData = new FormData()
   formData.append('file', file)
   const res = await api.post<Tender>(
-    `/api/v1/tenders/${id}/upload`,
+    `/tenders/${id}/upload`,
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } }
   )

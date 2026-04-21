@@ -24,7 +24,7 @@ export interface TechnicalDocumentDetail extends TechnicalDocumentSummary {
 
 export async function listTechnicalDocuments(projectId: string): Promise<TechnicalDocumentSummary[]> {
   const res = await api.get<TechnicalDocumentSummary[]>(
-    `/api/v1/projects/${projectId}/technical-documents`
+    `/projects/${projectId}/technical-documents`
   )
   return res.data
 }
@@ -34,7 +34,7 @@ export async function getTechnicalDocumentDetail(
   docId: string
 ): Promise<TechnicalDocumentDetail> {
   const res = await api.get<TechnicalDocumentDetail>(
-    `/api/v1/projects/${projectId}/technical-documents/${docId}`
+    `/projects/${projectId}/technical-documents/${docId}`
   )
   return res.data
 }
@@ -45,7 +45,7 @@ export async function updateTechnicalDocument(
   payload: { editable_content?: string; status?: string }
 ): Promise<TechnicalDocumentDetail> {
   const res = await api.patch<TechnicalDocumentDetail>(
-    `/api/v1/projects/${projectId}/technical-documents/${docId}`,
+    `/projects/${projectId}/technical-documents/${docId}`,
     payload
   )
   return res.data

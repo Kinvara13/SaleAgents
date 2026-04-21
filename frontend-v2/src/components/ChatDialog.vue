@@ -155,7 +155,7 @@ async function sendMessage() {
 
   try {
     const res = await fetch(
-      `/api/v1/chat/${props.projectId}/message`,
+      `${api.defaults.baseURL}/chat/${props.projectId}/message`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,9 +220,7 @@ async function scrollToBottom() {
 
 async function loadHistory() {
   try {
-    const res = await fetch(
-      `/api/v1/chat/${props.projectId}/history`
-    )
+    const res = await api.get('/chat/${props.projectId}/history')
     if (res.ok) {
       const history = await res.json()
       messages.value = history.map((m: any) => ({

@@ -28,36 +28,36 @@ export interface ReviewJob {
 }
 
 export async function getReviewSummary(): Promise<MetricItem[]> {
-  const res = await api.get<MetricItem[]>('/api/v1/review/summary')
+  const res = await api.get<MetricItem[]>('/review/summary')
   return res.data
 }
 
 export async function getReviewIssues(): Promise<ReviewIssue[]> {
-  const res = await api.get<ReviewIssue[]>('/api/v1/review/issues')
+  const res = await api.get<ReviewIssue[]>('/review/issues')
   return res.data
 }
 
 export async function getReviewActions(): Promise<string[]> {
-  const res = await api.get<string[]>('/api/v1/review/actions')
+  const res = await api.get<string[]>('/review/actions')
   return res.data
 }
 
 export async function getLatestReviewJob(): Promise<ReviewJob> {
-  const res = await api.get<ReviewJob>('/api/v1/review/jobs/latest')
+  const res = await api.get<ReviewJob>('/review/jobs/latest')
   return res.data
 }
 
 export async function getReviewJob(jobId: string): Promise<ReviewJob> {
-  const res = await api.get<ReviewJob>(`/api/v1/review/jobs/${jobId}`)
+  const res = await api.get<ReviewJob>(`/review/jobs/${jobId}`)
   return res.data
 }
 
 export async function getReviewJobIssues(jobId: string): Promise<ReviewIssue[]> {
-  const res = await api.get<ReviewIssue[]>(`/api/v1/review/jobs/${jobId}/issues`)
+  const res = await api.get<ReviewIssue[]>(`/review/jobs/${jobId}/issues`)
   return res.data
 }
 
 export async function createReviewJob(payload: Record<string, unknown>): Promise<ReviewJob> {
-  const res = await api.post<ReviewJob>('/api/v1/review/jobs', payload)
+  const res = await api.post<ReviewJob>('/review/jobs', payload)
   return res.data
 }

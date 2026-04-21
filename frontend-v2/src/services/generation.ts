@@ -22,31 +22,31 @@ export interface GenerationJob {
 }
 
 export async function listGenerationSections(): Promise<GenerationSection[]> {
-  const res = await api.get<GenerationSection[]>('/api/v1/generation/sections')
+  const res = await api.get<GenerationSection[]>('/generation/sections')
   return res.data
 }
 
 export async function listGenerationAssets(): Promise<KnowledgeAsset[]> {
-  const res = await api.get<KnowledgeAsset[]>('/api/v1/generation/assets')
+  const res = await api.get<KnowledgeAsset[]>('/generation/assets')
   return res.data
 }
 
 export async function listGenerationTodos(): Promise<string[]> {
-  const res = await api.get<string[]>('/api/v1/generation/todos')
+  const res = await api.get<string[]>('/generation/todos')
   return res.data
 }
 
 export async function getLatestGenerationJob(): Promise<GenerationJob> {
-  const res = await api.get<GenerationJob>('/api/v1/generation/jobs/latest')
+  const res = await api.get<GenerationJob>('/generation/jobs/latest')
   return res.data
 }
 
 export async function getGenerationJob(jobId: string): Promise<GenerationJob> {
-  const res = await api.get<GenerationJob>(`/api/v1/generation/jobs/${jobId}`)
+  const res = await api.get<GenerationJob>(`/generation/jobs/${jobId}`)
   return res.data
 }
 
 export async function getGenerationJobSections(jobId: string): Promise<GenerationSection[]> {
-  const res = await api.get<GenerationSection[]>(`/api/v1/generation/jobs/${jobId}/sections`)
+  const res = await api.get<GenerationSection[]>(`/generation/jobs/${jobId}/sections`)
   return res.data
 }

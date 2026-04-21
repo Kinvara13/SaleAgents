@@ -67,7 +67,7 @@ export interface StarItemConfirmPayload {
  * @returns 应答文件完整信息
  */
 export async function getProposal(proposalId: string): Promise<Proposal> {
-  const res = await api.get<Proposal>(`/api/v1/proposal-editor/${proposalId}`)
+  const res = await api.get<Proposal>(`/proposal-editor/${proposalId}`)
   return res.data
 }
 
@@ -78,7 +78,7 @@ export async function getProposal(proposalId: string): Promise<Proposal> {
  * @returns 更新后的应答文件
  */
 export async function updateProposal(proposalId: string, payload: ProposalUpdatePayload): Promise<Proposal> {
-  const res = await api.put<Proposal>(`/api/v1/proposal-editor/${proposalId}`, payload)
+  const res = await api.put<Proposal>(`/proposal-editor/${proposalId}`, payload)
   return res.data
 }
 
@@ -95,7 +95,7 @@ export async function confirmStarItem(
   satisfied: boolean
 ): Promise<StarItem> {
   const res = await api.post<StarItem>(
-    `/api/v1/proposal-editor/${proposalId}/star-items/${encodeURIComponent(itemName)}/confirm`,
+    `/proposal-editor/${proposalId}/star-items/${encodeURIComponent(itemName)}/confirm`,
     { satisfied }
   )
   return res.data
@@ -107,7 +107,7 @@ export async function confirmStarItem(
  * @returns 星标项列表
  */
 export async function listStarItems(proposalId: string): Promise<StarItem[]> {
-  const res = await api.get<StarItem[]>(`/api/v1/proposal-editor/${proposalId}/star-items`)
+  const res = await api.get<StarItem[]>(`/proposal-editor/${proposalId}/star-items`)
   return res.data
 }
 
@@ -124,7 +124,7 @@ export async function updateSectionContent(
   content: string
 ): Promise<ProposalSection> {
   const res = await api.post<ProposalSection>(
-    `/api/v1/proposal-editor/${proposalId}/sections/${sectionId}/content`,
+    `/proposal-editor/${proposalId}/sections/${sectionId}/content`,
     { content },
     { headers: { 'Content-Type': 'application/json' } }
   )

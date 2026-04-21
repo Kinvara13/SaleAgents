@@ -21,13 +21,13 @@ export interface ProposalPlanDetail extends ProposalPlanSummary {
 }
 
 export function listProposalPlans(projectId: string) {
-  return api.get<ProposalPlanSummary[]>(`/api/v1/projects/${projectId}/proposal-plans`)
+  return api.get<ProposalPlanSummary[]>(`/projects/${projectId}/proposal-plans`)
 }
 
 export function getProposalPlanDetail(projectId: string, docId: string) {
-  return api.get<ProposalPlanDetail>(`/api/v1/projects/${projectId}/proposal-plans/${docId}`)
+  return api.get<ProposalPlanDetail>(`/projects/${projectId}/proposal-plans/${docId}`)
 }
 
 export function updateProposalPlan(projectId: string, docId: string, data: { editable_content?: string; status?: string }) {
-  return api.patch<ProposalPlanDetail>(`/api/v1/projects/${projectId}/proposal-plans/${docId}`, data)
+  return api.patch<ProposalPlanDetail>(`/projects/${projectId}/proposal-plans/${docId}`, data)
 }

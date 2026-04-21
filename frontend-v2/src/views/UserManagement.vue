@@ -195,7 +195,7 @@ function roleClass(role: string) {
 
 async function fetchUsers() {
   try {
-    const res = await fetch('/api/v1/users')
+    const res = await api.get('/users')
     if (res.ok) users.value = await res.json()
   } catch (e) { console.error('Fetch users failed:', e) }
 }
@@ -203,11 +203,7 @@ async function fetchUsers() {
 async function handleCreate() {
   creating.value = true
   try {
-    await fetch('/api/v1/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(createForm.value)
-    })
+    await api.post('/users', createForm.value)
     showCreateModal.value = false
     createForm.value = { username: '', password: '', name: '', role: 'executor' }
     await fetchUsers()
@@ -225,11 +221,7 @@ async function handleUpdate() {
   if (!editTarget.value) return
   updating.value = true
   try {
-    await fetch(`/api/v1/users/${editTarget.value.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: editForm.value.role })
-    })
+    await api.patch('/users/${editTarget.value.id}', { role: editForm.value.role })
     isEditModalVisible.value = false
     await fetchUsers()
   } catch (e) { console.error('Update failed:', e) }
@@ -245,7 +237,7 @@ async function handleDelete() {
   if (!deleteTarget.value) return
   deleting.value = true
   try {
-    await fetch(`/api/v1/users/${deleteTarget.value.id}`, { method: 'DELETE' })
+    await api.delete('/users/${deleteTarget.value.id}')
     showDeleteConfirm.value = false
     deleteTarget.value = null
     await fetchUsers()
@@ -255,11 +247,7 @@ async function handleDelete() {
 
 async function toggleActive(user: User) {
   try {
-    await fetch(`/api/v1/users/${user.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: !user.is_active })
-    })
+    await api.patch('/users/${user.id}', { is_active: !user.is_active })
     await fetchUsers()
   } catch (e) { console.error('Toggle failed:', e) }
 }
