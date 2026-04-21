@@ -52,3 +52,13 @@ def inject_context(
     """Inject context (tender document, scoring rules, material) into chat."""
     ctx = chat_service.inject_context(db, project_id, payload.context_type, payload.content)
     return {"id": ctx.id, "context_type": ctx.context_type, "created_at": ctx.created_at.isoformat()}
+
+
+@router.delete("/{project_id}/history")
+def clear_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """Clear chat history for a project."""
+    chat_service.clear_history(db, project_id)
+    return {"message": "Chat history cleared"}

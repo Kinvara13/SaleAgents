@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.settings import AIConfigResponse, AIConfigUpdateRequest, MaterialResponse, RuleResponse
+from pydantic import BaseModel
+from app.schemas.settings import AIConfigResponse, AIConfigUpdateRequest, MaterialResponse, RuleResponse, RuleCreateRequest
 from app.services import settings_service
 
 router = APIRouter()
@@ -110,12 +111,10 @@ def get_rules(db: Session = Depends(get_db)) -> list[RuleResponse]:
 
 @router.post("/rules", response_model=RuleResponse, status_code=201)
 def post_rule(
-    name: str,
-    rule_type: str = "general",
-    content: str = "",
+    payload: RuleCreateRequest,
     db: Session = Depends(get_db),
 ) -> RuleResponse:
-    rule = settings_service.create_rule(db, name, rule_type, content)
+    rule = settings_service.create_rule(db, payload.name, payload.rule_type, payload.content)
     return RuleResponse(
         id=rule.id,
         name=rule.name,

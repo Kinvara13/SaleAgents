@@ -201,3 +201,9 @@ def _get_context_text(db: Session, project_id: str) -> str:
     if not contexts:
         return ""
     return "\n\n".join(c.content for c in contexts)
+
+
+def clear_history(db: Session, project_id: str) -> None:
+    """Clear all chat messages for a project."""
+    db.query(ChatMessage).filter(ChatMessage.project_id == project_id).delete()
+    db.commit()

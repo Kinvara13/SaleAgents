@@ -2,7 +2,7 @@ import { PageAgent } from 'page-agent';
 
 let agentInstance: PageAgent | null = null;
 
-export function initPageAgent() {
+export function initPageAgent(): PageAgent {
   if (agentInstance) return agentInstance;
 
   const baseURL = import.meta.env.VITE_LLM_BASE_URL || 'https://token-plan-cn.xiaomimimo.com/v1';
@@ -10,7 +10,7 @@ export function initPageAgent() {
   const model = import.meta.env.VITE_LLM_MODEL || 'mimo-v2-pro';
 
   console.log('[PageAgent] Initializing with model:', model);
-  
+
   agentInstance = new PageAgent({
     baseURL,
     apiKey,

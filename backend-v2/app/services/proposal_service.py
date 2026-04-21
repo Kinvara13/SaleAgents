@@ -238,7 +238,7 @@ def _generate_section_content(
 覆盖招标文件要求的核心功能点，并提供增值功能。
 
 **3. 运维保障维度**
-提供7×24小时技术支持，承诺{fpayload.include_company_bg and "公司具备完善的运维体系和专业的运维团队" or "专业的运维支持"}。
+提供7×24小时技术支持，承诺{payload.include_company_bg and "公司具备完善的运维体系和专业的运维团队" or "专业的运维支持"}。
 
 ### 四、评分要点响应
 {f"本章节响应技术打分表中的关键评分点：" if scoring_hint_text else "本章节完全响应招标文件中技术评分标准的要求。"}

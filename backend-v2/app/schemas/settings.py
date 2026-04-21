@@ -34,3 +34,9 @@ class RuleResponse(BaseModel):
     rule_type: str
     content: str
     is_active: bool
+
+
+class RuleCreateRequest(BaseModel):
+    name: str
+    rule_type: str = "general"
+    content: str = ""

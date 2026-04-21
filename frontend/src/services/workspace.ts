@@ -626,6 +626,19 @@ export async function exportGenerationJobDocx(jobId: string): Promise<Blob> {
   return response.blob();
 }
 
+export async function exportGenerationJobDocxWithTemplate(jobId: string, templateFile: File): Promise<Blob> {
+  const formData = new FormData();
+  formData.append("template", templateFile);
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/generation/jobs/${jobId}/export/docx`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error("Failed to export generation DOCX with template");
+  }
+  return response.blob();
+}
+
 export async function updateGenerationSection(
   jobId: string,
   sectionId: string,

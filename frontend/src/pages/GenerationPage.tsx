@@ -12,6 +12,7 @@ import {
   deleteGenerationAssetChunk,
   exportGenerationJob,
   exportGenerationJobDocx,
+  exportGenerationJobDocxWithTemplate,
   getGenerationAssetChunks,
   getGenerationAssetIndexJob,
   getGenerationJobAnalysis,
@@ -132,6 +133,7 @@ export function GenerationPage({ data, onGenerationUpdated }: GenerationPageProp
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -437,14 +439,16 @@ export function GenerationPage({ data, onGenerationUpdated }: GenerationPageProp
     setErrorMsg("");
     setSuccessMsg("");
     try {
-      const blob = await exportGenerationJobDocx(currentJob.id);
+      const blob = templateFile
+        ? await exportGenerationJobDocxWithTemplate(currentJob.id, templateFile)
+        : await exportGenerationJobDocx(currentJob.id);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `${currentJob.project_name}-回标初稿.docx`;
       anchor.click();
       URL.revokeObjectURL(url);
-      setSuccessMsg("已导出 Word 回标初稿。");
+      setSuccessMsg(templateFile ? "已导出 Word 回标初稿（已应用模板）。" : "已导出 Word 回标初稿。");
     } catch {
       setErrorMsg("导出 Word 失败。");
     } finally {
@@ -1122,9 +1126,46 @@ export function GenerationPage({ data, onGenerationUpdated }: GenerationPageProp
                 <button className="primary-button" type="button" onClick={handleExport} disabled={!currentJob || isExporting}>
                   {isExporting ? "导出中..." : "导出 Markdown"}
                 </button>
-                <button className="ghost-button" type="button" onClick={handleExportDocx} disabled={!currentJob || isExporting}>
-                  导出 Word
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button className="ghost-button" type="button" onClick={handleExportDocx} disabled={!currentJob || isExporting} style={{ flex: 1 }}>
+                    {isExporting ? "导出中..." : "导出 Word"}
+                  </button>
+                  <label className="ghost-button" style={{ cursor: "pointer", fontSize: "0.75rem", padding: "6px 10px", whiteSpace: "nowrap" }}>
+                    {templateFile ? templateFile.name : "上传模板"}
+                    <input
+                      type="file"
+                      accept=".docx"
+                      style={{ display: "none" }}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        setTemplateFile(e.target.files?.[0] ?? null);
+                      }}
+                    />
+                  </label>
+                </div>
+                {templateFile && (
+                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>📄 {templateFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTemplateFile(null)}
+                      style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: "0.75rem", padding: 0 }}
+                    >
+                      移除
+                    </button>
+                  </div>
+                )}
+                <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(139, 92, 246, 0.08)", borderRadius: 6, border: "1px solid rgba(139,92,246,0.2)" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "0.7rem", color: "#c4b5fd", fontWeight: 600 }}>📋 模板占位符说明</p>
+                  <p style={{ margin: 0, fontSize: "0.65rem", color: "#a78bfa", lineHeight: 1.6 }}>
+                    在 Word 模板中使用 <code style={{ background: "rgba(139,92,246,0.15)", padding: "1px 4px", borderRadius: 3 }}>{`{{章节标题}}`}</code> 作为占位符<br/>
+                    系统会自动替换为对应的 AI 生成内容<br/>
+                    示例：<code style={{ background: "rgba(139,92,246,0.15)", padding: "1px 4px", borderRadius: 3 }}>{`{{项目理解与建设目标}}`}</code> → 替换为该章节内容<br/>
+                    支持：<code style={{ background: "rgba(139,92,246,0.15)", padding: "1px 4px", borderRadius: 3 }}>{`{{项目名称}}`}</code>{" "}
+                    <code style={{ background: "rgba(139,92,246,0.15)", padding: "1px 4px", borderRadius: 3 }}>{`{{模板}}`}</code>{" "}
+                    <code style={{ background: "rgba(139,92,246,0.15)", padding: "1px 4px", borderRadius: 3 }}>{`{{生成时间}}`}</code>{" "}
+                    等元数据占位符
+                  </p>
+                </div>
               </div>
             </div>
 

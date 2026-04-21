@@ -1,12 +1,18 @@
 from uuid import uuid4
-from passlib.context import CryptContext
+import bcrypt
 
 from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.schemas.user import UserSummary, UserDetail, UserCreateRequest, UserUpdateRequest
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def list_users(db: Session) -> list[UserSummary]:
@@ -34,7 +40,7 @@ def create_user(db: Session, payload: UserCreateRequest) -> UserSummary:
     user = User(
         id=f"user_{uuid4().hex[:12]}",
         username=payload.username,
-        password_hash=pwd_context.hash(payload.password),
+        password_hash=hash_password(payload.password),
         name=payload.name or payload.username,
         role=payload.role or "executor",
         is_active=True,
