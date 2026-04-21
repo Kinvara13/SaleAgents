@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# 一键启动脚本：启动 SaleAgents 后端与前端服务
+# 一键启动脚本：启动 SaleAgents V2 后端与前端服务
 # 使用本地 SQLite 作为数据库
 # -----------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ PID_FILE="${PROJECT_ROOT}/.run.pid"
 mkdir -p "${LOG_DIR}"
 
 echo "========================================================="
-echo "🚀 正在启动 SaleAgents 项目..."
+echo "🚀 正在启动 SaleAgents V2 项目..."
 echo "========================================================="
 
 # 检查是否已经在运行
@@ -30,10 +30,10 @@ fi
 > "${PID_FILE}"
 
 # ---------------------------------------------------------
-# 1. 启动后端服务 (FastAPI / Uvicorn)
+# 1. 启动后端服务 V2 (FastAPI / Uvicorn)
 # ---------------------------------------------------------
-echo "[1/2] 正在启动后端服务 (端口: 8000)..."
-cd "${PROJECT_ROOT}/backend"
+echo "[1/2] 正在启动后端服务 V2 (端口: 8000)..."
+cd "${PROJECT_ROOT}/backend-v2"
 
 # 检查并激活虚拟环境
 if [ ! -d ".venv" ]; then
@@ -53,19 +53,19 @@ else
 fi
 
 # 确保环境变量使用 SQLite
-export DATABASE_URL_OVERRIDE="sqlite:///./bid_agent.db"
+export DATABASE_URL_OVERRIDE="sqlite:///./sale_agents_v2.db"
 
 # 启动后端 (后台运行)
-nohup uvicorn app.main:app --reload --port 8000 > "${LOG_DIR}/backend.log" 2>&1 &
+nohup uvicorn app.main:app --reload --port 8000 > "${LOG_DIR}/backend-v2.log" 2>&1 &
 BACKEND_PID=$!
 echo "${BACKEND_PID}" >> "${PID_FILE}"
-echo "  ✓ 后端已启动 (PID: ${BACKEND_PID})，日志: logs/backend.log"
+echo "  ✓ 后端 V2 已启动 (PID: ${BACKEND_PID})，日志: logs/backend-v2.log"
 
 # ---------------------------------------------------------
-# 2. 启动前端服务 (Vite)
+# 2. 启动前端服务 V2 (Vue / Vite)
 # ---------------------------------------------------------
-echo "[2/2] 正在启动前端服务 (端口: 5173)..."
-cd "${PROJECT_ROOT}/frontend"
+echo "[2/2] 正在启动前端服务 V2 (端口: 5173)..."
+cd "${PROJECT_ROOT}/frontend-v2"
 
 # 检查 node_modules
 if [ ! -d "node_modules" ]; then
@@ -74,10 +74,10 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # 启动前端 (后台运行)
-nohup npm run dev > "${LOG_DIR}/frontend.log" 2>&1 &
+nohup npm run dev > "${LOG_DIR}/frontend-v2.log" 2>&1 &
 FRONTEND_PID=$!
 echo "${FRONTEND_PID}" >> "${PID_FILE}"
-echo "  ✓ 前端已启动 (PID: ${FRONTEND_PID})，日志: logs/frontend.log"
+echo "  ✓ 前端 V2 已启动 (PID: ${FRONTEND_PID})，日志: logs/frontend-v2.log"
 
 # ---------------------------------------------------------
 echo "========================================================="

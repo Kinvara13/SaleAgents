@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="${PROJECT_ROOT}/.run.pid"
 
 echo "========================================================="
-echo "🛑 正在停止 SaleAgents 服务..."
+echo "🛑 正在停止 SaleAgents V2 服务..."
 echo "========================================================="
 
 # 检查进程锁文件
