@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   base: '/',
   server: {
+    host: true,
     port: 8081,
     proxy: {
       '/api': {
