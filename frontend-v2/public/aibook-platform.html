@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI标书编写智能体平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background-color: #f3f4f6; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #2563eb; cursor: pointer; }
+    input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #2563eb; cursor: pointer; border: none; }
+
+    :root {
+      --primary: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    .text-primary { color: var(--primary); }
+    .bg-primary { background-color: var(--primary); }
+    .hover\:bg-primary:hover { background-color: var(--primary); }
+    .hover\:bg-primary\/90:hover { background-color: rgba(37,99,235,0.9); }
+    .border-primary { border-color: var(--primary); }
+    .accent-primary { accent-color: var(--primary); }
+
+    .scrollbar-thin { scrollbar-width: thin; }
+    .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #C9CDD4; border-radius: 2px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .chat-bubble-user { background-color: #165DFF; color: white; border-radius: 8px; padding: 16px; max-width: 85%; margin-left: auto; border-top-right-radius: 0; }
+    .chat-bubble-ai { background-color: #F5F7FA; color: #1D2129; border-radius: 8px; padding: 16px; max-width: 85%; margin-right: auto; border-top-left-radius: 0; }
+    .progress-step-active { background-color: #165DFF; color: white; border-color: #165DFF; }
+    .progress-step-done { background-color: rgba(22,93,255,0.1); color: #165DFF; border-color: rgba(22,93,255,0.3); }
+    .progress-step-pending { background-color: #F5F7FA; color: #86909C; border-color: #E5E6EB; }
+
+    .priority-must { border-left: 3px solid #F53F3F; background: #FFECE8; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #F53F3F; font-size: 12px; display: inline-block; }
+    .priority-should { border-left: 3px solid #FF7D00; background: #FFF7E6; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #FF7D00; font-size: 12px; display: inline-block; }
+    .priority-could { border-left: 3px solid #165DFF; background: #E8F3FF; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #165DFF; font-size: 12px; display: inline-block; }
+
+    .status-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .status-unconfirmed { background: #F2F3F5; color: #4E5969; }
+    .status-confirmed { background: #E6FFEA; color: #00B42A; }
+    .status-modify { background: #FFF7E6; color: #FF7D00; }
+    .status-rejected { background: #FFECE8; color: #F53F3F; }
+    .status-edited { background: #E8F3FF; color: #165DFF; }
+
+    .collapse-content { max-height: 0; overflow: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .collapse-content.active { max-height: 2000px; }
+
+    .typing-animation span { animation: blink 1.4s infinite both; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #165DFF; margin: 0 2px; }
+    .typing-animation span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-animation span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0% { opacity: 0.2; } 20% { opacity: 1; } 100% { opacity: 0.2; } }
+
+    .smooth-scroll { scroll-behavior: smooth; }
+
+    #sidebar.w-8 { overflow: hidden; }
+    #sidebar.w-8 * { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="app" class="min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 px-6 py-3">
+      <div class="flex items-center justify-between max-w-[1600px] mx-auto">
+        <div class="flex items-center space-x-8">
+          <h1 class="text-xl font-bold text-primary cursor-pointer" @click="currentPage = 'home'">📋 AI标书智能平台</h1>
+          <div class="flex space-x-1">
+            <button
+              v-for="item in navItems"
+              :key="item.id"
+              @click="currentPage = item.id"
+              class="px-4 py-2 text-sm rounded-lg transition-all"
+              :class="currentPage === item.id ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'"
+            >{{ item.name }}</button>
+          </div>
+        </div>
+        <span class="text-sm text-gray-600">当前项目：{{ currentProject }}</span>
+      </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <main class="max-w-[1600px] mx-auto p-6 fade-in">
+
+      <!-- ==================== 首页 ==================== -->
+      <div v-if="currentPage === 'home'" class="min-h-screen bg-gradient-to-br from-white to-gray-50 -m-6 p-12">
+        <div class="text-center mb-12 pt-8">
+          <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-4">标书助手，你的AI投标伙伴已就位</h1>
+          <p class="text-gray-600 max-w-2xl mx-auto text-lg">利用人工智能技术，快速制作高质量标书，提高中标率，为您的企业赢得更多商机</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto mb-12">
+          <div v-for="(feature, idx) in homeFeatures" :key="idx" class="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100 hover:border-blue-200 group" @click="navigateToFeature(feature.page)">
+            <div :class="['w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-4', feature.bgColor]">{{ feature.icon }}</div>
+            <h3 class="font-semibold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">{{ feature.title }}</h3>
+            <p class="text-sm text-gray-600 leading-relaxed">{{ feature.desc }}</p>
+          </div>
+        </div>
+
+        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">快速开始</h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="text-center p-6 bg-gradient-to-br from-blue-50 to-white rounded-lg border border-blue-100 hover:shadow-md transition-all cursor-pointer" @click="currentPage = 'pre-eval'">
+              <div class="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-4">📊</div>
+              <h3 class="font-semibold text-gray-800 mb-2">投标前评估</h3>
+              <p class="text-sm text-gray-600">上传招标文件，进行智能评估分析</p>
+            </div>
+            <div class="text-center p-6 bg-gradient-to-br from-green-50 to-white rounded-lg border border-green-100 hover:shadow-md transition-all cursor-pointer" @click="currentPage = 'bid-writing'">
+              <div class="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-4">✍️</div>
+              <h3 class="font-semibold text-gray-800 mb-2">标书制作</h3>
+              <p class="text-sm text-gray-600">AI辅助生成高质量标书内容</p>
+            </div>
+            <div class="text-center p-6 bg-gradient-to-br from-purple-50 to-white rounded-lg border border-purple-100 hover:shadow-md transition-all cursor-pointer" @click="currentPage = 'demo-workflow'">
+              <div class="w-14 h-14 bg-purple-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-4">🎬</div>
+              <h3 class="font-semibold text-gray-800 mb-2">DEMO制作</h3>
+              <p class="text-sm text-gray-600">创建专业的产品演示方案</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 投标前评估 ==================== -->
+      <div v-if="currentPage === 'pre-eval'" class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-gray-800">投标前评估</h2>
+          <div class="flex space-x-3">
+            <button class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-all" @click="showUploadModal = true">📤 上传文件</button>
+            <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-all" @click="generatePreEvalReport">生成评估报告</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6">
+          <div class="col-span-8 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">项目基本信息</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">项目名称</label><input v-model="projectInfo.name" type="text" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="请输入项目名称" /></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">招标单位</label><input v-model="projectInfo.client" type="text" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="请输入招标单位" /></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">预算金额（万元）</label><input v-model.number="projectInfo.budget" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="请输入预算金额" /></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">截止日期</label><input v-model="projectInfo.deadline" type="date" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" /></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">价格评分方法</label>
+                  <select v-model="projectInfo.pricingMethod" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="linear">线性评分法</option>
+                    <option value="vertex-random">顶点中间值法（K值随机）</option>
+                    <option value="vertex-fixed">顶点中间值法（K值固定）</option>
+                  </select>
+                </div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">应答人数量</label><input v-model.number="projectInfo.respondents" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="预计参与数量" /></div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">技术评审标准</h3>
+                <button class="text-sm text-blue-600 hover:text-blue-700" @click="addReviewCriteria">+ 添加评审项</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700 w-24">一级项</th>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700 w-32">二级项</th>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700">评分内容</th>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700 w-20">分值</th>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700 w-28">预估得分</th>
+                      <th class="px-4 py-3 text-left font-medium text-gray-700">得分说明</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(item, idx) in reviewCriteria" :key="idx" class="border-t border-gray-100 hover:bg-gray-50">
+                      <td class="px-4 py-3"><span class="font-medium text-gray-800">{{ item.level1 }}</span></td>
+                      <td class="px-4 py-3"><span class="text-gray-700">{{ item.level2 }}</span></td>
+                      <td class="px-4 py-3"><span class="text-gray-600 text-xs">{{ item.content }}</span></td>
+                      <td class="px-4 py-3"><span class="font-medium text-blue-600">{{ item.score }}分</span></td>
+                      <td class="px-4 py-3"><span :class="['font-medium', item.estimatedScore === '/' ? 'text-gray-400' : 'text-green-600']">{{ item.estimatedScore === '/' ? '/' : item.estimatedScore + '分' }}</span></td>
+                      <td class="px-4 py-3"><span class="text-gray-600 text-xs">{{ item.explanation }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div v-if="uploadedFiles.length > 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">已上传文件</h3>
+              <div class="space-y-2">
+                <div v-for="(file, idx) in uploadedFiles" :key="idx" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div class="flex items-center space-x-3">
+                    <span class="text-blue-600">📄</span>
+                    <span class="text-sm text-gray-700">{{ file.name }}</span>
+                    <span class="text-xs text-gray-400">({{ (file.size / 1024).toFixed(1) }}KB)</span>
+                  </div>
+                  <button class="text-red-500 hover:text-red-600 text-sm" @click="removeFile(idx)">删除</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-4 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">评估结果预览</h3>
+              <div class="space-y-4">
+                <div class="p-4 bg-blue-50 rounded-lg">
+                  <div class="text-sm text-gray-600 mb-1">综合得分预估</div>
+                  <div class="text-3xl font-bold text-blue-600">{{ preEvalTotalScore.toFixed(1) }}分</div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-3 bg-gray-50 rounded-lg text-center">
+                    <div class="text-xs text-gray-500">技术分</div>
+                    <div class="text-lg font-bold text-gray-800">{{ techScore.toFixed(1) }}</div>
+                  </div>
+                  <div class="p-3 bg-gray-50 rounded-lg text-center">
+                    <div class="text-xs text-gray-500">商务分</div>
+                    <div class="text-lg font-bold text-gray-800">{{ businessScore.toFixed(1) }}</div>
+                  </div>
+                </div>
+                <div class="pt-4 border-t border-gray-200">
+                  <div class="text-sm font-medium text-gray-700 mb-2">风险评估</div>
+                  <div class="space-y-2">
+                    <div v-for="(risk, idx) in riskAssessment" :key="idx" class="flex items-center justify-between text-sm">
+                      <span class="text-gray-600">{{ risk.label }}</span>
+                      <span :class="['font-medium', risk.level === 'high' ? 'text-red-600' : risk.level === 'medium' ? 'text-yellow-600' : 'text-green-600']">{{ risk.value }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">AI建议</h3>
+              <div class="space-y-3">
+                <div v-for="(suggestion, idx) in aiSuggestions" :key="idx" class="p-3 bg-gradient-to-r from-blue-50 to-white rounded-lg border-l-4 border-blue-400">
+                  <p class="text-sm text-gray-700">{{ suggestion }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 标书制作 ==================== -->
+      <div v-if="currentPage === 'bid-writing'" class="min-h-screen -m-6">
+        <div class="flex h-screen">
+          <div v-if="bidActiveTab === 'writing'" class="flex-1 flex min-h-0 gap-4 p-6">
+            <div class="w-64 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex-shrink-0">
+              <div class="p-4 border-b border-gray-100 bg-gray-50 font-medium text-gray-800">📁 文件目录</div>
+              <div class="p-3 space-y-2 overflow-auto" style="max-height: calc(100% - 60px);">
+                <div v-for="section in bidFileTree" :key="section.id" class="cursor-pointer hover:bg-gray-100 rounded-lg p-2 transition-all" :class="{ 'bg-blue-50 text-primary': selectedBidSection === section.id }" @click="selectedBidSection = section.id">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium">{{ section.name }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{{ section.completed }}/{{ section.total }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex">
+              <div :class="['border-r border-gray-100 flex flex-col transition-all duration-300', isLeftTemplateHidden ? 'w-0 hidden' : 'w-1/3']">
+                <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <span class="font-medium text-gray-800 text-sm">模版原文件</span>
+                  <button class="text-xs text-blue-600 hover:text-blue-700" @click="isLeftTemplateHidden = true">隐藏</button>
+                </div>
+                <div class="flex-1 p-4 overflow-auto text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" v-html="templateContent"></div>
+              </div>
+
+              <div :class="['border-r border-gray-100 flex flex-col transition-all duration-300', isLeftTemplateHidden ? 'w-2/3' : 'w-1/2']">
+                <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <span class="font-medium text-gray-800 text-sm">AI生成后文件预览</span>
+                  <div class="flex items-center space-x-2">
+                    <button v-if="isLeftTemplateHidden" class="text-xs text-blue-600 hover:text-blue-700" @click="isLeftTemplateHidden = false">显示模板</button>
+                    <button class="text-xs text-green-600 hover:text-green-700" @click="regenerateCurrentSection">重新生成</button>
+                  </div>
+                </div>
+                <div class="flex-1 p-4 overflow-auto text-sm text-gray-800 leading-relaxed" v-html="generatedContent"></div>
+              </div>
+
+              <div :class="['flex flex-col transition-all duration-300', isLeftTemplateHidden ? 'w-1/3' : 'w-1/6']">
+                <div class="p-4 border-b border-gray-100 bg-gray-50">
+                  <span class="font-medium text-gray-800 text-sm">AI助手</span>
+                </div>
+                <div class="flex-1 overflow-auto p-3 space-y-3 scrollbar-thin">
+                  <div v-for="(msg, idx) in bidChatMessages" :key="idx" :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
+                    <div :class="[msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai']">
+                      <div v-html="msg.content"></div>
+                      <div class="text-xs mt-2 opacity-70">{{ msg.time }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="p-3 border-t border-gray-100">
+                  <div class="flex items-end space-x-2">
+                    <textarea v-model="bidChatInput" placeholder="输入指令..." class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" rows="2" @keyup.enter.exact="sendBidChatMessage"></textarea>
+                    <button class="px-3 py-2 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600" @click="sendBidChatMessage">发送</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== DEMO制作 ==================== -->
+      <div v-if="currentPage === 'demo-workflow'" class="min-h-screen -m-6">
+        <div class="flex h-screen">
+          <aside id="sidebar" :class="['bg-white border-r border-gray-200 flex flex-col transition-all duration-300 z-10', isSidebarCollapsed ? 'w-8' : 'w-60']">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50" v-if="!isSidebarCollapsed">
+              <h2 class="font-semibold text-gray-800 text-sm">📂 项目资源库</h2>
+              <button class="text-gray-400 hover:text-gray-600" @click="isSidebarCollapsed = true">◀</button>
+            </div>
+            <div class="p-2" v-else>
+              <button class="w-full p-2 text-gray-400 hover:text-gray-600" @click="isSidebarCollapsed = false">▶</button>
+            </div>
+            <div v-if="!isSidebarCollapsed" class="flex-1 overflow-auto p-3 space-y-2 scrollbar-thin">
+              <div v-for="(category, idx) in demoResourceCategories" :key="idx" class="border border-gray-200 rounded-lg overflow-hidden">
+                <button class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-all text-left" @click="toggleDemoCategory(idx)">
+                  <span class="text-sm font-medium text-gray-700">{{ category.icon }} {{ category.name }}</span>
+                  <span class="text-xs text-gray-400">{{ category.expanded ? '▲' : '▼' }}</span>
+                </button>
+                <div v-if="category.expanded" class="p-2 space-y-1 bg-white">
+                  <div v-for="(item, iIdx) in category.items" :key="iIdx" class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer text-xs text-gray-600">
+                    <span class="mr-2">📄</span>
+                    <span class="flex-1 truncate">{{ item.name }}</span>
+                    <span class="text-gray-400">{{ item.type }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <main class="flex-1 overflow-auto p-6 bg-gray-50 scrollbar-thin smooth-scroll">
+            <div class="max-w-4xl mx-auto space-y-6">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-start space-x-4">
+                  <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-2xl">🎯</span></div>
+                  <div class="flex-1">
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">欢迎使用DEMO制作智能体</h2>
+                    <p class="text-gray-600 mb-4">我可以帮助您快速制作专业的产品演示DEMO。请告诉我您的需求，或者从左侧资源库中选择素材开始。</p>
+                    <div class="flex flex-wrap gap-3">
+                      <button class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all text-sm font-medium" @click="startNewDemo">🆕 新建DEMO</button>
+                      <button class="px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium" @click="loadTemplate">📋 使用模板</button>
+                      <button class="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-all text-sm font-medium" @click="importResources">📂 导入资源</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">📊 制作进度</h3>
+                <div class="flex items-center justify-between mb-4">
+                  <div v-for="(step, idx) in demoProgressSteps" :key="idx" class="flex items-center">
+                    <div class="flex flex-col items-center">
+                      <div :class="['w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all', step.status === 'done' ? 'progress-step-done' : step.status === 'active' ? 'progress-step-active' : 'progress-step-pending']">{{ step.status === 'done' ? '✓' : idx + 1 }}</div>
+                      <span :class="['text-xs mt-2 text-center max-w-[80px]', step.status === 'active' ? 'text-blue-600 font-medium' : 'text-gray-500']">{{ step.name }}</span>
+                    </div>
+                    <div v-if="idx < demoProgressSteps.length - 1" :class="['w-16 h-0.5 mx-2', step.status === 'done' ? 'bg-blue-200' : 'bg-gray-200']"></div>
+                  </div>
+                </div>
+                <div class="mt-4 bg-gray-50 rounded-lg p-4">
+                  <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-gray-600">总体完成度</span>
+                    <span class="font-medium text-blue-600">{{ demoOverallProgress }}%</span>
+                  </div>
+                  <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-500 rounded-full transition-all duration-500" :style="{ width: demoOverallProgress + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-lg font-semibold text-gray-800">📝 当前任务</h3>
+                  <span :class="['status-tag', currentDemoTaskStatusClass]">{{ currentDemoTaskStatus }}</span>
+                </div>
+                <div v-if="currentDemoTask" class="space-y-4">
+                  <div>
+                    <h4 class="font-medium text-gray-800 mb-2">{{ currentDemoTask.title }}</h4>
+                    <p class="text-sm text-gray-600 mb-3">{{ currentDemoTask.description }}</p>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                      <span v-for="priority in currentDemoTask.priorities" :key="priority" :class="'priority-' + priority">{{ getPriorityLabel(priority) }}</span>
+                    </div>
+                  </div>
+                  <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <button class="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-all" @click="currentDemoTaskExpanded = !currentDemoTaskExpanded">
+                      <span class="text-sm font-medium text-gray-700">查看详细要求</span>
+                      <span class="text-gray-400">{{ currentDemoTaskExpanded ? '▲' : '▼' }}</span>
+                    </button>
+                    <div :class="['collapse-content', { active: currentDemoTaskExpanded }]">
+                      <div class="p-4 bg-white text-sm text-gray-600 space-y-2">
+                        <p>{{ currentDemoTask.detailRequirements }}</p>
+                        <div class="mt-3 p-3 bg-blue-50 rounded-lg">
+                          <p class="text-xs text-blue-700 font-medium">💡 AI建议：</p>
+                          <p class="text-xs text-blue-600 mt-1">{{ currentDemoTask.aiSuggestion }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex justify-end space-x-3">
+                    <button class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all text-sm">跳过此步</button>
+                    <button class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm" @click="completeCurrentTask">完成任务 →</button>
+                  </div>
+                </div>
+                <div v-else class="text-center py-8 text-gray-400">
+                  <div class="text-4xl mb-2">✅</div>
+                  <p>所有任务已完成！</p>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">💬 制作对话记录</h3>
+                <div class="space-y-4 max-h-96 overflow-auto scrollbar-thin">
+                  <div v-for="(msg, idx) in demoChatMessages" :key="idx" :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
+                    <div :class="[msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai']">
+                      <div v-html="msg.content"></div>
+                      <div class="text-xs mt-2 opacity-70">{{ msg.time }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                  <div class="flex items-end space-x-3">
+                    <textarea v-model="demoChatInput" placeholder="描述您的DEMO制作需求..." class="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none" rows="3" @keyup.enter.exact="sendDemoChatMessage"></textarea>
+                    <button class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm font-medium self-end" @click="sendDemoChatMessage">发送</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="w-80 bg-white border-l border-gray-200 flex flex-col z-10">
+            <div class="p-4 border-b border-gray-200 bg-gray-50">
+              <h3 class="font-medium text-gray-800 flex items-center"><span class="mr-2">🤖</span> AI助手</h3>
+            </div>
+            <div class="p-4 border-b border-gray-200">
+              <p class="text-xs text-gray-500 mb-2">快捷指令</p>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="cmd in demoQuickCommands" :key="cmd" class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs hover:bg-blue-100 transition-all" @click="executeQuickCommand(cmd)">{{ cmd }}</button>
+              </div>
+            </div>
+            <div class="flex-1 overflow-auto p-4 space-y-4 scrollbar-thin" style="height: calc(100% - 280px);">
+              <div v-for="(msg, idx) in demoAiMessages" :key="idx" class="flex space-x-2">
+                <div :class="['w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs', msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200']">{{ msg.role === 'user' ? '我' : '🤖' }}</div>
+                <div :class="['rounded-lg px-3 py-2 text-sm max-w-[85%]', msg.role === 'user' ? 'bg-blue-50 text-gray-800 ml-auto' : 'bg-gray-100 text-gray-800']">
+                  <div v-html="msg.content"></div>
+                </div>
+              </div>
+            </div>
+            <div class="p-4 border-t border-gray-200">
+              <div class="flex items-end space-x-2">
+                <input v-model="demoAiInput" type="text" placeholder="输入问题..." class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" @keyup.enter.exact="sendDemoAiMessage" />
+                <button class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600" @click="sendDemoAiMessage">发送</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ==================== 报价策略 ==================== -->
+      <div v-if="currentPage === 'pricing-strategy'" class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-gray-800">报价策略</h2>
+          <div class="flex items-center space-x-2 text-sm text-gray-600">
+            <span>价格评分方法：</span>
+            <span class="font-medium text-blue-600">{{ pricingMethodName }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6">
+          <div class="col-span-8 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">基本参数设置</h3>
+              <div class="grid grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">含税报价（万元）</label>
+                  <input v-model.number="pricingParams.taxIncludedPrice" type="number" step="0.01" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-medium" placeholder="请输入含税报价" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">税率 (%)</label>
+                  <input v-model.number="pricingParams.taxRate" type="number" step="0.01" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="默认6%" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">不含税报价（万元）</label>
+                  <div class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-lg font-medium text-gray-800">{{ taxExcludedPrice.toFixed(2) }}</div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">目标利润率 (%)</label>
+                  <div class="flex items-center space-x-3">
+                    <input v-model.number="pricingParams.profitMargin" type="range" min="5" max="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                    <span class="w-14 text-right text-lg font-medium text-blue-600">{{ pricingParams.profitMargin }}%</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">风险系数</label>
+                  <div class="flex items-center space-x-3">
+                    <input v-model.number="pricingParams.riskFactor" type="range" min="1" max="5" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-yellow-500" />
+                    <span class="w-14 text-right text-lg font-medium text-yellow-600">{{ pricingParams.riskFactor }}级</span>
+                  </div>
+                </div>
+                <div v-if="pricingParams.pricingMethod !== 'linear'">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">有效应答人数量 (N)</label>
+                  <input v-model.number="pricingParams.respondentCount" type="number" min="1" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="输入N值" />
+                </div>
+              </div>
+            </div>
+
+            <div v-if="pricingParams.pricingMethod === 'vertex-random' || pricingParams.pricingMethod === 'vertex-fixed'" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">顶点中间值法参数</h3>
+              <div class="space-y-4 pl-4 border-l-2 border-orange-200">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">最高限价 P_max（万元）</label>
+                  <input v-model.number="pricingParams.maxPrice" type="number" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="请输入最高限价" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">最低限价 P_min（万元）</label>
+                  <input v-model.number="pricingParams.minPrice" type="number" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="请输入最低限价" />
+                </div>
+                <div v-if="pricingParams.pricingMethod === 'vertex-fixed'">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">K值</label>
+                  <input v-model.number="pricingParams.kValue" type="number" step="0.001" min="0" max="1" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="固定K值" />
+                  <p class="text-xs text-gray-500 mt-1">顶点中间值法（K值固定）：K为固定参数，通常在0.5左右。</p>
+                </div>
+                <div v-else>
+                  <p class="text-xs text-gray-500 mt-1">顶点中间值法（K值随机）：K = rand(0, 1)，每次计算随机生成。</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="pricingParams.pricingMethod === 'linear'" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">线性评分法参数</h3>
+              <div class="space-y-4 pl-4 border-l-2 border-blue-200">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">敏感系数 (λ)</label>
+                  <div class="flex items-center space-x-3">
+                    <input v-model.number="pricingParams.sensitivity" type="range" min="0.5" max="5" step="0.1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                    <span class="w-14 text-right text-sm font-medium text-gray-800">{{ pricingParams.sensitivity.toFixed(1) }}%</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">线性评分法下与有效应答人数量无关，λ默认2%。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-4 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">实时得分预览</h3>
+              <div class="space-y-4">
+                <div class="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                  <div class="text-sm text-blue-700 mb-1">价格得分</div>
+                  <div class="text-4xl font-bold text-blue-600">{{ priceScore.toFixed(2) }}分</div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xs text-gray-500">预估成本</div>
+                    <div class="text-lg font-bold text-gray-800">{{ estimatedCost.toFixed(2) }}万</div>
+                  </div>
+                  <div class="p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xs text-gray-500">实际利润</div>
+                    <div class="text-lg font-bold text-green-600">{{ actualProfit.toFixed(2) }}万</div>
+                  </div>
+                </div>
+                <div class="pt-4 border-t border-gray-200">
+                  <div class="text-sm font-medium text-gray-700 mb-3">得分说明</div>
+                  <div class="p-3 bg-yellow-50 rounded-lg text-xs text-gray-700 leading-relaxed">
+                    {{ priceScoreExplanation }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">策略建议</h3>
+              <div class="space-y-3">
+                <div v-for="(tip, idx) in pricingTips" :key="idx" class="flex items-start space-x-2 p-3 bg-gray-50 rounded-lg">
+                  <span class="text-blue-600 mt-0.5">💡</span>
+                  <p class="text-sm text-gray-700">{{ tip }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, watch } = Vue
+
+    createApp({
+      setup() {
+        const currentPage = ref('home')
+        const currentProject = ref('示例项目-AI智能标书系统')
+
+        const navItems = [
+          { id: 'home', name: '首页' },
+          { id: 'pre-eval', name: '标前评估' },
+          { id: 'bid-writing', name: '标书制作' },
+          { id: 'demo-workflow', name: 'DEMO制作' },
+          { id: 'pricing-strategy', name: '报价策略' }
+        ]
+
+        const homeFeatures = [
+          { icon: '📊', title: '智能评估分析', desc: '自动解析招标文件，识别关键信息和风险点', bgColor: 'bg-blue-100', page: 'pre-eval' },
+          { icon: '✍️', title: 'AI辅助撰写', desc: '基于知识库智能生成标书内容，提高效率', bgColor: 'bg-green-100', page: 'bid-writing' },
+          { icon: '🎬', title: 'DEMO制作', desc: '快速创建专业演示文稿，展示产品优势', bgColor: 'bg-purple-100', page: 'demo-workflow' },
+          { icon: '💰', title: '报价优化', desc: '多种评分算法支持，科学制定报价策略', bgColor: 'bg-yellow-100', page: 'pricing-strategy' }
+        ]
+
+        const navigateToFeature = (page) => {
+          currentPage.value = page
+        }
+
+        // 标前评估相关数据
+        const projectInfo = ref({
+          name: '',
+          client: '',
+          budget: null,
+          deadline: '',
+          pricingMethod: 'linear',
+          respondents: 3
+        })
+
+        const uploadedFiles = ref([])
+        const showUploadModal = ref(false)
+
+        const reviewCriteria = ref([
+          { level1: '1 项目经验', level2: '1.1 合同数量', content: '近三年类似项目合同数量不少于5个', score: 15, estimatedScore: 15, explanation: '具备资格：知识库中找到8个类似案例' },
+          { level1: '', level2: '1.2 案例说明', content: '需提供详细案例介绍及证明材料', score: 10, estimatedScore: '/', explanation: '主观评分项' },
+          { level1: '2 服务团队', level2: '2.1 项目负责人能力', content: '项目负责人需具备PMP或高级项目经理证书', score: 12, estimatedScore: 12, explanation: '具备PMP证书，得满分' },
+          { level1: '', level2: '2.2 PV视频负责人能力', content: '负责人需有5年以上视频制作经验', score: 8, estimatedScore: 8, explanation: '经验满足要求' },
+          { level1: '3 技术能力', level2: '3.1 服务方案', content: '提供完整的技术实施方案和质量保障措施', score: 20, estimatedScore: 18, explanation: '方案较完善，缺少部分细节' },
+          { level1: '', level2: '3.2 案例说明', content: '提供过往成功案例及客户评价', score: 10, estimatedScore: '/', explanation: '主观评分项' },
+          { level1: '4 应答情况', level2: '4.1 应答文件质量', content: '文件格式规范、内容完整、排版清晰', score: 15, estimatedScore: 14, explanation: '整体质量良好' },
+          { level1: '5 应答偏离', level2: '5.1 应答偏离', content: '对招标文件的响应程度和偏离情况', score: 10, estimatedScore: 10, explanation: '完全响应无偏离' }
+        ])
+
+        const techScore = computed(() => {
+          return reviewCriteria.value.reduce((sum, item) => {
+            return sum + (item.estimatedScore === '/' ? 0 : item.estimatedScore)
+          }, 0)
+        })
+
+        const businessScore = ref(85)
+        const preEvalTotalScore = computed(() => techScore.value + businessScore.value)
+
+        const riskAssessment = ref([
+          { label: '技术风险', value: '低', level: 'low' },
+          { label: '时间风险', value: '中', level: 'medium' },
+          { label: '竞争风险', value: '高', level: 'high' }
+        ])
+
+        const aiSuggestions = ref([
+          '建议重点准备技术方案的细节补充材料',
+          '项目负责人资质材料已齐全，可优先展示',
+          '注意把控项目进度，预留充足时间进行内部审核'
+        ])
+
+        const addReviewCriteria = () => {
+          reviewCriteria.value.push({
+            level1: '',
+            level2: `1.${reviewCriteria.value.length + 1} 新增项`,
+            content: '请填写评分内容',
+            score: 5,
+            estimatedScore: '/',
+            explanation: ''
+          })
+        }
+
+        const generatePreEvalReport = () => {
+          alert('评估报告生成中...（演示功能）')
+        }
+
+        // 标书制作相关数据
+        const bidActiveTab = ref('writing')
+        const selectedBidSection = ref('overview')
+        const isLeftTemplateHidden = ref(false)
+
+        const bidFileTree = ref([
+          { id: 'overview', name: '项目概述', completed: 1, total: 1 },
+          { id: 'tech-solution', name: '技术方案', completed: 3, total: 5 },
+          { id: 'team-intro', name: '团队介绍', completed: 2, total: 3 },
+          { id: 'case-study', name: '案例分析', completed: 1, total: 2 },
+          { id: 'price-quote', name: '报价清单', completed: 0, total: 1 }
+        ])
+
+        const templateContent = ref(`<div style="line-height: 1.8;">
+<h2 style="color: #1a365d; font-size: 18px; font-weight: bold; margin-bottom: 12px;">第一章 项目概述</h2>
+<p style="margin-bottom: 8px;"><strong>1.1 项目背景</strong></p>
+<p style="color: #4a5568; margin-bottom: 12px;">[请在此处描述项目的背景信息，包括项目发起的原因、目标等]</p>
+<p style="margin-bottom: 8px;"><strong>1.2 项目目标</strong></p>
+<p style="color: #4a5568; margin-bottom: 12px;">[请在此处列出项目的具体目标和预期成果]</p>
+<p style="margin-bottom: 8px;"><strong>1.3 工作范围</strong></p>
+<p style="color: #4a5568;">[请在此处明确项目的工作范围和边界]</p>
+</div>`)
+
+        const generatedContent = ref(`<div style="line-height: 1.8;">
+<h2 style="color: #1a365d; font-size: 18px; font-weight: bold; margin-bottom: 12px;">第一章 项目概述</h2>
+<p style="margin-bottom: 8px;"><strong>1.1 项目背景</strong></p>
+<p style="color: #2d3748; margin-bottom: 12px;">本项目旨在构建一套完整的AI智能标书编写系统，通过引入先进的人工智能技术，实现标书制作的自动化和智能化。项目将整合自然语言处理、知识图谱、机器学习等技术，为用户提供从需求分析到最终交付的全流程智能化服务。</p>
+<p style="margin-bottom: 8px;"><strong>1.2 项目目标</strong></p>
+<ul style="color: #2d3748; margin-bottom: 12px; padding-left: 20px;">
+<li>建立智能化的标书内容生成引擎</li>
+<li>实现多维度风险评估和定价优化</li>
+<li>提供可视化的项目管理和协作平台</li>
+<li>确保标书质量和合规性达到行业标准</li>
+</ul>
+<p style="margin-bottom: 8px;"><strong>1.3 工作范围</strong></p>
+<p style="color: #2d3748;">本项目涵盖需求调研、系统设计、开发实施、测试验收及运维支持等全生命周期工作。</p>
+<div style="background: #f7fafc; padding: 12px; border-radius: 6px; margin-top: 16px;">
+<p style="font-size: 13px; color: #718096; margin: 0;"><em>注：以上内容由AI根据招标文件要求和知识库自动生成，可根据实际情况进行调整。</em></p>
+</div>
+</div>`)
+
+        const bidChatMessages = ref([
+          { role: 'ai', content: '您好！我是标书制作AI助手。我可以帮您：<br/>• 优化当前章节内容<br/>• 补充技术细节<br/>• 调整语言风格<br/>• 检查合规性<br/><br/>请问有什么可以帮您？', time: '10:00' }
+        ])
+        const bidChatInput = ref('')
+
+        const sendBidChatMessage = () => {
+          if (!bidChatInput.value.trim()) return
+          bidChatMessages.value.push({ role: 'user', content: bidChatInput.value, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) })
+          setTimeout(() => {
+            bidChatMessages.value.push({ role: 'ai', content: '收到您的指令，正在处理中...<br/><br/>根据您的要求，我已经优化了当前章节的内容。主要改进包括：<br/>1. 增加了具体的技术指标<br/>2. 完善了实施计划的时间节点<br/>3. 补充了质量保障措施<br/><br/>您可以查看右侧的预览效果。', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) })
+          }, 1000)
+          bidChatInput.value = ''
+        }
+
+        const regenerateCurrentSection = () => {
+          alert('正在重新生成当前章节内容...')
+        }
+
+        // DEMO制作相关数据
+        const isSidebarCollapsed = ref(false)
+        const demoResourceCategories = ref([
+          { name: '项目文档', icon: '📁', expanded: true, items: [{ name: '需求说明书.pdf', type: 'PDF' }, { name: '技术规格.docx', type: 'DOC' }] },
+          { name: '素材资源', icon: '🎨', expanded: false, items: [{ name: '产品截图.zip', type: 'ZIP' }, { name: 'Logo素材.png', type: 'PNG' }, { name: '宣传视频.mp4', type: 'MP4' }] },
+          { name: '历史案例', icon: '📊', expanded: false, items: [{ name: '案例A-金融行业', type: 'PPT' }, { name: '案例B-政务系统', type: 'PPT' }] },
+          { name: '模板库', icon: '📋', expanded: false, items: [{ name: '通用模板', type: 'PPT' }, { name: '科技风格', type: 'PPT' }, { name: '商务简约', type: 'PPT' }] }
+        ])
+
+        const toggleDemoCategory = (idx) => {
+          demoResourceCategories.value[idx].expanded = !demoResourceCategories.value[idx].expanded
+        }
+
+        const demoProgressSteps = ref([
+          { name: '需求确认', status: 'done' },
+          { name: '素材准备', status: 'done' },
+          { name: '脚本编写', status: 'active' },
+          { name: '制作执行', status: 'pending' },
+          { name: '审核修改', status: 'pending' }
+        ])
+
+        const demoOverallProgress = computed(() => {
+          const done = demoProgressSteps.value.filter(s => s.status === 'done').length
+          return Math.round((done / demoProgressSteps.value.length) * 100)
+        })
+
+        const currentDemoTask = ref({
+          title: '编写DEMO脚本大纲',
+          description: '根据项目需求和产品特点，编写完整的演示脚本框架',
+          priorities: ['must'],
+          detailRequirements: '1. 明确演示的目标受众和核心价值主张\n2. 设计清晰的演示流程（开场-功能展示-案例证明-总结）\n3. 突出产品的3-5个核心卖点\n4. 准备可能的问题应对话术\n5. 控制总时长在15-20分钟内',
+          aiSuggestion: '建议采用"问题-解决方案-价值验证"的三段式结构，先抛出客户痛点，再展示产品如何解决，最后用数据证明效果。'
+        })
+        const currentDemoTaskStatus = ref('进行中')
+        const currentDemoTaskStatusClass = ref('status-edited')
+        const currentDemoTaskExpanded = ref(false)
+
+        const getPriorityLabel = (priority) => {
+          const labels = { must: '必须', should: '应该', could: '可以' }
+          return labels[priority] || priority
+        }
+
+        const completeCurrentTask = () => {
+          const activeIdx = demoProgressSteps.value.findIndex(s => s.status === 'active')
+          if (activeIdx >= 0 && activeIdx < demoProgressSteps.value.length - 1) {
+            demoProgressSteps.value[activeIdx].status = 'done'
+            demoProgressSteps.value[activeIdx + 1].status = 'active'
+            currentDemoTask.value = null
+          }
+        }
+
+        const startNewDemo = () => {
+          alert('开始新建DEMO项目...')
+        }
+        const loadTemplate = () => {
+          alert('加载模板选择器...')
+        }
+        const importResources = () => {
+          alert('打开资源导入窗口...')
+        }
+
+        const demoChatMessages = ref([
+          { role: 'ai', content: '欢迎来到DEMO制作工作区！我可以帮您：<br/>• 规划演示流程和脚本<br/>• 推荐合适的素材和模板<br/>• 优化PPT内容和设计<br/>• 模拟演练和反馈<br/><br/>让我们开始吧！', time: '10:00' }
+        ])
+        const demoChatInput = ref('')
+
+        const sendDemoChatMessage = () => {
+          if (!demoChatInput.value.trim()) return
+          demoChatMessages.value.push({ role: 'user', content: demoChatInput.value, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) })
+          setTimeout(() => {
+            demoChatMessages.value.push({ role: 'ai', content: '好的，我来帮您处理这个需求。<br/><br/>根据您的描述，我建议：<br/>1. 首先确定演示的核心主题<br/>2. 选择合适的视觉风格<br/>3. 准备关键数据和案例<br/><br/>需要我为您提供更详细的方案吗？', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) })
+          }, 800)
+          demoChatInput.value = ''
+        }
+
+        const demoQuickCommands = ref(['优化脚本', '推荐模板', '检查时长', '添加动画'])
+        const demoAiMessages = ref([
+          { role: 'ai', content: '您好！我是DEMO制作助手。有什么可以帮助您的吗？' }
+        ])
+        const demoAiInput = ref('')
+
+        const executeQuickCommand = (cmd) => {
+          demoAiInput.value = cmd
+          sendDemoAiMessage()
+        }
+
+        const sendDemoAiMessage = () => {
+          if (!demoAiInput.value.trim()) return
+          demoAiMessages.value.push({ role: 'user', content: demoAiInput.value })
+          const responses = {
+            '优化脚本': '我来帮您优化脚本结构。建议增加以下要点：\n1. 开场白要抓住听众注意力\n2. 功能展示要有节奏感\n3. 结尾要有明确的行动号召',
+            '推荐模板': '根据您的项目类型，我推荐使用【科技风格】模板，它具有现代感和专业性。',
+            '检查时长': '当前脚本预计时长约18分钟，符合15-20分钟的建议范围。',
+            '添加动画': '可以为关键页面添加适当的转场动画，增强视觉效果。'
+          }
+          setTimeout(() => {
+            demoAiMessages.value.push({ role: 'ai', content: responses[demoAiInput.value] || '收到您的消息，正在处理...' })
+          }, 500)
+          demoAiInput.value = ''
+        }
+
+        // 报价策略相关数据
+        const pricingParams = ref({
+          pricingMethod: 'linear',
+          taxIncludedPrice: 100,
+          taxRate: 6,
+          profitMargin: 15,
+          riskFactor: 2,
+          respondentCount: 3,
+          maxPrice: 150,
+          minPrice: 80,
+          kValue: 0.5,
+          sensitivity: 2
+        })
+
+        const pricingMethodName = computed(() => {
+          const methods = {
+            'linear': '线性评分法',
+            'vertex-random': '顶点中间值法（K值随机）',
+            'vertex-fixed': '顶点中间值法（K值固定）'
+          }
+          return methods[pricingParams.value.pricingMethod] || '未知'
+        })
+
+        const taxExcludedPrice = computed(() => {
+          if (!pricingParams.value.taxIncludedPrice || !pricingParams.value.taxRate) return 0
+          return Math.round((pricingParams.value.taxIncludedPrice / (1 + pricingParams.value.taxRate / 100)) * 100) / 100
+        })
+
+        const priceScore = computed(() => {
+          try {
+            const method = pricingParams.value.pricingMethod
+            const price = pricingParams.value.taxIncludedPrice
+
+            if (!price || price <= 0) return 0
+
+            if (method === 'linear') {
+              const lambda = (pricingParams.value.sensitivity || 2) / 100
+              const baseScore = Math.round(Math.max(0, Math.min(100, 100 - lambda * Math.abs(price - 100))) * 100) / 100
+              return baseScore
+            } else if (method === 'vertex-random') {
+              const Pmax = pricingParams.value.maxPrice || 150
+              const Pmin = pricingParams.value.minPrice || 80
+              const K = Math.random()
+              const Pmid = Pmin + K * (Pmax - Pmin)
+              let score
+              if (price <= Pmid) {
+                score = 100 - 50 * Math.pow((price - Pmin) / (Pmid - Pmin), 2)
+              } else {
+                score = 100 - 50 * Math.pow((price - Pmax) / (Pmid - Pmax), 2)
+              }
+              return Math.round(Math.max(0, Math.min(100, score)) * 100) / 100
+            } else if (method === 'vertex-fixed') {
+              const Pmax = pricingParams.value.maxPrice || 150
+              const Pmin = pricingParams.value.minPrice || 80
+              const K = pricingParams.value.kValue || 0.5
+              const Pmid = Pmin + K * (Pmax - Pmin)
+              let score
+              if (price <= Pmid) {
+                score = 100 - 50 * Math.pow((price - Pmin) / (Pmid - Pmin), 2)
+              } else {
+                score = 100 - 50 * Math.pow((price - Pmax) / (Pmid - Pmax), 2)
+              }
+              return Math.round(Math.max(0, Math.min(100, score)) * 100) / 100
+            }
+            return 0
+          } catch (e) {
+            console.error('计算错误:', e)
+            return 0
+          }
+        })
+
+        const estimatedCost = computed(() => {
+          if (!taxExcludedPrice.value || !pricingParams.value.profitMargin) return 0
+          return Math.round((taxExcludedPrice.value / (1 + pricingParams.value.profitMargin / 100)) * 100) / 100
+        })
+
+        const actualProfit = computed(() => {
+          return Math.round((taxExcludedPrice.value - estimatedCost.value) * 100) / 100
+        })
+
+        const priceScoreExplanation = computed(() => {
+          const method = pricingParams.value.pricingMethod
+          if (method === 'linear') {
+            return `线性评分法：得分 = 100 - λ×|报价-基准价|，当前λ=${pricingParams.value.sensitivity}%，基准价为平均报价。`
+          } else if (method.startsWith('vertex')) {
+            const kType = method === 'vertex-random' ? '随机' : `固定(${pricingParams.value.kValue})`
+            return `顶点中间值法（K值${kType}）：P_mid = P_min + K×(P_max-P_min)，报价越接近P_mid得分越高，满分100分。`
+          }
+          return '请选择价格评分方法以查看详细说明。'
+        })
+
+        const pricingTips = computed(() => {
+          const tips = []
+          if (priceScore.value >= 95) {
+            tips.push('当前报价得分优秀，处于有利竞争位置')
+          } else if (priceScore.value >= 80) {
+            tips.push('报价得分良好，可根据市场情况微调')
+          } else if (priceScore.value >= 60) {
+            tips.push('建议适当降低报价以提高竞争力')
+          } else {
+            tips.push('报价偏高，建议重新评估成本结构')
+          }
+          if (actualProfit.value > 0 && actualProfit.value < taxExcludedPrice.value * 0.1) {
+            tips.push('利润空间较小，注意控制项目风险')
+          }
+          if (pricingParams.value.riskFactor >= 4) {
+            tips.push('项目风险较高，建议增加风险储备金')
+          }
+          return tips.length > 0 ? tips : ['调整参数以查看策略建议']
+        })
+
+        const removeFile = (idx) => {
+          uploadedFiles.value.splice(idx, 1)
+        }
+
+        watch(currentPage, (newPage) => {
+          if (newPage === 'pricing-strategy' && projectInfo.value.pricingMethod) {
+            pricingParams.value.pricingMethod = projectInfo.value.pricingMethod
+          }
+        })
+
+        return {
+          currentPage,
+          currentProject,
+          navItems,
+          homeFeatures,
+          navigateToFeature,
+          projectInfo,
+          uploadedFiles,
+          showUploadModal,
+          reviewCriteria,
+          techScore,
+          businessScore,
+          preEvalTotalScore,
+          riskAssessment,
+          aiSuggestions,
+          addReviewCriteria,
+          generatePreEvalReport,
+          removeFile,
+          bidActiveTab,
+          selectedBidSection,
+          isLeftTemplateHidden,
+          bidFileTree,
+          templateContent,
+          generatedContent,
+          bidChatMessages,
+          bidChatInput,
+          sendBidChatMessage,
+          regenerateCurrentSection,
+          isSidebarCollapsed,
+          demoResourceCategories,
+          toggleDemoCategory,
+          demoProgressSteps,
+          demoOverallProgress,
+          currentDemoTask,
+          currentDemoTaskStatus,
+          currentDemoTaskStatusClass,
+          currentDemoTaskExpanded,
+          getPriorityLabel,
+          completeCurrentTask,
+          startNewDemo,
+          loadTemplate,
+          importResources,
+          demoChatMessages,
+          demoChatInput,
+          sendDemoChatMessage,
+          demoQuickCommands,
+          demoAiMessages,
+          demoAiInput,
+          executeQuickCommand,
+          sendDemoAiMessage,
+          pricingParams,
+          pricingMethodName,
+          taxExcludedPrice,
+          priceScore,
+          estimatedCost,
+          actualProfit,
+          priceScoreExplanation,
+          pricingTips
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>

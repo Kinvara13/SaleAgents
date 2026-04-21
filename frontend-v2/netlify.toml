@@ -1,0 +1,7 @@
+[build]
+  publish = "public"
+  
+[[redirects]]
+  from = "/*"
+  to = "/aibook-platform.html"
+  status = 200

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理驾驶舱 - 数据可视化平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+        }
+        .card-shadow {
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .kpi-card {
+            transition: all 0.3s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <!-- 头部导航 -->
+    <header class="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center text-white font-bold text-lg">
+                    <i class="fa fa-dashboard"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">管理驾驶舱</h1>
+                    <p class="text-xs text-gray-500">数据可视化平台</p>
+                </div>
+            </div>
+            
+            <!-- 时间范围选择器 -->
+            <div class="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-white rounded-md transition-all">日</button>
+                <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm">周</button>
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-white rounded-md transition-all">月</button>
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-white rounded-md transition-all">季</button>
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-white rounded-md transition-all">年</button>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">最后更新时间</p>
+                    <p class="text-sm font-medium text-gray-800">2024-05-10 14:30:25</p>
+                </div>
+                <button class="p-2 text-gray-400 hover:text-blue-600 transition-colors">
+                    <i class="fa fa-refresh"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="p-6 space-y-6">
+        <!-- KPI总览卡片 -->
+        <section>
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <span class="mr-2">📊</span> KPI 总览
+            </h2>
+            <div class="grid grid-cols-4 gap-6 overflow-x-auto pb-2">
+                <!-- 项目健康度 -->
+                <div class="kpi-card bg-white rounded-xl p-6 card-shadow min-w-[240px]">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                            <i class="fa fa-heartbeat text-green-600 text-xl"></i>
+                        </div>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">健康</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-3xl font-bold text-gray-800">92.5<span class="text-lg text-gray-400">%</span></p>
+                        <p class="text-sm text-gray-600">项目健康度</p>
+                        <div class="flex items-center text-xs mt-2">
+                            <i class="fa fa-arrow-up text-green-500 mr-1"></i>
+                            <span class="text-green-600 font-medium">+2.3%</span>
+                            <span class="text-gray-400 ml-2">较上周</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-green-500 h-2 rounded-full" style="width: 92.5%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 成本控制 -->
+                <div class="kpi-card bg-white rounded-xl p-6 card-shadow min-w-[240px]">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <i class="fa fa-dollar text-blue-600 text-xl"></i>
+                        </div>
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">警告</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-3xl font-bold text-gray-800">¥<span class="text-2xl">856.2</span><span class="text-base text-gray-400">万</span></p>
+                        <p class="text-sm text-gray-600">成本控制</p>
+                        <div class="flex items-center text-xs mt-2">
+                            <i class="fa fa-arrow-down text-red-500 mr-1"></i>
+                            <span class="text-red-600 font-medium">-5.8%</span>
+                            <span class="text-gray-400 ml-2">预算使用率</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-yellow-500 h-2 rounded-full" style="width: 78%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 供应商绩效 -->
+                <div class="kpi-card bg-white rounded-xl p-6 card-shadow min-w-[240px]">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                            <i class="fa fa-users text-purple-600 text-xl"></i>
+                        </div>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">优秀</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-3xl font-bold text-gray-800">88.7<span class="text-lg text-gray-400">分</span></p>
+                        <p class="text-sm text-gray-600">供应商绩效</p>
+                        <div class="flex items-center text-xs mt-2">
+                            <i class="fa fa-arrow-up text-green-500 mr-1"></i>
+                            <span class="text-green-600 font-medium">+4.2%</span>
+                            <span class="text-gray-400 ml-2">较上月</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-purple-500 h-2 rounded-full" style="width: 88.7%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 人员效能 -->
+                <div class="kpi-card bg-white rounded-xl p-6 card-shadow min-w-[240px]">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
+                            <i class="fa fa-line-chart text-orange-600 text-xl"></i>
+                        </div>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">良好</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-3xl font-bold text-gray-800">156.8<span class="text-lg text-gray-400">%</span></p>
+                        <p class="text-sm text-gray-600">人员效能</p>
+                        <div class="flex items-center text-xs mt-2">
+                            <i class="fa fa-arrow-up text-green-500 mr-1"></i>
+                            <span class="text-green-600 font-medium">+12.5%</span>
+                            <span class="text-gray-400 ml-2">较上季度</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-orange-500 h-2 rounded-full" style="width: 85%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据可视化图表区域 -->
+        <section class="grid grid-cols-2 gap-6">
+            <!-- 成本执行趋势图 -->
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800 flex items-center">
+                        <span class="mr-2">📈</span> 成本执行趋势
+                    </h3>
+                    <select class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500">
+                        <option>近6个月</option>
+                        <option>近12个月</option>
+                        <option>本年度</option>
+                    </select>
+                </div>
+                <div class="chart-container bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 flex items-end justify-around space-x-2">
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-500 rounded-t-lg animate-pulse-slow" style="height: 65%;"></div>
+                        <span class="text-xs text-gray-600 font-medium">1月</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-500 rounded-t-lg animate-pulse-slow" style="height: 78%; animation-delay: 0.2s;"></div>
+                        <span class="text-xs text-gray-600 font-medium">2月</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-500 rounded-t-lg animate-pulse-slow" style="height: 55%; animation-delay: 0.4s;"></div>
+                        <span class="text-xs text-gray-600 font-medium">3月</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-500 rounded-t-lg animate-pulse-slow" style="height: 82%; animation-delay: 0.6s;"></div>
+                        <span class="text-xs text-gray-600 font-medium">4月</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-500 rounded-t-lg animate-pulse-slow" style="height: 70%; animation-delay: 0.8s;"></div>
+                        <span class="text-xs text-gray-600 font-medium">5月</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-1">
+                        <div class="w-full bg-blue-600 rounded-t-lg shadow-lg" style="height: 90%;"></div>
+                        <span class="text-xs text-blue-600 font-bold">6月</span>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+                    <span>预算: ¥1,000万</span>
+                    <span class="font-medium text-blue-600">实际: ¥856.2万 (85.6%)</span>
+                </div>
+            </div>
+
+            <!-- 供应商绩效对比 -->
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800 flex items-center">
+                        <span class="mr-2">🏆</span> 供应商绩效对比
+                    </h3>
+                    <button class="text-sm text-blue-600 hover:text-blue-700 font-medium">查看详情 →</button>
+                </div>
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-700 font-medium">供应商A - 技术服务</span>
+                            <span class="text-green-600 font-bold">95.2分</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-green-500 h-2.5 rounded-full" style="width: 95.2%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-700 font-medium">供应商B - 软件开发</span>
+                            <span class="text-blue-600 font-bold">89.7分</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-blue-500 h-2.5 rounded-full" style="width: 89.7%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-700 font-medium">供应商C - 硬件设备</span>
+                            <span class="text-purple-600 font-bold">86.3分</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-purple-500 h-2.5 rounded-full" style="width: 86.3%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-700 font-medium">供应商D - 咨询服务</span>
+                            <span class="text-orange-600 font-bold">82.1分</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-orange-500 h-2.5 rounded-full" style="width: 82.1%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">综合评分</p>
+                            <p class="text-xs text-gray-600 mt-1">基于质量、交付、价格、服务四维评估</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-purple-600">88.7</p>
+                            <p class="text-xs text-green-600 font-medium">↑ 较上月 +4.2%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 项目追踪和预警信息 -->
+        <section class="grid grid-cols-3 gap-6">
+            <!-- 项目追踪卡片 -->
+            <div class="col-span-2 bg-white rounded-xl p-6 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800 flex items-center">
+                        <span class="mr-2">🎯</span> 项目追踪
+                    </h3>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">全部项目</button>
+                        <button class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg shadow-sm">进行中</button>
+                        <button class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">已完成</button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200 bg-gray-50">
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">项目名称</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">负责人</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">进度</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">状态</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">截止日期</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="py-3 px-4 font-medium text-gray-800">智能交通系统建设</td>
+                                <td class="py-3 px-4 text-gray-600">张三</td>
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-24 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-green-500 h-2 rounded-full" style="width: 78%"></div>
+                                        </div>
+                                        <span class="text-gray-600 text-xs">78%</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">正常</span>
+                                </td>
+                                <td class="py-3 px-4 text-gray-600">2024-06-15</td>
+                            </tr>
+                            
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="py-3 px-4 font-medium text-gray-800">企业数字化转型平台</td>
+                                <td class="py-3 px-4 text-gray-600">李四</td>
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-24 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-yellow-500 h-2 rounded-full" style="width: 55%"></div>
+                                        </div>
+                                        <span class="text-gray-600 text-xs">55%</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">延期风险</span>
+                                </td>
+                                <td class="py-3 px-4 text-gray-600">2024-05-20</td>
+                            </tr>
+                            
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="py-3 px-4 font-medium text-gray-800">智慧城市安防系统</td>
+                                <td class="py-3 px-4 text-gray-600">王五</td>
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-24 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-blue-500 h-2 rounded-full" style="width: 92%"></div>
+                                        </div>
+                                        <span class="text-gray-600 text-xs">92%</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">即将完成</span>
+                                </td>
+                                <td class="py-3 px-4 text-gray-600">2024-05-18</td>
+                            </tr>
+                            
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="py-3 px-4 font-medium text-gray-800">医院信息系统升级</td>
+                                <td class="py-3 px-4 text-gray-600">赵六</td>
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-24 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-red-500 h-2 rounded-full" style="width: 35%"></div>
+                                        </div>
+                                        <span class="text-gray-600 text-xs">35%</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">严重延期</span>
+                                </td>
+                                <td class="py-3 px-4 text-gray-600">2024-04-30</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 预警信息流 -->
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800 flex items-center">
+                        <span class="mr-2">⚠️</span> 预警信息
+                    </h3>
+                    <span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium animate-pulse-slow">4条未处理</span>
+                </div>
+                
+                <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
+                    <div class="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-red-800 mb-1">🚨 成本超支预警</p>
+                                <p class="text-xs text-red-700">医院信息系统项目成本已超出预算15%，需要立即采取控制措施。</p>
+                                <p class="text-xs text-red-600 mt-2"><i class="fa fa-clock mr-1"></i>10分钟前</p>
+                            </div>
+                            <button class="ml-2 text-red-600 hover:text-red-800">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-r-lg">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-yellow-800 mb-1">⚠️ 进度延期预警</p>
+                                <p class="text-xs text-yellow-700">企业数字化转型平台项目进度滞后，预计将延期2周交付。</p>
+                                <p class="text-xs text-yellow-600 mt-2"><i class="fa fa-clock mr-1"></i>32分钟前</p>
+                            </div>
+                            <button class="ml-2 text-yellow-600 hover:text-yellow-800">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-r-lg">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-orange-800 mb-1">📊 质量指标下降</p>
+                                <p class="text-xs text-orange-700">供应商D的最近交付物质量评分降至82.1分，低于平均水平。</p>
+                                <p class="text-xs text-orange-600 mt-2"><i class="fa fa-clock mr-1"></i>1小时前</p>
+                            </div>
+                            <button class="ml-2 text-orange-600 hover:text-orange-800">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-blue-800 mb-1">💡 优化建议</p>
+                                <p class="text-xs text-blue-700">智能交通系统项目进展良好，建议提前准备验收材料。</p>
+                                <p class="text-xs text-blue-600 mt-2"><i class="fa fa-clock mr-1"></i>2小时前</p>
+                            </div>
+                            <button class="ml-2 text-blue-600 hover:text-blue-800">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <button class="w-full py-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                        查看全部预警信息 →
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="bg-white border-t border-gray-200 px-6 py-3 mt-6">
+        <div class="flex items-center justify-between text-xs text-gray-500">
+            <div class="flex items-center space-x-4">
+                <span><i class="fa fa-database mr-1"></i> 数据源: 实时同步</span>
+                <span><i class="fa fa-refresh mr-1"></i> 自动刷新: 5分钟</span>
+                <span><i class="fa fa-shield mr-1"></i> 数据安全: 已加密</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse-slow"></span>
+                <span>系统运行正常</span>
+                <span class="mx-2">|</span>
+                <span>版本 v2.1.0</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 模拟实时数据更新
+        setInterval(() => {
+            const timeElement = document.querySelector('header .text-sm.font-medium.text-gray-800');
+            if (timeElement) {
+                const now = new Date();
+                timeElement.textContent = now.toLocaleString('zh-CN', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).replace(/\//g, '-');
+            }
+        }, 1000);
+
+        // KPI卡片点击效果
+        document.querySelectorAll('.kpi-card').forEach(card => {
+            card.addEventListener('click', function() {
+                this.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 150);
+            });
+        });
+
+        console.log('✅ 管理驾驶舱页面加载成功！');
+    </script>
+</body>
+</html>

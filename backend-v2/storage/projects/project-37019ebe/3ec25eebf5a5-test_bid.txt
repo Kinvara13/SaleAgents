@@ -1,0 +1,25 @@
+Bidding Document - Smart Park Security System
+
+Project: Smart Park Security Platform Construction
+Client: Test Client Co., Ltd.
+
+Chapter 1: Project Overview
+This project aims to build a comprehensive security management platform for smart parks including video surveillance, access control, alarm systems and intelligent analytics.
+
+Chapter 2: Technical Requirements
+2.1 System shall support 1000+ concurrent video streams
+2.2 Response time shall be less than 200ms
+2.3 System availability shall be 99.9%
+2.4 Data retention period: 90 days minimum
+
+Chapter 3: Qualification Requirements
+3.1 ISO 9001 certification required
+3.2 ISO 27001 certification required
+3.3 Minimum 3 years experience in similar projects
+3.4 Registered capital shall be no less than 10 million RMB
+
+Chapter 4: Evaluation Criteria
+4.1 Technical solution: 40 points
+4.2 Company qualification: 20 points
+4.3 Price: 30 points
+4.4 After-sales service: 10 points

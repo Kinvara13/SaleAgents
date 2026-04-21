@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话式DEMO制作智能体 | Trae风格</title>
+    <!-- 引入外部资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.4.0/dist/mermaid.min.js"></script>
+    <!-- 配置Tailwind自定义主题 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',       // 品牌蓝
+                        success: '#00B42A',       // 成功绿
+                        warning: '#FF7D00',       // 警示橙
+                        danger: '#F53F3F',        // 错误红
+                        neutral: {
+                            50: '#FFFFFF',        // 纯白
+                            100: '#F5F7FA',       // 极浅灰
+                            200: '#E5E6EB',       // 浅灰
+                            300: '#C9CDD4',       // 中灰
+                            400: '#86909C',       // 深灰
+                            500: '#1D2129'        // 近黑
+                        }
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 2px 12px 0 rgba(0, 0, 0, 0.08)',
+                        'card-hover': '0 4px 16px rgba(0, 0, 0, 0.12)',
+                        'panel': '0 0 10px rgba(0, 0, 0, 0.05)'
+                    },
+                    borderRadius: {
+                        xl: '12px',
+                        '2xl': '16px'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- 自定义工具类 -->
+        <style type="text/tailwindcss">
+            @layer utilities {
+                .content-auto {
+                    content-visibility: auto;
+                }
+                .scrollbar-thin {
+                    scrollbar-width: thin;
+                }
+                .scrollbar-thin::-webkit-scrollbar {
+                    width: 4px;
+                    height: 4px;
+                }
+                .scrollbar-thin::-webkit-scrollbar-thumb {
+                    background-color: theme('colors.neutral.300');
+                    border-radius: 2px;
+                }
+                .scrollbar-thin::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .chat-bubble-user {
+                    @apply bg-primary text-white rounded-lg rounded-tr-none p-4 max-w-[85%] ml-auto;
+                }
+                .chat-bubble-ai {
+                    @apply bg-neutral-100 text-neutral-500 rounded-lg rounded-tl-none p-4 max-w-[85%] mr-auto;
+                }
+                .progress-step-active {
+                    @apply bg-primary text-white border-primary;
+                }
+                .progress-step-done {
+                    @apply bg-primary/10 text-primary border-primary/30;
+                }
+                .progress-step-pending {
+                    @apply bg-neutral-100 text-neutral-400 border-neutral-200;
+                }
+                .btn {
+                    @apply transition-all duration-200 hover:translate-y-[-1px];
+                }
+            }
+        </style>
+        <style>
+            /* 字体层级设置 */
+            h1, h2, h3, h4, h5, h6 {
+                font-weight: 600;
+                line-height: 1.2;
+            }
+            h1 { font-size: 1.5rem; } /* 24px */
+            h2 { font-size: 1.25rem; } /* 20px */
+            h3 { font-size: 1.125rem; } /* 18px */
+            h4 { font-size: 1rem; } /* 16px */
+            h5 { font-size: 0.875rem; } /* 14px */
+            h6 { font-size: 0.75rem; } /* 12px */
+            
+            /* 小型文本 */
+            .text-xs { font-size: 0.75rem; } /* 12px */
+            .text-sm { font-size: 0.875rem; } /* 14px */
+            .text-base { font-size: 1rem; } /* 16px */
+            
+            /* 功能优先级标签 */
+            .priority-must { border-left: 3px solid #F53F3F; background: #FFECE8; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #F53F3F; font-size: 0.75rem; }
+            .priority-should { border-left: 3px solid #FF7D00; background: #FFF7E6; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #FF7D00; font-size: 0.75rem; }
+            .priority-could { border-left: 3px solid #165DFF; background: #E8F3FF; padding: 2px 8px; border-radius: 4px; font-weight: 600; color: #165DFF; font-size: 0.75rem; }
+            /* 状态标签 */
+            .status-tag {
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 0.75rem; /* 12px */
+                font-weight: 500;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                white-space: nowrap;
+            }
+            .status-unconfirmed { background: #F2F3F5; color: #4E5969; }
+            .status-confirmed { background: #E6FFEA; color: #00B42A; }
+            .status-modify { background: #FFF7E6; color: #FF7D00; }
+            .status-rejected { background: #FFECE8; color: #F53F3F; }
+            .status-edited { background: #E8F3FF; color: #165DFF; }
+            /* 折叠面板 */
+            .collapse-content {
+                max-height: 0;
+                overflow: hidden;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .collapse-content.active {
+                max-height: 2000px;
+            }
+            /* 流程图容器 */
+            .mermaid-container {
+                background: #FAFAFA;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 16px 0;
+                overflow-x: auto;
+            }
+            /* 切换开关样式 */
+            .toggle-checkbox:checked {
+                right: 0;
+                border-color: #165DFF;
+            }
+            .toggle-checkbox:checked + .toggle-label {
+                background-color: #165DFF;
+            }
+            .toggle-checkbox {
+                transition: all .3s ease-in-out;
+            }
+            .toggle-label {
+                transition: all .3s ease-in-out;
+            }
+        </style>
+    <style>
+        /* 基础布局样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.5;
+            overflow: hidden;
+            height: 100vh;
+        }
+        /* 加载动画 */
+        .typing-animation span {
+            animation: blink 1.4s infinite both;
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: theme('colors.primary');
+            margin: 0 2px;
+        }
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+        /* 平滑滚动 */
+        .smooth-scroll {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="bg-neutral-100 text-neutral-500 flex flex-col h-screen">
+    <!-- 顶部导航栏 -->
+    <header class="h-14 bg-neutral-50 border-b border-neutral-200 flex items-center px-4 shadow-sm z-10">
+        <div class="flex items-center">
+            <!-- 侧边栏折叠按钮 -->
+            <button id="sidebar-toggle" class="w-9 h-9 flex items-center justify-center rounded-md hover:bg-neutral-100 transition-colors mr-3">
+                <i class="fa fa-bars text-neutral-400"></i>
+            </button>
+            <!-- Logo与标题 -->
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-white mr-2">
+                    <i class="fa fa-cube"></i>
+                </div>
+                <h1 class="text-lg font-semibold text-neutral-500">DEMO制作智能体</h1>
+            </div>
+        </div>
+        
+        <div class="flex-1 flex items-center justify-center">
+            <div class="relative w-1/2">
+                <input type="text" placeholder="搜索项目/知识库/工具..." class="w-full h-9 px-4 pl-10 rounded-md border border-neutral-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all">
+                <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <!-- 系统设置 -->
+            <button class="w-9 h-9 flex items-center justify-center rounded-md hover:bg-neutral-100">
+                <i class="fa fa-cog text-neutral-400"></i>
+            </button>
+            <!-- 通知 -->
+            <button class="w-9 h-9 flex items-center justify-center rounded-md hover:bg-neutral-100 relative">
+                <i class="fa fa-bell text-neutral-400"></i>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full"></span>
+            </button>
+            <!-- 用户信息 -->
+            <div class="flex items-center space-x-2">
+                <img src="https://picsum.photos/id/1005/200/200" alt="用户头像" class="w-8 h-8 rounded-full object-cover border border-neutral-200">
+                <span class="text-sm font-medium">产品经理</span>
+                <i class="fa fa-angle-down text-neutral-400 text-xs"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体三栏布局 -->
+    <div class="flex flex-1 overflow-hidden">
+        <!-- 左侧栏：项目资源栏 -->
+        <aside id="sidebar" class="w-60 bg-neutral-50 border-r border-neutral-200 flex flex-col transition-all duration-300 z-10">
+            <!-- 项目管理 -->
+            <div class="p-4 border-b border-neutral-200">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-neutral-500">项目管理</h2>
+                    <button id="add-project-btn" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                        <i class="fa fa-plus text-xs"></i>
+                    </button>
+                </div>
+                
+                <!-- 项目列表 -->
+                <div class="space-y-2">
+                    <!-- 展开的主项目 -->
+                    <div class="rounded-xl bg-primary/5 border border-primary/20 overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-primary/10 transition-colors">
+                            <div class="flex items-center">
+                                <i class="fa fa-folder-open text-primary mr-3"></i>
+                                <span class="text-sm font-medium text-primary">2024投标演示项目</span>
+                            </div>
+                            <i class="fa fa-angle-down text-xs text-neutral-400"></i>
+                        </div>
+                        <!-- 子DEMO列表 -->
+                        <div class="pl-10 pr-4 py-2 space-y-2">
+                            <div class="flex items-center justify-between py-2 px-3 rounded-lg bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors">
+                                <div class="flex items-center">
+                                    <div>
+                                        <h4 class="text-xs font-medium text-primary">核心功能演示(子DEMO1)</h4>
+                                        <p class="text-[10px] text-primary/80">进行中</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-neutral-100 cursor-pointer transition-colors">
+                                <div class="flex items-center">
+                                    <div>
+                                        <h4 class="text-xs font-medium text-neutral-500">数据可视化演示(子DEMO2)</h4>
+                                        <p class="text-[10px] text-neutral-400">待开始</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 折叠的主项目 -->
+                    <div class="flex items-center justify-between px-4 py-3 rounded-xl hover:bg-neutral-100 cursor-pointer transition-colors">
+                        <div class="flex items-center">
+                            <i class="fa fa-folder text-neutral-400 mr-3"></i>
+                            <span class="text-sm text-neutral-500">客户定制化演示项目</span>
+                        </div>
+                        <i class="fa fa-angle-right text-xs text-neutral-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 项目知识库 -->
+            <div class="p-4 border-b border-neutral-200 flex-1 overflow-y-auto scrollbar-thin">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-neutral-500">项目知识库</h2>
+                    <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                        <i class="fa fa-upload text-xs"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fa fa-file-word-o text-primary mr-3"></i>
+                            <span class="text-xs text-neutral-500 truncate">UI组规范.docx</span>
+                        </div>
+                        <span class="text-[10px] text-neutral-400">已匹配</span>
+                    </div>
+                    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fa fa-file-word-o text-primary mr-3"></i>
+                            <span class="text-xs text-neutral-500 truncate">UI组件设计清单.docx</span>
+                        </div>
+                        <span class="text-[10px] text-neutral-400">已匹配</span>
+                    </div>
+                    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fa fa-file-pdf-o text-danger mr-3"></i>
+                            <span class="text-xs text-neutral-500 truncate">2024投标评分标准.pdf</span>
+                        </div>
+                        <span class="text-[10px] text-neutral-400">已解析</span>
+                    </div>
+                </div>
+                
+                <!-- 工具中心 -->
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-neutral-500">工具中心</h2>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-3">
+                        <button class="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-neutral-100 transition-colors btn">
+                            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                                <i class="fa fa-paint-brush text-primary"></i>
+                            </div>
+                            <span class="text-[10px] text-neutral-500">Figma</span>
+                        </button>
+                        <button class="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-neutral-100 transition-colors btn">
+                            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                                <i class="fa fa-video-camera text-primary"></i>
+                            </div>
+                            <span class="text-[10px] text-neutral-500">录屏</span>
+                        </button>
+                        <button class="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-neutral-100 transition-colors btn">
+                            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                                <i class="fa fa-scissors text-primary"></i>
+                            </div>
+                            <span class="text-[10px] text-neutral-500">AI剪辑</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 历史对话 -->
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-neutral-500">历史对话</h2>
+                        <button class="text-xs text-primary hover:text-primary/80 transition-colors">清空</button>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="px-4 py-3 rounded-xl hover:bg-neutral-100 cursor-pointer transition-colors">
+                            <p class="text-xs text-neutral-500 truncate">解读标书，提取DEMO打分项</p>
+                            <p class="text-[10px] text-neutral-400 mt-1">今天 10:23</p>
+                        </div>
+                        <div class="px-4 py-3 rounded-xl hover:bg-neutral-100 cursor-pointer transition-colors">
+                            <p class="text-xs text-neutral-500 truncate">生成核心功能演示脚本</p>
+                            <p class="text-[10px] text-neutral-400 mt-1">今天 09:45</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+
+        </aside>
+
+        <!-- 中间栏：DEMO工作区 -->
+        <main class="flex-1 bg-neutral-50 flex flex-col overflow-hidden">
+            <!-- DEMO信息与进度 -->
+            <div class="p-2 border-b border-neutral-200">
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h2 class="text-xs font-semibold text-neutral-500">核心功能演示(子DEMO1)</h2>
+                        <p class="text-[9px] text-neutral-400 mt-0.5">归属项目：2024投标演示项目 | 总时长：10分钟 | 负责人：产品经理</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1.5 rounded-lg bg-neutral-100 text-xs text-neutral-500 hover:bg-neutral-200 transition-colors btn">
+                            <i class="fa fa-step-forward mr-1 text-xs"></i>跳过
+                        </button>
+                        <button class="px-3 py-1.5 rounded-lg bg-primary text-xs text-white hover:bg-primary/90 transition-colors btn">
+                            <i class="fa fa-arrow-right mr-1 text-xs"></i>下一步
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 进度条 -->
+                <div class="flex items-center justify-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full progress-step-done flex items-center justify-center text-xs font-medium mb-0.5 border-2">1</div>
+                            <span class="text-[8px] text-primary">需求解读</span>
+                        </div>
+                        <div class="w-12 h-0.5 bg-primary/30"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full progress-step-active flex items-center justify-center text-xs font-medium mb-0.5 border-2">2</div>
+                            <span class="text-[8px] text-primary">内容拆解</span>
+                        </div>
+                        <div class="w-12 h-0.5 bg-neutral-200"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full progress-step-pending flex items-center justify-center text-xs font-medium mb-0.5 border-2">3</div>
+                            <span class="text-[8px] text-neutral-400">素材准备</span>
+                        </div>
+                        <div class="w-12 h-0.5 bg-neutral-200"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full progress-step-pending flex items-center justify-center text-xs font-medium mb-0.5 border-2">4</div>
+                            <span class="text-[8px] text-neutral-400">录制</span>
+                        </div>
+                        <div class="w-12 h-0.5 bg-neutral-200"></div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full progress-step-pending flex items-center justify-center text-xs font-medium mb-0.5 border-2">5</div>
+                            <span class="text-[8px] text-neutral-400">剪辑</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI产物预览区 -->
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-5">
+                <!-- 版本信息 -->
+                <div class="bg-white rounded-2xl shadow-card p-3 border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                    <h2 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <i class="fa fa-file-text text-primary"></i> 版本信息
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-neutral-100">
+                                    <th class="py-2 px-3 font-medium text-neutral-500">版本号</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">生成类型</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">生成时间</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">操作人</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">备注</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-neutral-200">
+                                    <td class="py-2 px-3">V1.0</td>
+                                    <td class="py-2 px-3">AI生成</td>
+                                    <td class="py-2 px-3">YYYY-MM-DD</td>
+                                    <td class="py-2 px-3">AI</td>
+                                    <td class="py-2 px-3">初始版本</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3">V1.1</td>
+                                    <td class="py-2 px-3">人工修改</td>
+                                    <td class="py-2 px-3">YYYY-MM-DD</td>
+                                    <td class="py-2 px-3">XXX</td>
+                                    <td class="py-2 px-3">调整功能优先级</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+
+                <!-- 核心内容：功能点拆解与演示逻辑 -->
+                <div class="mb-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-sm font-semibold flex items-center gap-2">
+                            <i class="fa fa-list-alt text-primary"></i> 核心内容拆解
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-neutral-500">编辑模式：</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="edit-mode-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" checked>
+                                <label for="edit-mode-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-neutral-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 折叠面板1：功能点拆解与分级 -->
+                    <div class="bg-white rounded-2xl shadow-card mb-4 overflow-hidden border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                        <div class="collapse-header flex items-center justify-between p-4 cursor-pointer bg-neutral-100/50 hover:bg-neutral-100/80 transition-all" onclick="toggleCollapse(this)">
+                            <span class="text-xs font-medium">2.1 功能点拆解与分级</span>
+                            <i class="fa fa-chevron-down text-neutral-400 transition-transform duration-300 rotate-180"></i>
+                        </div>
+                        <div class="collapse-content active px-4 pb-4">
+                            <!-- 自动校验提示区 -->
+                            <div class="my-3 p-3 bg-primary/5 border-l-4 border-primary rounded-lg">
+                                <p class="text-xs font-medium mb-2 flex items-center gap-2">
+                                    <i class="fa fa-search text-primary"></i> 自动校验提示区
+                                </p>
+                                <div class="space-y-2 mt-2">
+                                    <div class="flex items-center gap-2 text-[10px]">
+                                        <i class="fa fa-check-circle text-success"></i>
+                                        <span>核心评分项功能无遗漏（共5个核心项，已覆盖5个）</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-[10px]">
+                                        <i class="fa fa-exclamation-triangle text-warning"></i>
+                                        <span>标黄：可选功能超3个，建议精简（AI自动分析）</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Must级核心功能（红标） -->
+                            <div class="mb-5">
+                                <h3 class="text-xs font-semibold mb-3 flex items-center gap-2">
+                                    <span class="priority-must text-[10px]">Must级核心功能</span>
+                                </h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs">
+                                        <thead>
+                                            <tr class="bg-neutral-100">
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">功能ID</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">功能名称</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">所属模块</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[140px]">关联评分点</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">业务价值</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">来源</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">状态</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b border-neutral-200">
+                                                <td class="py-2 px-3">F001</td>
+                                                <td class="py-2 px-3 font-medium">数据同步实时性</td>
+                                                <td class="py-2 px-3">数据模块</td>
+                                                <td class="py-2 px-3">评分项3.1（权重15%）</td>
+                                                <td class="py-2 px-3">高</td>
+                                                <td class="py-2 px-3 text-[10px]">技术评分表</td>
+                                                <td class="py-2 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                                <td class="py-2 px-3 flex gap-2">
+                                                    <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]" onclick="updateStatus(this, 'confirmed')">确认</button>
+                                                    <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="updateStatus(this, 'modify')">修改</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="py-2 px-3">F002</td>
+                                                <td class="py-2 px-3 font-medium">多终端适配</td>
+                                                <td class="py-2 px-3">适配模块</td>
+                                                <td class="py-2 px-3">评分项4.2（权重10%）</td>
+                                                <td class="py-2 px-3">高</td>
+                                                <td class="py-2 px-3 text-[10px]">技术评分表</td>
+                                                <td class="py-2 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                                <td class="py-2 px-3 flex gap-2">
+                                                    <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]" onclick="updateStatus(this, 'confirmed')">确认</button>
+                                                    <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="updateStatus(this, 'modify')">修改</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Should级重要功能（黄标） -->
+                            <div class="mb-5">
+                                <h3 class="text-xs font-semibold mb-3 flex items-center gap-2">
+                                    <span class="priority-should text-[10px]">Should级重要功能</span>
+                                </h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs">
+                                        <thead>
+                                            <tr class="bg-neutral-100">
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">功能ID</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">功能名称</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">所属模块</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[140px]">关联评分点</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">业务价值</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">来源</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">状态</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="py-2 px-3">F003</td>
+                                                <td class="py-2 px-3 font-medium">报表导出</td>
+                                                <td class="py-2 px-3">统计模块</td>
+                                                <td class="py-2 px-3">评分项5.1（权重5%）</td>
+                                                <td class="py-2 px-3">中</td>
+                                                <td class="py-2 px-3 text-[10px]">技术评分表</td>
+                                                <td class="py-2 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                                <td class="py-2 px-3 flex gap-2">
+                                                    <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]" onclick="updateStatus(this, 'confirmed')">确认</button>
+                                                    <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="updateStatus(this, 'modify')">修改</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Could级可选功能（蓝标） -->
+                            <div>
+                                <h3 class="text-xs font-semibold mb-3 flex items-center gap-2">
+                                    <span class="priority-could text-[10px]">Could级可选功能</span>
+                                </h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs">
+                                        <thead>
+                                            <tr class="bg-neutral-100">
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">功能ID</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">功能名称</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">所属模块</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[140px]">关联评分点</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[80px]">业务价值</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">来源</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[100px]">状态</th>
+                                                <th class="py-2 px-3 font-medium text-neutral-500 text-left w-[120px]">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="py-2 px-3">F004</td>
+                                                <td class="py-2 px-3 font-medium">自定义皮肤</td>
+                                                <td class="py-2 px-3">外观模块</td>
+                                                <td class="py-2 px-3">-</td>
+                                                <td class="py-2 px-3">低</td>
+                                                <td class="py-2 px-3 text-[10px]">AI自动分析</td>
+                                                <td class="py-2 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                                <td class="py-2 px-3 flex gap-2">
+                                                    <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]" onclick="updateStatus(this, 'confirmed')">确认</button>
+                                                    <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="updateStatus(this, 'modify')">修改</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 交互支持提示 -->
+                            <div class="mt-4 text-[10px] text-neutral-400 flex items-center gap-2">
+                                <i class="fa fa-arrows"></i>
+                                <span>支持拖拽排序、批量调整优先级、关联/解绑评分点</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 折叠面板2：功能演示逻辑链路 -->
+                    <div class="bg-white rounded-2xl shadow-card mb-4 overflow-hidden border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                        <div class="collapse-header flex items-center justify-between p-4 cursor-pointer bg-neutral-100/50 hover:bg-neutral-100/80 transition-all" onclick="toggleCollapse(this)">
+                            <span class="text-xs font-medium">2.2 功能演示逻辑链路</span>
+                            <i class="fa fa-chevron-down text-neutral-400 transition-transform duration-300"></i>
+                        </div>
+                        <div class="collapse-content px-4 pb-4">
+                            <!-- 流程图可视化 -->
+                            <h3 class="text-xs font-semibold mb-3">整体演示流程图</h3>
+                            <div class="mermaid-container bg-neutral-50 rounded-xl p-4 mb-4">
+                                <div class="mermaid">
+                                    graph LR
+                                    A[开场介绍（0:30）] --> B[Must级功能演示（5分钟）] --> C[Should级功能演示（3分钟）] --> D[Could级功能演示（1分钟）] --> E[收尾总结（0:30）]
+                                    style A fill:#E8F3FF,stroke:#165DFF,stroke-width:1px
+                                    style B fill:#FFECE8,stroke:#F53F3F,stroke-width:2px
+                                    style C fill:#E8F3FF,stroke:#165DFF,stroke-width:1px
+                                    style D fill:#F2F3F5,stroke:#86909C,stroke-width:1px,stroke-dasharray:5,5
+                                    style E fill:#E6FFEA,stroke:#00B42A,stroke-width:1px
+                                </div>
+                            </div>
+
+                            <!-- 分模块演示逻辑明细 -->
+                            <h3 class="text-xs font-semibold mb-3 mt-5">分模块演示逻辑明细</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs">
+                                    <thead>
+                                        <tr class="bg-neutral-100">
+                                            <th class="py-3 px-3 font-medium text-neutral-500">节点序号</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">模块名称</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">核心功能</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">操作步骤</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">入口</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">核心演示点</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">时长</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">状态</th>
+                                            <th class="py-3 px-3 font-medium text-neutral-500">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="border-b border-neutral-200">
+                                            <td class="py-3 px-3">1</td>
+                                            <td class="py-3 px-3">数据模块</td>
+                                            <td class="py-3 px-3">F001（数据同步）</td>
+                                            <td class="py-3 px-3 text-[10px]">1. 点击「同步按钮」<br>2. 查看同步状态</td>
+                                            <td class="py-3 px-3">首页→数据中心</td>
+                                            <td class="py-3 px-3 font-medium text-danger">同步延迟≤1s</td>
+                                            <td class="py-3 px-3">2分钟</td>
+                                            <td class="py-3 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                            <td class="py-3 px-3 flex gap-2">
+                                                <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]">确认</button>
+                                                <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]">增删节点</button>
+                                                <button class="btn px-2 py-1 bg-primary/20 text-primary rounded text-[10px]">拖拽调序</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="py-3 px-3">2</td>
+                                            <td class="py-3 px-3">适配模块</td>
+                                            <td class="py-3 px-3">F002（多终端适配）</td>
+                                            <td class="py-3 px-3 text-[10px]">1. 选择「终端类型」<br>2. 切换展示</td>
+                                            <td class="py-3 px-3">首页→设置→终端适配</td>
+                                            <td class="py-3 px-3 font-medium text-danger">支持3种终端切换</td>
+                                            <td class="py-3 px-3">3分钟</td>
+                                            <td class="py-3 px-3"><span class="status-tag status-unconfirmed"><i class="fa-regular fa-circle"></i> 未确认</span></td>
+                                            <td class="py-3 px-3 flex gap-2">
+                                                <button class="btn px-2 py-1 bg-primary text-white rounded text-[10px]">确认</button>
+                                                <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]">增删节点</button>
+                                                <button class="btn px-2 py-1 bg-primary/20 text-primary rounded text-[10px]">拖拽调序</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 折叠面板3：时长校验 -->
+                    <div class="bg-white rounded-2xl shadow-card overflow-hidden border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                        <div class="collapse-header flex items-center justify-between p-4 cursor-pointer bg-neutral-100/50 hover:bg-neutral-100/80 transition-all" onclick="toggleCollapse(this)">
+                            <span class="text-xs font-medium">2.3 时长校验栏</span>
+                            <i class="fa fa-chevron-down text-neutral-400 transition-transform duration-300"></i>
+                        </div>
+                        <div class="collapse-content px-4 py-4">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs">
+                                    <thead>
+                                        <tr class="bg-neutral-100">
+                                            <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[100px]">总时长</th>
+                                            <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[120px]">AI建议时长</th>
+                                            <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[140px]">手动调整时长</th>
+                                            <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[160px]">合规状态</th>
+                                            <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[120px]">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="py-2 px-4 font-medium">10分钟</td>
+                                            <td class="py-2 px-4">10分钟</td>
+                                            <td class="py-2 px-4"><input type="text" class="w-20 px-2 py-1 border border-neutral-200 rounded text-center text-xs" value="10" onchange="updateTotalDuration(this)"></td>
+                                            <td class="py-2 px-4"><span class="compliance-pass">🟢 合规（符合标书要求）</span></td>
+                                            <td class="py-2 px-4">
+                                                <button class="btn px-3 py-1 bg-primary text-white rounded text-xs">一键优化流程</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 待确认事项 -->
+                <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                    <h2 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa fa-question-circle text-warning"></i> 待确认事项
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-neutral-100">
+                                    <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[60px]">序号</th>
+                                    <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[300px]">事项描述</th>
+                                    <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[100px]">状态</th>
+                                    <th class="py-2 px-4 font-medium text-neutral-500 text-left w-[120px]">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-warning/5">
+                                    <td class="py-2 px-4">1</td>
+                                    <td class="py-2 px-4">Could级功能是否保留「自定义皮肤」</td>
+                                    <td class="py-2 px-4"><span class="status-tag status-unconfirmed">待确认</span></td>
+                                    <td class="py-2 px-4 flex gap-2">
+                                        <button class="btn px-2 py-1 bg-primary text-white rounded text-xs" onclick="updateStatus(this, 'confirmed')">确认</button>
+                                        <button class="btn px-2 py-1 bg-danger text-white rounded text-xs" onclick="updateStatus(this, 'rejected')">驳回</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 附件区 -->
+                <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                    <h2 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa fa-paperclip text-primary"></i> 附件
+                    </h2>
+                    <div class="flex flex-wrap gap-3">
+                        <a href="#" class="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors px-3 py-2 rounded-lg hover:bg-primary/5 text-xs">
+                            <i class="fa fa-file-excel-o"></i> 功能点与评分点关联表.xlsx
+                        </a>
+                        <a href="#" class="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors px-3 py-2 rounded-lg hover:bg-primary/5 text-xs">
+                            <i class="fa fa-file-image-o"></i> 演示流程图源文件.svg
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右侧栏：AI对话交互区 -->
+        <section class="w-96 bg-neutral-50 border-l border-neutral-200 flex flex-col">
+            <!-- 对话头部 -->
+            <div class="p-4 border-b border-neutral-200 flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-3">
+                        <i class="fa fa-robot"></i>
+                    </div>
+                    <h2 class="text-sm font-semibold text-neutral-500">DEMO制作助手</h2>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                        <i class="fa fa-history"></i>
+                    </button>
+                    <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                        <i class="fa fa-ellipsis-v"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 对话内容区 -->
+            <div id="chat-container" class="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-5 smooth-scroll">
+                <!-- AI欢迎消息 -->
+                <div class="chat-bubble-ai">
+                    <div class="flex items-center mb-3">
+                        <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-3 text-xs">
+                            <i class="fa fa-robot"></i>
+                        </div>
+                        <span class="text-xs font-medium text-neutral-500">DEMO制作助手</span>
+                    </div>
+                    <p class="text-xs">你好！我是你的DEMO制作智能助手，我可以帮你：</p>
+                    <ul class="mt-3 space-y-2 text-xs text-neutral-500">
+                        <li>• 解读标书/需求文档，提取DEMO制作要点</li>
+                        <li>• 拆解演示内容，生成功能优先级和时长分配</li>
+                        <li>• 生成演示脚本、页面清单和录制方案</li>
+                        <li>• 调用Figma/录屏/剪辑工具完成制作</li>
+                        <li>• 支持跳过任意步骤，灵活调整制作流程</li>
+                    </ul>
+                    <p class="mt-3 text-xs">你可以直接用自然语言告诉我你的需求，例如："解读上传的标书，提取DEMO打分项"</p>
+                </div>
+                
+                <!-- 用户消息 -->
+                <div class="flex items-start gap-1">
+                    <button class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn mt-1">
+                        <i class="fa fa-undo text-xs"></i>
+                    </button>
+                    <div class="chat-bubble-user">
+                        <p class="text-xs">解读上传的投标评分标准，提取DEMO需要演示的核心功能和打分项</p>
+                    </div>
+                </div>
+                
+                <!-- AI思考中 -->
+                <div class="chat-bubble-ai">
+                    <div class="flex items-center mb-3">
+                        <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-3 text-xs">
+                            <i class="fa fa-robot"></i>
+                        </div>
+                        <span class="text-xs font-medium text-neutral-500">DEMO制作助手</span>
+                    </div>
+                    <div class="typing-animation">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+                
+                <!-- AI回复消息 -->
+                <div class="chat-bubble-ai">
+                    <div class="flex items-center mb-3">
+                        <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-3 text-xs">
+                            <i class="fa fa-robot"></i>
+                        </div>
+                        <span class="text-xs font-medium text-neutral-500">DEMO制作助手</span>
+                    </div>
+                    <p class="text-xs mb-3">已完成投标评分标准解读，核心信息如下：</p>
+                    
+                    <!-- 结构化卡片 -->
+                    <div class="bg-white rounded-xl p-4 border border-neutral-200 mb-3">
+                        <h4 class="text-xs font-medium text-neutral-500 mb-3">核心打分项（权重≥10%）</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between text-[10px] p-2 bg-neutral-100 rounded-lg">
+                                <span>核心业务流程完整性</span>
+                                <span class="text-danger font-medium">20%</span>
+                            </div>
+                            <div class="flex items-center justify-between text-[10px] p-2 bg-neutral-100 rounded-lg">
+                                <span>数据可视化展示效果</span>
+                                <span class="text-danger font-medium">15%</span>
+                            </div>
+                            <div class="flex items-center justify-between text-[10px] p-2 bg-neutral-100 rounded-lg">
+                                <span>移动端适配体验</span>
+                                <span class="text-warning font-medium">10%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p class="text-xs">我已基于这些打分项生成了功能优先级清单和时长分配方案，你可以在左侧工作区查看。</p>
+                    <p class="text-xs mt-3">你可以：</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <button class="px-3 py-1.5 bg-primary/10 text-primary text-[10px] rounded-full hover:bg-primary/20 transition-colors btn">确认并继续</button>
+                        <button class="px-3 py-1.5 bg-neutral-100 text-neutral-500 text-[10px] rounded-full hover:bg-neutral-200 transition-colors btn">调整功能优先级</button>
+                        <button class="px-3 py-1.5 bg-neutral-100 text-neutral-500 text-[10px] rounded-full hover:bg-neutral-200 transition-colors btn">跳过内容拆解步骤</button>
+                    </div>
+                </div>
+                
+                <!-- 用户确认消息 -->
+                <div class="flex items-start gap-1">
+                    <button class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn mt-1">
+                        <i class="fa fa-undo text-xs"></i>
+                    </button>
+                    <div class="chat-bubble-user">
+                        <p class="text-xs">确认当前的功能优先级和时长分配方案，继续下一步素材准备</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 快捷指令栏 -->
+
+            
+            <!-- 输入框区域 -->
+            <div class="p-5 border-t border-neutral-200">
+                <div class="relative">
+                    <textarea 
+                        placeholder="输入你的需求，例如：生成核心功能演示的录制脚本、跳过当前步骤、调用Figma同步页面..." 
+                        class="w-full h-24 px-4 py-3 pr-32 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs resize-none scrollbar-thin transition-all"
+                    ></textarea>
+                    <div class="absolute right-4 bottom-2 flex items-center space-x-2">
+
+                        <!-- 模型选择 -->
+                        <div class="relative">
+                            <button class="flex items-center space-x-1 px-2 py-1 rounded-lg border border-neutral-200 text-xs text-neutral-500 hover:border-primary transition-colors">
+                                <span>DEMO助手</span>
+                                <i class="fa fa-angle-down text-xs"></i>
+                            </button>
+                        </div>
+                        <!-- 上传图片按钮 -->
+                        <div class="relative">
+                            <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                                <i class="fa fa-image"></i>
+                            </button>
+                            <input type="file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
+                        </div>
+                        <!-- 附件按钮 -->
+                        <div class="relative">
+                            <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                                <i class="fa fa-paperclip"></i>
+                            </button>
+                            <input type="file" class="absolute inset-0 opacity-0 cursor-pointer" />
+                        </div>
+                        <!-- 发送按钮 -->
+                        <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors btn">
+                            <i class="fa fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[10px] text-neutral-400 mt-3 text-center">支持自然语言交互，所有操作均可通过对话完成</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- 交互脚本 -->
+    <script>
+        // 侧边栏折叠/展开
+        document.getElementById('sidebar-toggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('w-60')) {
+                sidebar.classList.remove('w-60');
+                sidebar.classList.add('w-0');
+                sidebar.classList.add('md:w-20');
+                // 隐藏文本，只显示图标
+                sidebar.querySelectorAll('span, h2').forEach(el => {
+                    el.classList.add('hidden');
+                });
+                sidebar.querySelectorAll('.flex-col').forEach(el => {
+                    el.classList.add('items-center');
+                });
+            } else {
+                sidebar.classList.remove('w-0');
+                sidebar.classList.remove('md:w-20');
+                sidebar.classList.add('w-60');
+                // 显示文本
+                sidebar.querySelectorAll('span, h2').forEach(el => {
+                    el.classList.remove('hidden');
+                });
+                sidebar.querySelectorAll('.flex-col').forEach(el => {
+                    el.classList.remove('items-center');
+                });
+            }
+        });
+
+        // 卡片展开/折叠功能
+        function initCardCollapse() {
+            const cards = document.querySelectorAll('.shadow-card');
+            cards.forEach(card => {
+                // 跳过带有collapse-header的卡片，避免与折叠面板冲突
+                if (card.querySelector('.collapse-header')) {
+                    return;
+                }
+                
+                const header = card.querySelector('.flex.items-center.justify-between');
+                if (header) {
+                    header.addEventListener('click', function() {
+                        const content = card.querySelector('.space-y-4, .space-y-3');
+                        if (content) {
+                            content.classList.toggle('hidden');
+                            const icon = header.querySelector('i.fa-chevron-down, i.fa-chevron-up');
+                            if (icon) {
+                                if (icon.classList.contains('fa-chevron-down')) {
+                                    icon.classList.remove('fa-chevron-down');
+                                    icon.classList.add('fa-chevron-up');
+                                } else {
+                                    icon.classList.remove('fa-chevron-up');
+                                    icon.classList.add('fa-chevron-down');
+                                }
+                            } else {
+                                const newIcon = document.createElement('i');
+                                newIcon.className = 'fa fa-chevron-up text-neutral-400';
+                                header.appendChild(newIcon);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // 项目展开/折叠
+        function initProjectCollapse() {
+            const projectHeaders = document.querySelectorAll('.flex.items-center.justify-between.px-4.py-3');
+            projectHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const project = this.closest('.rounded-xl');
+                    const subItems = project.querySelector('.pl-10');
+                    if (subItems) {
+                        subItems.classList.toggle('hidden');
+                        const icon = this.querySelector('i.fa-angle-down, i.fa-angle-right');
+                        if (icon) {
+                            if (icon.classList.contains('fa-angle-down')) {
+                                icon.classList.remove('fa-angle-down');
+                                icon.classList.add('fa-angle-right');
+                            } else {
+                                icon.classList.remove('fa-angle-right');
+                                icon.classList.add('fa-angle-down');
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        // 模拟发送消息
+        const sendButton = document.querySelector('.fa-paper-plane').parentElement;
+        const messageInput = document.querySelector('textarea');
+        const chatContainer = document.getElementById('chat-container');
+
+        sendButton.addEventListener('click', function() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // 添加用户消息
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble-user';
+            userBubble.innerHTML = `<p class="text-xs">${message}</p>`;
+            chatContainer.appendChild(userBubble);
+            
+            // 清空输入框
+            messageInput.value = '';
+            
+            // 滚动到底部
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // 模拟AI思考
+            setTimeout(() => {
+                const aiThinking = document.createElement('div');
+                aiThinking.className = 'chat-bubble-ai';
+                aiThinking.innerHTML = `
+                    <div class="flex items-center mb-2">
+                        <div class="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-2 text-xs">
+                            <i class="fa fa-robot"></i>
+                        </div>
+                        <span class="text-xs font-medium text-neutral-500">DEMO制作助手</span>
+                    </div>
+                    <div class="typing-animation">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                `;
+                chatContainer.appendChild(aiThinking);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                // 模拟AI回复
+                setTimeout(() => {
+                    aiThinking.remove();
+                    
+                    const aiReply = document.createElement('div');
+                    aiReply.className = 'chat-bubble-ai';
+                    aiReply.innerHTML = `
+                        <div class="flex items-center mb-2">
+                            <div class="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-2 text-xs">
+                                <i class="fa fa-robot"></i>
+                            </div>
+                            <span class="text-xs font-medium text-neutral-500">DEMO制作助手</span>
+                        </div>
+                        <p class="text-xs">已收到你的指令：<strong>${message}</strong></p>
+                        <p class="text-xs mt-2">我已完成相应操作，相关结果已更新到左侧DEMO工作区，请查看。</p>
+                        <div class="flex flex-wrap gap-1 mt-2">
+                            <button class="px-2 py-1 bg-primary/10 text-primary text-[10px] rounded hover:bg-primary/20 transition-colors">确认并继续</button>
+                            <button class="px-2 py-1 bg-neutral-100 text-neutral-500 text-[10px] rounded hover:bg-neutral-200 transition-colors">修改方案</button>
+                        </div>
+                    `;
+                    chatContainer.appendChild(aiReply);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    // 模拟更新工作区状态
+                    updateWorkspaceStatus();
+                    
+                }, 2000);
+            }, 500);
+        });
+
+        // 快捷指令点击
+        const quickCommands = document.querySelectorAll('.px-3.py-1.5.bg-neutral-100');
+        quickCommands.forEach(cmd => {
+            cmd.addEventListener('click', function() {
+                const cmdText = this.textContent.trim();
+                messageInput.value = cmdText;
+                // 模拟输入效果
+                messageInput.focus();
+            });
+        });
+
+        // 按钮点击效果
+        function initButtonEffects() {
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.addEventListener('mousedown', function() {
+                    this.classList.add('scale-95');
+                });
+                button.addEventListener('mouseup', function() {
+                    this.classList.remove('scale-95');
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.classList.remove('scale-95');
+                });
+            });
+        }
+
+        // 进度步骤点击
+        function initProgressSteps() {
+            const steps = document.querySelectorAll('.progress-step-done, .progress-step-active, .progress-step-pending');
+            steps.forEach((step, index) => {
+                step.addEventListener('click', function() {
+                    // 模拟进度跳转
+                    console.log(`跳转到步骤 ${index + 1}`);
+                    // 这里可以添加进度跳转的逻辑
+                });
+            });
+        }
+
+        // 模拟更新工作区状态
+        function updateWorkspaceStatus() {
+            // 模拟工作区内容更新
+            console.log('更新DEMO工作区状态');
+            // 可以添加实际的更新逻辑
+        }
+
+        // 回车发送消息
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+
+        // 输入框焦点效果
+        messageInput.addEventListener('focus', function() {
+            this.parentElement.classList.add('ring-2');
+            this.parentElement.classList.add('ring-primary/20');
+        });
+
+        messageInput.addEventListener('blur', function() {
+            this.parentElement.classList.remove('ring-2');
+            this.parentElement.classList.remove('ring-primary/20');
+        });
+
+        // 折叠面板功能
+        function toggleCollapse(element) {
+            console.log('toggleCollapse called with element:', element);
+            const content = element.nextElementSibling;
+            console.log('Content element:', content);
+            const icon = element.querySelector('i');
+            console.log('Icon element:', icon);
+            if (content) {
+                console.log('Toggling active class on content');
+                content.classList.toggle('active');
+                if (icon) {
+                    console.log('Toggling rotate-180 class on icon');
+                    icon.classList.toggle('rotate-180');
+                }
+            }
+        }
+
+        function initCollapsePanels() {
+            console.log('initCollapsePanels called');
+            const collapseHeaders = document.querySelectorAll('.collapse-header');
+            console.log('Found collapseHeaders:', collapseHeaders.length);
+            collapseHeaders.forEach(item => {
+                console.log('Adding click event listener to:', item);
+                item.addEventListener('click', function() {
+                    console.log('Click event triggered on:', this);
+                    toggleCollapse(this);
+                });
+            });
+        }
+
+        // 状态更新功能
+        function updateStatus(button, statusType) {
+            const row = button.closest('tr');
+            const statusEl = row.querySelector('.status-tag');
+            
+            statusEl.className = 'status-tag';
+            switch(statusType) {
+                case 'confirmed':
+                    statusEl.classList.add('status-confirmed');
+                    statusEl.innerHTML = '<i class="fa fa-check"></i> 已确认';
+                    break;
+                case 'modify':
+                    statusEl.classList.add('status-modify');
+                    statusEl.innerHTML = '<i class="fa fa-exclamation"></i> 需修改';
+                    break;
+                case 'rejected':
+                    statusEl.classList.add('status-rejected');
+                    statusEl.innerHTML = '<i class="fa fa-times"></i> 已驳回';
+                    break;
+                default:
+                    statusEl.classList.add('status-unconfirmed');
+                    statusEl.innerHTML = '<i class="fa fa-circle-o"></i> 未确认';
+            }
+        }
+
+        // 总时长更新逻辑
+        function updateTotalDuration(input) {
+            const val = parseInt(input.value) || 0;
+            const row = input.closest('tr');
+            const complianceEl = row.querySelector('.compliance-pass');
+            
+            // 模拟合规校验（标书要求≤10分钟）
+            if (val > 10) {
+                complianceEl.className = 'compliance-fail';
+                complianceEl.innerHTML = '🔴 超标（超出标书要求）';
+            } else if (val < 8) {
+                complianceEl.className = 'compliance-warning';
+                complianceEl.innerHTML = '🟡 时长不足（建议8-10分钟）';
+            } else {
+                complianceEl.className = 'compliance-pass';
+                complianceEl.innerHTML = '🟢 合规（符合标书要求）';
+            }
+        }
+
+        // 初始化滚动到底部
+        window.addEventListener('load', function() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // 初始化所有交互功能
+            initCardCollapse();
+            initProjectCollapse();
+            initButtonEffects();
+            initProgressSteps();
+            initCollapsePanels();
+            
+            // 初始化Mermaid流程图
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ startOnLoad: true });
+            }
+            
+            // 默认展开第一个面板
+            const firstPanel = document.querySelector('.collapse-header');
+            if (firstPanel) {
+                toggleCollapse(firstPanel);
+            }
+        });
+    </script>
+    
+    <!-- 新增项目模态框 -->
+    <div id="add-project-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-neutral-500">新增项目</h2>
+                <button id="close-modal-btn" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors btn">
+                    <i class="fa fa-times text-xs"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">项目名称</label>
+                    <input type="text" class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs" placeholder="请输入项目名称">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">项目类型</label>
+                    <select class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs">
+                        <option>投标演示</option>
+                        <option>产品演示</option>
+                        <option>培训演示</option>
+                        <option>其他</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">关联项目（可选）</label>
+                    <select class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs">
+                        <option value="">无</option>
+                        <option value="2024投标演示项目">2024投标演示项目</option>
+                        <option value="数据可视化项目">数据可视化项目</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">负责人</label>
+                    <input type="text" class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs" placeholder="请输入负责人姓名">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">截止时间</label>
+                    <input type="date" class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">项目描述</label>
+                    <textarea class="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs resize-none h-20" placeholder="请输入项目描述"></textarea>
+                </div>
+                <div class="flex items-center justify-end space-x-3">
+                    <button id="cancel-add-project-btn" class="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-500 text-xs hover:bg-neutral-100 transition-colors btn">取消</button>
+                    <button id="confirm-add-project-btn" class="px-4 py-2 rounded-lg bg-primary text-white text-xs hover:bg-primary/90 transition-colors btn">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 新增项目模态框功能
+        const addProjectBtn = document.getElementById('add-project-btn');
+        const addProjectModal = document.getElementById('add-project-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelAddProjectBtn = document.getElementById('cancel-add-project-btn');
+        const confirmAddProjectBtn = document.getElementById('confirm-add-project-btn');
+        
+        if (addProjectBtn) {
+            addProjectBtn.addEventListener('click', function() {
+                addProjectModal.classList.remove('hidden');
+            });
+        }
+        
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', function() {
+                addProjectModal.classList.add('hidden');
+            });
+        }
+        
+        if (cancelAddProjectBtn) {
+            cancelAddProjectBtn.addEventListener('click', function() {
+                addProjectModal.classList.add('hidden');
+            });
+        }
+        
+        if (confirmAddProjectBtn) {
+            confirmAddProjectBtn.addEventListener('click', function() {
+                // 这里可以添加项目添加逻辑
+                addProjectModal.classList.add('hidden');
+                // 可以添加成功提示
+                alert('项目添加成功！');
+            });
+        }
+        
+        // 点击模态框外部关闭
+        addProjectModal.addEventListener('click', function(e) {
+            if (e.target === addProjectModal) {
+                addProjectModal.classList.add('hidden');
+            }
+        });
+        
+        // 编辑模式切换功能
+        const editModeToggle = document.getElementById('edit-mode-toggle');
+        const editModeText = document.getElementById('edit-mode-text');
+        
+        if (editModeToggle && editModeText) {
+            editModeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    editModeText.textContent = 'AI辅助';
+                    editModeText.classList.remove('text-neutral-500');
+                    editModeText.classList.add('text-primary');
+                    // 这里可以添加AI辅助模式的逻辑
+                    console.log('切换到AI辅助模式');
+                } else {
+                    editModeText.textContent = '人工编辑';
+                    editModeText.classList.remove('text-primary');
+                    editModeText.classList.add('text-neutral-500');
+                    // 这里可以添加人工编辑模式的逻辑
+                    console.log('切换到人工编辑模式');
+                }
+            });
+        }
+        
+        // 关联项目功能
+        const relatedProjectSelect = document.querySelector('select');
+        const projectNameInput = document.querySelector('input[type="text"]');
+        const projectTypeSelect = document.querySelectorAll('select')[1];
+        const projectManagerInput = document.querySelectorAll('input[type="text"]')[1];
+        
+        if (relatedProjectSelect) {
+            relatedProjectSelect.addEventListener('change', function() {
+                const selectedProject = this.value;
+                if (selectedProject) {
+                    // 这里可以根据选择的项目填充相应的信息
+                    if (selectedProject === '2024投标演示项目') {
+                        projectNameInput.value = '2024投标演示项目-子项目';
+                        projectTypeSelect.value = '投标演示';
+                        projectManagerInput.value = '产品经理';
+                    } else if (selectedProject === '数据可视化项目') {
+                        projectNameInput.value = '数据可视化项目-子项目';
+                        projectTypeSelect.value = '产品演示';
+                        projectManagerInput.value = '技术总监';
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

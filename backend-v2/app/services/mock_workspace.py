@@ -1,0 +1,193 @@
+from app.schemas.project import ProjectSummary
+from app.schemas.workspace import (
+    ExtractedField,
+    GenerationSection,
+    KnowledgeAsset,
+    MetricItem,
+    ModuleCard,
+    NavItem,
+    ParseSection,
+    ReviewIssue,
+    RuleHit,
+    ScoreCard,
+    WorkspaceData,
+)
+
+
+def build_default_projects() -> list[ProjectSummary]:
+    # mock 假数据已清除，仅保留真实项目
+    return []
+
+def build_default_workspace() -> WorkspaceData:
+    return WorkspaceData(
+        nav_items=[
+            NavItem(key="overview", index="00", label="产品总览", summary="全局统计与各模块业务进展"),
+            NavItem(key="projects", index="01", label="商机台账", summary="管理项目、截止时间与优先级"),
+            NavItem(key="parsing", index="02", label="要求提取", summary="抽取资格、评分和格式要求"),
+            NavItem(key="decision", index="03", label="应答策略", summary="汇总评分点、规则和推进建议"),
+            NavItem(key="generation", index="04", label="回标编写", summary="自动生成符合要求的应答文件"),
+            NavItem(key="review", index="05", label="合同审查", summary="识别红线条款并给出建议"),
+            NavItem(key="rules", index="06", label="规则中心", summary="管理审查规则库与命中统计"),
+        ],
+        overview_metrics=[
+            MetricItem(label="项目接入", value="26", hint="本周待处理招标项目"),
+            MetricItem(label="决策效率", value="4.2x", hint="预估立项评估提速"),
+            MetricItem(label="材料风险", value="12", hint="待复核问题总数"),
+            MetricItem(label="AI 召回", value="91%", hint="知识库样例命中率"),
+        ],
+        modules=[
+            ModuleCard(
+                title="投标决策智能体",
+                description="解析招标文件、匹配企业能力、输出建议投/不投结论。",
+                status="决策链路设计中",
+                metric="18 个字段自动抽取",
+            ),
+            ModuleCard(
+                title="标书生成智能体",
+                description="按章节生成技术标与商务标初稿，并保留引用依据。",
+                status="模板引擎待接入",
+                metric="章节级引用可追溯",
+            ),
+            ModuleCard(
+                title="材料审核智能体",
+                description="核对合同、资质、证明材料，发现缺失、过期与高风险问题。",
+                status="规则库预留完成",
+                metric="支持 P0-P3 分级",
+            ),
+        ],
+        project_stats=[
+            MetricItem(label="进行中项目", value="14", tone="blue", hint="持续推进中"),
+            MetricItem(label="待决策项目", value="5", tone="cyan", hint="需尽快立项评估"),
+            MetricItem(label="高优项目", value="3", tone="amber", hint="资源优先保障"),
+            MetricItem(label="待审批事项", value="7", tone="violet", hint="经营/法务待处理"),
+        ],
+        project_filters=["全部项目", "本周新增", "待决策", "高优先级", "截止 7 天内"],
+        project_rows=build_default_projects(),
+        parse_sections=[
+            ParseSection(title="招标公告", page="P01-P03", state="已抽取"),
+            ParseSection(title="资格审查条件", page="P04-P08", state="待确认"),
+            ParseSection(title="评分办法", page="P09-P16", state="已抽取"),
+            ParseSection(title="技术规范书", page="P17-P46", state="已抽取"),
+            ParseSection(title="合同条款", page="P47-P61", state="高风险"),
+        ],
+        extracted_fields=[
+            ExtractedField(label="项目名称", value="智慧园区安防平台建设项目", confidence="98%"),
+            ExtractedField(label="招标编号", value="HL-SEC-2026-0318", confidence="96%"),
+            ExtractedField(label="投标截止时间", value="2026-03-24 18:00", confidence="95%"),
+            ExtractedField(label="预算金额", value="420 万元", confidence="93%"),
+            ExtractedField(
+                label="必备资质",
+                value="电子与智能化工程专业承包一级",
+                confidence="88%",
+            ),
+            ExtractedField(
+                label="付款条款",
+                value="30% 预付款，40% 初验，30% 终验",
+                confidence="79%",
+            ),
+            ExtractedField(label="交付周期", value="合同签订后 90 日内", confidence="91%"),
+        ],
+        score_cards=[
+            ScoreCard(label="资质匹配度", score=92, note="必备资质齐全，案例覆盖足够"),
+            ScoreCard(label="产品匹配度", score=86, note="核心功能满足，需补一项兼容证明"),
+            ScoreCard(label="交付能力", score=81, note="区域交付可覆盖，但实施窗口偏紧"),
+            ScoreCard(label="商业价值", score=88, note="预算充足，有后续扩容空间"),
+            ScoreCard(label="回款风险", score=67, note="付款节点偏后置，现金流压力较大"),
+            ScoreCard(label="合规风险", score=73, note="合同责任条款需法务确认"),
+        ],
+        rule_hits=[
+            RuleHit(name="一级资质校验", result="通过", detail="企业资质库命中有效证书", level="P3"),
+            RuleHit(name="业绩门槛校验", result="通过", detail="近三年同类项目 4 个", level="P3"),
+            RuleHit(name="付款红线校验", result="预警", detail="终验回款比例偏高", level="P1"),
+            RuleHit(name="交付周期校验", result="关注", detail="实施资源需提前锁定", level="P2"),
+        ],
+        ai_reasons=[
+            "项目与我司园区安防与可视化平台能力高度匹配，已命中 2 个同类行业案例。",
+            "资格条件满足度较高，但付款条款和售后 SLA 存在超出现有标准模板的部分。",
+            "建议进入“有条件投标”状态，并同步触发法务与交付负责人复核。",
+        ],
+        pending_checks=[
+            "补充与国产服务器兼容性的书面证明",
+            "确认驻场运维 7x24 响应是否需要额外成本",
+            "校验终验回款节点是否可接受",
+        ],
+        generation_sections=[
+            GenerationSection(title="项目理解与建设目标", status="已生成", citations=4, todo=0),
+            GenerationSection(title="总体技术方案", status="待校对", citations=6, todo=1),
+            GenerationSection(title="实施计划与里程碑", status="待生成", citations=0, todo=2),
+            GenerationSection(title="售后服务承诺", status="需复核", citations=3, todo=2),
+            GenerationSection(title="偏离表与附件清单", status="已生成", citations=5, todo=0),
+        ],
+        generation_assets=[
+            KnowledgeAsset(title="园区安防平台解决方案 V5.2", type="解决方案", score="0.96", status="最新"),
+            KnowledgeAsset(title="智慧园区行业案例集", type="案例库", score="0.92", status="可引用"),
+            KnowledgeAsset(title="电子与智能化一级资质", type="资质", score="0.89", status="有效"),
+            KnowledgeAsset(title="售后 SLA 标准条款", type="服务模板", score="0.86", status="需法务确认"),
+        ],
+        generation_todos=[
+            "实施计划中补充 90 日交付排期明细",
+            "售后服务承诺需确认是否接受 7x24 驻场要求",
+            "引用 2025 年最新验收报告作为支撑材料",
+        ],
+        review_summary=[
+            MetricItem(label="P0 风险", value="1", tone="blue", hint="必须阻断提交"),
+            MetricItem(label="P1 风险", value="2", tone="cyan", hint="需负责人审批"),
+            MetricItem(label="待修复项", value="6", tone="amber", hint="文档仍需修订"),
+            MetricItem(label="已关闭", value="9", tone="violet", hint="已处理完成问题"),
+        ],
+        review_issues=[
+            ReviewIssue(
+                title="付款条款与公司红线冲突",
+                type="合同风险",
+                level="P0",
+                status="待处理",
+                document="合同条款 P53",
+                detail="终验回款比例过高，超出内部红线阈值。",
+                evidence="合同签订后支付 30% 预付款，初验合格支付 40%，终验合格后支付剩余 30%。",
+                suggestion="优先谈判下调终验尾款比例；若无法调整，需提请经营负责人审批豁免。",
+                origin="规则命中",
+                rule_name="payment_tail_ratio_guardrail",
+            ),
+            ReviewIssue(
+                title="公司名称缩写与营业执照不一致",
+                type="一致性问题",
+                level="P1",
+                status="待复核",
+                document="商务应答书 P07",
+                detail="正文使用简称，需统一为法定全称。",
+                evidence="文中使用“海岚安防”简称，但营业执照与封面均为“海岚科技股份有限公司”。",
+                suggestion="统一正文、封面、附件中的主体名称，并复核招标编号与签章页信息。",
+                origin="规则命中",
+                rule_name="document_name_consistency",
+            ),
+            ReviewIssue(
+                title="责任边界表述模糊，存在兜底履约风险",
+                type="语义责任风险",
+                level="P1",
+                status="待补充",
+                document="服务条款 · 第8条",
+                detail="条款用语开放，可能把额外驻场和协调义务默认压给乙方。",
+                evidence="乙方应按甲方要求提供驻场支持，并负责项目运行中的相关保障工作。",
+                suggestion="补充驻场时长、响应边界、甲方配合事项和不在本次服务范围内的工作清单。",
+                origin="语义审查",
+                rule_name="semantic_ambiguous_responsibility",
+            ),
+            ReviewIssue(
+                title="案例证明附件页码缺失",
+                type="完整性问题",
+                level="P2",
+                status="处理中",
+                document="案例附件 P31",
+                detail="历史项目验收证明未标注签章页。",
+                evidence="附件目录与扫描件未标注对应页码，签章页无法快速定位。",
+                suggestion="在附件目录补充页码索引，并在证明材料首页标记签章页位置。",
+                origin="规则命中",
+                rule_name="attachment_page_reference",
+            ),
+        ],
+        review_actions=[
+            "重新上传付款条款谈判版合同草稿",
+            "统一公司名称、项目名称和招标编号字段",
+            "补充运维能力证明并重新运行审核",
+        ],
+    )
