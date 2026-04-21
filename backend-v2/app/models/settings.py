@@ -15,7 +15,7 @@ class AIConfig(Base):
     api_key: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     base_url: Mapped[str] = mapped_column(String(256), nullable=False, default="")
     model: Mapped[str] = mapped_column(String(64), nullable=False, default="glm-4")
-    temperature: Mapped[float] = mapped_column(String(16), nullable=False, default="0.7")
+    temperature: Mapped[str] = mapped_column(String(16), nullable=False, default="0.7")
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=4096)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime] = mapped_column(
