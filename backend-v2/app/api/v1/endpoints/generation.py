@@ -188,8 +188,8 @@ def create_generation_job(
     return generation_service.create_job(db, payload)
 
 
-@router.get("/jobs/latest", response_model=GenerationJobResponse)
-def get_latest_generation_job(db: Session = Depends(get_db)) -> GenerationJobResponse:
+@router.get("/jobs/latest", response_model=GenerationJobResponse | None)
+def get_latest_generation_job(db: Session = Depends(get_db)) -> GenerationJobResponse | None:
     return generation_service.get_latest_job(db)
 
 

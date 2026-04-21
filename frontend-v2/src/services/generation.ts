@@ -36,8 +36,8 @@ export async function listGenerationTodos(): Promise<string[]> {
   return res.data
 }
 
-export async function getLatestGenerationJob(): Promise<GenerationJob> {
-  const res = await api.get<GenerationJob>('/generation/jobs/latest')
+export async function getLatestGenerationJob(): Promise<GenerationJob | null> {
+  const res = await api.get<GenerationJob | null>('/generation/jobs/latest')
   return res.data
 }
 

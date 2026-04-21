@@ -42,8 +42,8 @@ export async function getReviewActions(): Promise<string[]> {
   return res.data
 }
 
-export async function getLatestReviewJob(): Promise<ReviewJob> {
-  const res = await api.get<ReviewJob>('/review/jobs/latest')
+export async function getLatestReviewJob(): Promise<ReviewJob | null> {
+  const res = await api.get<ReviewJob | null>('/review/jobs/latest')
   return res.data
 }
 

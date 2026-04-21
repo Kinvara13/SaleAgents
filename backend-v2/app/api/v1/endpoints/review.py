@@ -51,8 +51,8 @@ def create_review_job(
     return review_service.create_job(db, payload)
 
 
-@router.get("/jobs/latest", response_model=ReviewJobResponse)
-def get_latest_review_job(db: Session = Depends(get_db)) -> ReviewJobResponse:
+@router.get("/jobs/latest", response_model=ReviewJobResponse | None)
+def get_latest_review_job(db: Session = Depends(get_db)) -> ReviewJobResponse | None:
     return review_service.get_latest_job(db)
 
 

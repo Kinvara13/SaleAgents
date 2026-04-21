@@ -220,13 +220,10 @@ class ReviewService:
     def get_job(self, db: Session, job_id: str) -> ReviewJobResponse:
         return self._to_job_response(self._get_job_record(db, job_id))
 
-    def get_latest_job(self, db: Session) -> ReviewJobResponse:
+    def get_latest_job(self, db: Session) -> ReviewJobResponse | None:
         job = self._latest_job(db)
         if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No review job found.",
-            )
+            return None
         return self._to_job_response(job)
 
     def list_job_issues(self, db: Session, job_id: str) -> list[ReviewJobIssue]:
