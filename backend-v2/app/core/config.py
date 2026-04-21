@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     secret_key: str = "saleagents-secret-key-change-in-production"
     access_token_expire_minutes: int = 60 * 24  # 1 day
     refresh_token_expire_days: int = 7
+    llm_ready: bool = False
+    llm_model: str = "glm-4"
 
     database_url_override: str | None = None
     storage_path: str | None = None
