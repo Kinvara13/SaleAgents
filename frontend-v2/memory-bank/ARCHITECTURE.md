@@ -1,5 +1,14 @@
 # ARCHITECTURE.md - 系统架构
 
+> 历史参考：本文件内容包含已过期目录和技术结论。
+> 当前有效入口：
+> - `../../specs/engineering-spec.md`
+> - `../../specs/backend-dev-spec.md`
+> - `../../specs/frontend-style-spec.md`
+> - `../../specs/api-contract-spec.md`
+> - `../../memory-bank/PAGE_COVERAGE_V2.md`
+> 除非做历史回顾，否则不要把本文件当主事实源。
+
 ---
 
 ## 1. 项目结构

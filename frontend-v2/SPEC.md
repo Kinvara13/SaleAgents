@@ -1,5 +1,13 @@
 # SaleAgents v2 前端开发规范（SPEC）
 
+> 历史参考：本文件已迁移至根目录 `specs/` 与 `memory-bank/` 统一维护。
+> 当前有效入口：
+> - `../specs/frontend-style-spec.md`
+> - `../specs/engineering-spec.md`
+> - `../specs/api-contract-spec.md`
+> - `../memory-bank/FEATURE_MATRIX_V2.md`
+> 除非明确做历史回溯，否则不要再把本文件当主事实源。
+
 > 本文档为 SaleAgents v2 前端项目的开发规范，供多 AI coding 智能体协作开发使用。
 > 内容基于 `~/SaleAgents/frontend-v2/` 实际代码分析生成，不可凭空编造。
 

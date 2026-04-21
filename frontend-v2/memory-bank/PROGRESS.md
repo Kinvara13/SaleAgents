@@ -1,5 +1,12 @@
 # PROGRESS.md - 项目进度
 
+> 历史参考：根目录 `memory-bank/` 现已成为统一事实源。
+> 当前主入口：
+> - `../../memory-bank/TASK_BOARD_V2.md`
+> - `../../memory-bank/CHANGE_LOG_V2.md`
+> - `../../memory-bank/FEATURE_MATRIX_V2.md`
+> 本文件仅保留前端阶段性历史记录，不再作为主更新入口。
+
 > SaleAgents frontend-v2 开发进度追踪，供多 AI Agent 协作使用。
 > 每次状态变化后更新此文件。
 
