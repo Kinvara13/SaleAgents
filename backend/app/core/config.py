@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     api_prefix: str = "/api/v1"
-    frontend_origins: str = "http://localhost:5173"
+    frontend_origins: str = "http://localhost:8081"
     secret_key: str = "your-secret-key-change-in-production"
     access_token_expire_minutes: int = 60 * 24  # 1 day
     refresh_token_expire_days: int = 7
