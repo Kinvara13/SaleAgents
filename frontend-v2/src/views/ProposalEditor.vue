@@ -305,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import api from '@/services/api'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '../services/project'
@@ -370,7 +371,7 @@ async function fetchSections() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/sections`)
+    const res = await fetch(`/api/v1/proposal-editor/${projectId}/sections`)
     if (res.ok) {
       sections.value = await res.json()
     }
@@ -383,7 +384,7 @@ async function fetchScoringRules() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/scoring-rules`)
+    const res = await fetch(`/api/v1/proposal-editor/${projectId}/scoring-rules`)
     if (res.ok) {
       const data = await res.json()
       scoringRules.value = data.sections
@@ -410,7 +411,7 @@ async function handleGenerate() {
 
   try {
     const res = await fetch(
-      `http://localhost:8000/api/v1/proposal-editor/${projectId}/generate`,
+      `/api/v1/proposal-editor/${projectId}/generate`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -448,7 +449,7 @@ async function handleScore() {
   if (!projectId) return
   scoring.value = true
   try {
-    const res = await fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/score`, {
+    const res = await fetch(`/api/v1/proposal-editor/${projectId}/score`, {
       method: 'POST',
     })
     if (res.ok) {
@@ -468,7 +469,7 @@ async function handleRescore() {
   if (!projectId) return
   scoring.value = true
   try {
-    const res = await fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/rescore`, {
+    const res = await fetch(`/api/v1/proposal-editor/${projectId}/rescore`, {
       method: 'POST',
     })
     if (res.ok) {
@@ -489,7 +490,7 @@ async function confirmSection(section: ProposalSection) {
   if (!projectId) return
   try {
     const res = await fetch(
-      `http://localhost:8000/api/v1/proposal-editor/${projectId}/sections/${section.id}`,
+      `/api/v1/proposal-editor/${projectId}/sections/${section.id}`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -510,7 +511,7 @@ async function handleConfirm() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/confirm`, {
+    const res = await fetch(`/api/v1/proposal-editor/${projectId}/confirm`, {
       method: 'POST',
     })
     if (res.ok) {
@@ -524,7 +525,7 @@ async function handleConfirm() {
 function selectSection(section: ProposalSection) {
   // 获取完整内容
   const projectId = route.params.projectId as string
-  fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/sections/${section.id}`)
+  fetch(`/api/v1/proposal-editor/${projectId}/sections/${section.id}`)
     .then(res => res.json())
     .then(detail => {
       selectedSection.value = detail
@@ -536,7 +537,7 @@ function openEditSection(section: ProposalSection) {
   editingSection.value = section
   // 获取最新内容
   const projectId = route.params.projectId as string
-  fetch(`http://localhost:8000/api/v1/proposal-editor/${projectId}/sections/${section.id}`)
+  fetch(`/api/v1/proposal-editor/${projectId}/sections/${section.id}`)
     .then(res => res.json())
     .then(detail => {
       editContent.value = detail.content
@@ -550,7 +551,7 @@ function saveSection() {
   savingSection.value = true
   const projectId = route.params.projectId as string
   fetch(
-    `http://localhost:8000/api/v1/proposal-editor/${projectId}/sections/${editingSection.value.id}`,
+    `/api/v1/proposal-editor/${projectId}/sections/${editingSection.value.id}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

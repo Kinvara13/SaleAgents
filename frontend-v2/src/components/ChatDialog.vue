@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import api from '@/services/api'
 import { ref, computed, nextTick, onMounted } from 'vue'
 
 interface ChatMessage {
@@ -154,7 +155,7 @@ async function sendMessage() {
 
   try {
     const res = await fetch(
-      `http://localhost:8000/api/v1/chat/${props.projectId}/message`,
+      `/api/v1/chat/${props.projectId}/message`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,7 +221,7 @@ async function scrollToBottom() {
 async function loadHistory() {
   try {
     const res = await fetch(
-      `http://localhost:8000/api/v1/chat/${props.projectId}/history`
+      `/api/v1/chat/${props.projectId}/history`
     )
     if (res.ok) {
       const history = await res.json()

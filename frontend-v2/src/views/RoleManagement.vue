@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import api from '@/services/api'
 import { ref, onMounted } from 'vue'
 
 const roles = ref<any[]>([])
@@ -55,7 +56,7 @@ function roleClass(id: string) {
 
 onMounted(async () => {
   try {
-    const res = await fetch('http://localhost:8000/api/v1/users/roles/list')
+    const res = await fetch('/api/v1/users/roles/list')
     if (res.ok) roles.value = await res.json()
   } catch (e) { console.error('Load roles failed:', e) }
 })
