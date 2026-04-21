@@ -91,7 +91,18 @@ const menuItems = ref<MenuItem[]>([
   { name: '回标文件', path: '/bid-list', icon: '📁' },
   { name: '技术建议书', path: '/proposal-editor', icon: '✍️' },
   { name: 'DEMO制作', path: '/demo-workflow', icon: '🎬' },
-  { name: '报价策略', path: '/pricing-strategy', icon: '💰' }
+  { name: '报价策略', path: '/pricing-strategy', icon: '💰' },
+  {
+    name: '系统管理',
+    path: '/system-settings',
+    icon: '⚙️',
+    expanded: false,
+    children: [
+      { name: '系统设置', path: '/system-settings', icon: '⚙️' },
+      { name: '用户管理', path: '/user-management', icon: '👥' },
+      { name: '角色管理', path: '/role-management', icon: '🔐' },
+    ]
+  }
 ])
 
 const currentPageName = computed(() => {
