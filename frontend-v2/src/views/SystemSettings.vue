@@ -169,9 +169,8 @@ const ruleForm = ref({ name: '', rule_type: 'general', content: '' })
 async function loadAIConfig() {
   try {
     const res = await api.get('/settings/ai-config')
-      const cfg = res.data
-      aiForm.value = { ...aiForm.value, ...cfg }
-    }
+    const cfg = res.data
+    aiForm.value = { ...aiForm.value, ...cfg }
   } catch (e) { console.error(e) }
 }
 
@@ -199,14 +198,14 @@ async function handleMaterialUpload(event: Event) {
   formData.append('name', file.name)
   formData.append('material_type', 'general')
   try {
-    await api.post('/settings/materials/upload', body: formData )
+    await api.post('/settings/materials/upload', formData)
     await loadMaterials()
   } catch (e) { console.error(e) }
   finally { input.value = '' }
 }
 
 async function deleteMaterial(id: string) {
-  await api.delete('/settings/materials/${id}').catch(() => {})
+  await api.delete(`/settings/materials/${id}`).catch(() => {})
   await loadMaterials()
 }
 
@@ -227,7 +226,7 @@ async function handleCreateRule() {
 }
 
 async function deleteRule(id: string) {
-  await api.delete('/settings/rules/${id}').catch(() => {})
+  await api.delete(`/settings/rules/${id}`).catch(() => {})
   await loadRules()
 }
 
