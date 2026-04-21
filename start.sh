@@ -74,7 +74,7 @@ else
 fi
 
 # 启动后端 (后台运行)
-nohup uvicorn app.main:app --reload --port 8000 > "${LOG_DIR}/backend-v2.log" 2>&1 &
+nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > "${LOG_DIR}/backend-v2.log" 2>&1 &
 BACKEND_PID=$!
 echo "${BACKEND_PID}" >> "${PID_FILE}"
 echo "  ✓ 后端 V2 已启动 (PID: ${BACKEND_PID})，日志: logs/backend-v2.log"
