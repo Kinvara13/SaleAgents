@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import api from '@/services/api'
+import api from '../services/api'
 import { ref, computed, nextTick, onMounted } from 'vue'
 
 interface ChatMessage {

@@ -182,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import api from '@/services/api'
+import api from '../services/api'
 import { ref, onMounted } from 'vue'
 
 const tabs = [

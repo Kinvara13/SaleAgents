@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import api from '@/services/api'
+import api from '../services/api'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '../services/project'
