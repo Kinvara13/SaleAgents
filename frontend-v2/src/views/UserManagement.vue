@@ -196,7 +196,7 @@ function roleClass(role: string) {
 async function fetchUsers() {
   try {
     const res = await api.get('/users')
-    if (res.ok) users.value = await res.json()
+    users.value = res.data
   } catch (e) { console.error('Fetch users failed:', e) }
 }
 
@@ -221,7 +221,7 @@ async function handleUpdate() {
   if (!editTarget.value) return
   updating.value = true
   try {
-    await api.patch('/users/${editTarget.value.id}', { role: editForm.value.role })
+    await api.patch(`/users/${editTarget.value.id}`, { role: editForm.value.role })
     isEditModalVisible.value = false
     await fetchUsers()
   } catch (e) { console.error('Update failed:', e) }
@@ -237,7 +237,7 @@ async function handleDelete() {
   if (!deleteTarget.value) return
   deleting.value = true
   try {
-    await api.delete('/users/${deleteTarget.value.id}')
+    await api.delete(`/users/${deleteTarget.value.id}`)
     showDeleteConfirm.value = false
     deleteTarget.value = null
     await fetchUsers()
@@ -247,7 +247,7 @@ async function handleDelete() {
 
 async function toggleActive(user: User) {
   try {
-    await api.patch('/users/${user.id}', { is_active: !user.is_active })
+    await api.patch(`/users/${user.id}`, { is_active: !user.is_active })
     await fetchUsers()
   } catch (e) { console.error('Toggle failed:', e) }
 }

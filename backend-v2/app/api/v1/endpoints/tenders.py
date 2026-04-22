@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status
+from fastapi import APIRouter, Depends, UploadFile, File, Form, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ def post_tender(
     db: Session = Depends(get_db),
 ) -> TenderSummary:
     """新增招标信息"""
-    tender = tender_service.create_tender(db, payload)
+    tender = tender_service.create_tender(db, payload, user_id=current_user.id)
     return tender
 
 
@@ -44,6 +44,8 @@ def get_tender_detail(
 class TenderDecisionRequestBody(BaseModel):
     decision: str  # "bid" | "reject"
     reason: str = ""
+    margin: str = ""
+    project_type: str = ""
 
 
 @router.post("/{tender_id}/decision", response_model=TenderSummary)
@@ -53,7 +55,12 @@ def post_tender_decision(
     db: Session = Depends(get_db),
 ) -> TenderSummary:
     """投标/不投决策"""
-    tender_payload = TenderDecisionRequest(decision=body.decision, reason=body.reason)
+    tender_payload = TenderDecisionRequest(
+        decision=body.decision,
+        reason=body.reason,
+        margin=body.margin,
+        project_type=body.project_type,
+    )
     return tender_service.update_tender_decision(db, tender_id, tender_payload)
 
 
@@ -61,6 +68,8 @@ def post_tender_decision(
 def upload_bid_document(
     tender_id: str,
     file: UploadFile = File(...),
+    margin: str = Form(""),
+    project_type: str = Form(""),
     current_user: UserInfoResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TenderSummary:
@@ -95,4 +104,13 @@ def upload_bid_document(
         ),
     )
     tender_service.bind_project(db, tender_id, project.id)
+    
+    # Update tender margin and project_type
+    tender = tender_service.get_tender(db, tender_id)
+    if margin:
+        tender.margin = margin
+    if project_type:
+        tender.project_type = project_type
+    db.commit()
+    
     return TenderSummary.model_validate(tender_service.get_tender(db, tender_id))

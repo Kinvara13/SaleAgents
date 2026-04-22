@@ -486,3 +486,67 @@ def update_technical_document(
     db.commit()
     db.refresh(doc)
     return TechnicalDocumentDetail.model_validate(doc)
+
+
+def generate_technical_document(
+    db: Session, project_id: str, doc_id: str
+) -> TechnicalDocumentDetail:
+    doc = db.query(TechnicalDocument).filter(
+        TechnicalDocument.id == doc_id,
+        TechnicalDocument.project_id == project_id,
+    ).first()
+    if not doc:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
+
+    project = get_or_create_project(db, project_id)
+
+    from app.services.workspace_service import get_extracted_fields
+    extracted_fields = {item.label: item.value for item in get_extracted_fields(db)}
+
+    from app.services.asset_routing_service import asset_routing_service
+    routed_assets = asset_routing_service.route_assets_for_section(
+        db,
+        section_title=doc.doc_name,
+        project_summary="",
+        tender_requirements="",
+        delivery_deadline="",
+        service_commitment="",
+        selected_asset_titles=[],
+        fixed_asset_titles=[],
+        excluded_asset_titles=[],
+        extracted_fields=extracted_fields,
+        limit=3,
+    )
+    routed_asset_payloads = [
+        f"{item.asset_title}｜{item.chunk_title}｜{item.snippet}"
+        for item in routed_assets
+    ]
+
+    from app.services.technical_case_service import search_technical_cases
+    # 基于 doc_name 简单匹配技术案例，如遇到 "项目实力"、"金额" 等关键词，进行特定查询
+    cases = search_technical_cases(db, project_id, keyword=doc.doc_name)
+    case_payloads = [
+        f"案例名称：{case.title}｜合同：{case.contract_name}｜摘要：{case.summary}"
+        for case in cases[:3]
+    ]
+
+    from app.services.llm_client import llm_generation_client
+    generated_content = llm_generation_client.generate_document_content(
+        project_name=project.name,
+        doc_name=doc.doc_name,
+        original_content=doc.original_content,
+        score_point=doc.score_point,
+        rule_description=doc.rule_description,
+        extracted_fields=extracted_fields,
+        routed_assets=routed_asset_payloads,
+        technical_cases=case_payloads,
+    )
+
+    if generated_content:
+        doc.editable_content = generated_content
+        doc.status = "filled"
+        db.commit()
+        db.refresh(doc)
+
+    return TechnicalDocumentDetail.model_validate(doc)

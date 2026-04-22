@@ -70,22 +70,22 @@ def initialize_database(db: Session) -> None:
     # Migrate LLM providers if json config exists
     from pathlib import Path
     import json
-    from app.models.llm_provider import LLMProviderModel
+    from app.models.settings import AIConfig
     
     config_file = Path(__file__).resolve().parents[3] / "llm_providers.json"
-    if config_file.exists() and db.query(LLMProviderModel).count() == 0:
+    if config_file.exists() and db.query(AIConfig).count() == 0:
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 active_id = data.get("active_provider_id")
                 for p in data.get("providers", []):
-                    db.add(LLMProviderModel(
+                    db.add(AIConfig(
                         id=p.get("id"),
                         name=p.get("name"),
                         base_url=p.get("base_url"),
                         api_key=p.get("api_key"),
                         model=p.get("model"),
-                        protocol=p.get("protocol", "openai"),
+                        provider=p.get("protocol", "openai"),
                         is_active=(p.get("id") == active_id)
                     ))
             import os

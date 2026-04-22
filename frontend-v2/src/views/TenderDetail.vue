@@ -272,13 +272,24 @@
                   <div v-if="currentDoc.has_fillable_fields || editingDocId === doc.id">
                     <div class="flex items-center justify-between mb-1">
                       <div class="text-xs font-medium text-gray-500">✏️ 可编辑内容</div>
-                      <button
-                        v-if="editingDocId !== doc.id"
-                        class="text-xs text-primary hover:underline"
-                        @click="startEditDoc(doc)"
-                      >
-                        编辑
-                      </button>
+                      <div class="flex items-center space-x-3">
+                        <button
+                          v-if="editingDocId !== doc.id && currentDoc.has_fillable_fields"
+                          class="text-xs text-primary hover:underline flex items-center"
+                          @click="generateDoc(doc)"
+                          :disabled="generatingDocId === doc.id"
+                        >
+                          <span v-if="generatingDocId === doc.id" class="mr-1 animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full"></span>
+                          ✨ AI 自动填充
+                        </button>
+                        <button
+                          v-if="editingDocId !== doc.id"
+                          class="text-xs text-primary hover:underline"
+                          @click="startEditDoc(doc)"
+                        >
+                          编辑
+                        </button>
+                      </div>
                     </div>
                     <div v-if="editingDocId === doc.id">
                       <textarea
@@ -397,13 +408,24 @@
                   <div v-if="currentProposalPlan.has_fillable_fields || editingProposalPlanId === doc.id">
                     <div class="flex items-center justify-between mb-1">
                       <div class="text-xs font-medium text-gray-500">✏️ 可编辑内容</div>
-                      <button
-                        v-if="editingProposalPlanId !== doc.id"
-                        class="text-xs text-primary hover:underline"
-                        @click="startEditProposalPlan(doc)"
-                      >
-                        编辑
-                      </button>
+                      <div class="flex items-center space-x-3">
+                        <button
+                          v-if="editingProposalPlanId !== doc.id && currentProposalPlan.has_fillable_fields"
+                          class="text-xs text-primary hover:underline flex items-center"
+                          @click="doGenerateProposalPlan(doc)"
+                          :disabled="generatingProposalPlanId === doc.id"
+                        >
+                          <span v-if="generatingProposalPlanId === doc.id" class="mr-1 animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full"></span>
+                          ✨ AI 自动填充
+                        </button>
+                        <button
+                          v-if="editingProposalPlanId !== doc.id"
+                          class="text-xs text-primary hover:underline"
+                          @click="startEditProposalPlan(doc)"
+                        >
+                          编辑
+                        </button>
+                      </div>
                     </div>
                     <div v-if="editingProposalPlanId === doc.id">
                       <textarea
@@ -523,13 +545,24 @@
                   <div v-if="currentTechDoc.has_fillable_fields || editingTechDocId === doc.id">
                     <div class="flex items-center justify-between mb-1">
                       <div class="text-xs font-medium text-gray-500">✏️ 可编辑内容</div>
-                      <button
-                        v-if="editingTechDocId !== doc.id"
-                        class="text-xs text-primary hover:underline"
-                        @click="startEditTechDoc(doc)"
-                      >
-                        编辑
-                      </button>
+                      <div class="flex items-center space-x-3">
+                        <button
+                          v-if="editingTechDocId !== doc.id && currentTechDoc.has_fillable_fields"
+                          class="text-xs text-primary hover:underline flex items-center"
+                          @click="generateTechDoc(doc)"
+                          :disabled="generatingTechDocId === doc.id"
+                        >
+                          <span v-if="generatingTechDocId === doc.id" class="mr-1 animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full"></span>
+                          ✨ AI 自动填充
+                        </button>
+                        <button
+                          v-if="editingTechDocId !== doc.id"
+                          class="text-xs text-primary hover:underline"
+                          @click="startEditTechDoc(doc)"
+                        >
+                          编辑
+                        </button>
+                      </div>
                     </div>
                     <div v-if="editingTechDocId === doc.id">
                       <textarea
@@ -767,15 +800,15 @@
           </div>
           <div>
             <label class="text-xs text-gray-500 block mb-1">案例摘要</label>
-            <textarea v-model="editCaseForm.summary" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" rows="2" placeholder="简要描述案例背景和亮点..."></textarea>
+            <textarea v-model="editCaseForm.summary" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" :rows="2" placeholder="简要描述案例背景和亮点..."></textarea>
           </div>
           <div>
             <label class="text-xs text-gray-500 block mb-1">合同内容概述</label>
-            <textarea v-model="editCaseForm.contract_overview" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" rows="3" placeholder="详细描述合同内容、项目范围、交付成果..."></textarea>
+            <textarea v-model="editCaseForm.contract_overview" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" :rows="3" placeholder="详细描述合同内容、项目范围、交付成果..."></textarea>
           </div>
           <div>
             <label class="text-xs text-gray-500 block mb-1">关键技术亮点</label>
-            <textarea v-model="editCaseForm.key_highlights" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" rows="2" placeholder="列举关键技术亮点、创新点..."></textarea>
+            <textarea v-model="editCaseForm.key_highlights" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/50" :rows="2" placeholder="列举关键技术亮点、创新点..."></textarea>
           </div>
           <div>
             <label class="text-xs text-gray-500 block mb-1">来源</label>
@@ -802,16 +835,19 @@ import {
   listBusinessDocuments,
   getBusinessDocumentDetail,
   updateBusinessDocument,
+  generateBusinessDocument,
 } from '../services/businessDocument'
 import {
   listTechnicalDocuments,
   getTechnicalDocumentDetail,
   updateTechnicalDocument,
+  generateTechnicalDocument,
 } from '../services/technicalDocument'
 import {
   listProposalPlans,
   getProposalPlanDetail,
   updateProposalPlan,
+  generateProposalPlan,
 } from '../services/proposalPlan'
 import {
   listTechnicalCases,
@@ -838,7 +874,7 @@ const sections = ref<any[]>([])
 const loading = ref(false)
 const uploading = ref(false)
 const saving = ref(false)
-const activeTab = ref<'商务' | '技术' | '商务文档' | '技术文档' | '技术案例'>('商务')
+const activeTab = ref<'商务' | '技术' | '商务文档' | '技术文档' | '方案建议书' | '技术案例'>('商务')
 const expandedSection = ref<string | null>(null)
 const editingSection = ref<string | null>(null)
 const editContent = ref('')
@@ -851,6 +887,7 @@ const editingDocId = ref<string | null>(null)
 const currentDoc = ref<BusinessDocumentDetail | null>(null)
 const editDocContent = ref('')
 const savingDoc = ref(false)
+const generatingDocId = ref<string | null>(null)
 
 // Technical documents
 const techDocs = ref<TechnicalDocumentSummary[]>([])
@@ -860,6 +897,7 @@ const editingTechDocId = ref<string | null>(null)
 const currentTechDoc = ref<TechnicalDocumentDetail | null>(null)
 const editTechDocContent = ref('')
 const savingTechDoc = ref(false)
+const generatingTechDocId = ref<string | null>(null)
 
 const businessSections = computed(() => sections.value.filter(s => s.section_type === '商务'))
 const techSections = computed(() => sections.value.filter(s => s.section_type === '技术'))
@@ -879,6 +917,7 @@ const editingProposalPlanId = ref<string | null>(null)
 const currentProposalPlan = ref<ProposalPlanDetail | null>(null)
 const editProposalPlanContent = ref('')
 const savingProposalPlan = ref(false)
+const generatingProposalPlanId = ref<string | null>(null)
 
 const proposalPlanStarCount = computed(() => proposalPlans.value.filter(d => d.is_star_item).length)
 const proposalPlanFillableCount = computed(() => proposalPlans.value.filter(d => d.has_fillable_fields).length)
@@ -1053,6 +1092,23 @@ async function saveProposalPlan(doc: ProposalPlanSummary) {
   }
 }
 
+async function doGenerateProposalPlan(doc: ProposalPlanSummary) {
+  generatingProposalPlanId.value = doc.id
+  try {
+    const updated = await generateProposalPlan(pid.value!, doc.id)
+    currentProposalPlan.value = updated
+    const idx = proposalPlans.value.findIndex(d => d.id === doc.id)
+    if (idx >= 0) {
+      proposalPlans.value[idx] = { ...proposalPlans.value[idx], status: updated.status }
+    }
+  } catch (e) {
+    console.error('Generate proposal plan failed:', e)
+    alert('生成失败，请重试')
+  } finally {
+    generatingProposalPlanId.value = null
+  }
+}
+
 async function handleFileUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -1151,6 +1207,23 @@ async function saveDoc(doc: BusinessDocumentSummary) {
   }
 }
 
+async function generateDoc(doc: BusinessDocumentSummary) {
+  generatingDocId.value = doc.id
+  try {
+    const updated = await generateBusinessDocument(pid.value!, doc.id)
+    currentDoc.value = updated
+    const idx = businessDocs.value.findIndex(d => d.id === doc.id)
+    if (idx >= 0) {
+      businessDocs.value[idx] = { ...businessDocs.value[idx], status: updated.status }
+    }
+  } catch (e) {
+    console.error('Generate doc failed:', e)
+    alert('生成失败，请重试')
+  } finally {
+    generatingDocId.value = null
+  }
+}
+
 // ---- Technical Document handlers ----
 
 async function toggleTechDoc(doc: TechnicalDocumentSummary) {
@@ -1198,6 +1271,23 @@ async function saveTechDoc(doc: TechnicalDocumentSummary) {
     console.error('Save tech doc failed:', e)
   } finally {
     savingTechDoc.value = false
+  }
+}
+
+async function generateTechDoc(doc: TechnicalDocumentSummary) {
+  generatingTechDocId.value = doc.id
+  try {
+    const updated = await generateTechnicalDocument(pid.value!, doc.id)
+    currentTechDoc.value = updated
+    const idx = techDocs.value.findIndex(d => d.id === doc.id)
+    if (idx >= 0) {
+      techDocs.value[idx] = { ...techDocs.value[idx], status: updated.status }
+    }
+  } catch (e) {
+    console.error('Generate tech doc failed:', e)
+    alert('生成失败，请重试')
+  } finally {
+    generatingTechDocId.value = null
   }
 }
 

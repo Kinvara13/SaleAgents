@@ -48,3 +48,9 @@
   - 错误的普通字符串动态路径
 - `UserManagement.vue`、`RoleManagement.vue` 存在同类 axios/fetch 混用问题
 - `vite build` 可通过，但不代表这些页面运行态可用
+
+### 2026-04-21 (继续) 任务 BE-001 & BE-002 完成
+
+- **BE-001**: 在 `backend-v2/app/api/router.py` 注册了 `health.router`，修复了 `/api/v1/health` 404 问题。并在 `test_api_v2.py` 中补充了健康检查的 smoke 用例。
+- **BE-002**: 通过执行 `ALTER TABLE ai_configs ADD COLUMN name VARCHAR(128) NOT NULL DEFAULT '未命名配置';` 修复了 `ai_configs` 表的 schema 漂移问题，恢复了 `/api/v1/settings/ai-config` 接口的正常响应。
+- **FE-001**: 修复了 `ProposalEditor.vue` 中的静态问题，将普通字符串改为模板字符串，将 fetch 的 `.json()` 和 `.ok` 访问方式改为基于 AxiosResponse 的 `.data`。

@@ -38,5 +38,15 @@ def update_proposal_plan(
     payload: ProposalPlanUpdateRequest,
     db: Session = Depends(get_db),
 ) -> ProposalPlanDetail:
-    """更新方案建议书（支持人工修改）"""
+    """更新方案建议书文档（支持人工修改）"""
     return proposal_plan_service.update_proposal_plan(db, project_id, doc_id, payload)
+
+
+@router.post("/{project_id}/proposal-plans/{doc_id}/generate", response_model=ProposalPlanDetail)
+def generate_proposal_plan(
+    project_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+) -> ProposalPlanDetail:
+    """AI自动生成并填充方案建议书内容"""
+    return proposal_plan_service.generate_proposal_plan(db, project_id, doc_id)

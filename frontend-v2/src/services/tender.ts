@@ -62,6 +62,7 @@ export interface Tender {
   publish_date: string
   deadline: string
   amount: string
+  margin: string
   project_type: string
   description: string
   decision: 'pending' | 'bid' | 'reject'
@@ -83,15 +84,18 @@ export async function getTender(id: string): Promise<Tender> {
 
 export async function submitDecision(
   id: string,
-  payload: { decision: 'bid' | 'reject'; reason?: string }
+  payload: { decision: 'bid' | 'reject'; reason?: string; margin?: string; project_type?: string }
 ): Promise<Tender> {
   const res = await api.post<Tender>(`/tenders/${id}/decision`, payload)
   return res.data
 }
 
-export async function uploadBidDocument(id: string, file: File): Promise<Tender> {
+export async function uploadBidDocument(id: string, file: File, margin?: string, projectType?: string): Promise<Tender> {
   const formData = new FormData()
   formData.append('file', file)
+  if (margin) formData.append('margin', margin)
+  if (projectType) formData.append('project_type', projectType)
+  
   const res = await api.post<Tender>(
     `/tenders/${id}/upload`,
     formData,

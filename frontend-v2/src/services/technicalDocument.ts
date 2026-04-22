@@ -50,3 +50,13 @@ export async function updateTechnicalDocument(
   )
   return res.data
 }
+
+export async function generateTechnicalDocument(
+  projectId: string,
+  docId: string
+): Promise<TechnicalDocumentDetail> {
+  const res = await api.post<TechnicalDocumentDetail>(
+    `/projects/${projectId}/technical-documents/${docId}/generate`
+  )
+  return res.data
+}

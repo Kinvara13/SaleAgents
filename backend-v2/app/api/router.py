@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import projects, parsing, proposal_editor, chat, users, settings, auth, tenders, business_document, technical_document, proposal_plan, technical_case, pricing, review, pre_evaluation
+from app.api.v1.endpoints import projects, parsing, proposal_editor, chat, users, settings, auth, tenders, business_document, technical_document, proposal_plan, technical_case, pricing, review, pre_evaluation, health
 
 api_router = APIRouter()
 
+api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])

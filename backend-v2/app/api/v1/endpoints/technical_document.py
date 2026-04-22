@@ -38,5 +38,15 @@ def update_technical_document(
     payload: TechnicalDocumentUpdateRequest,
     db: Session = Depends(get_db),
 ) -> TechnicalDocumentDetail:
-    """更新技术文档（支持人工修改）"""
+    """更新技术文档"""
     return technical_document_service.update_technical_document(db, project_id, doc_id, payload)
+
+
+@router.post("/{project_id}/technical-documents/{doc_id}/generate", response_model=TechnicalDocumentDetail)
+def generate_technical_document(
+    project_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+) -> TechnicalDocumentDetail:
+    """AI自动生成并填充技术文档内容"""
+    return technical_document_service.generate_technical_document(db, project_id, doc_id)

@@ -5,7 +5,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.models.llm_provider import LLMProviderModel
+from app.models.settings import AIConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class _BaseLLMClient:
     def _get_active_provider(self):
         try:
             with SessionLocal() as db:
-                return db.query(LLMProviderModel).filter(LLMProviderModel.is_active == True).first()
+                return db.query(AIConfig).filter(AIConfig.is_active == True).first()
         except Exception as e:
             logger.error(f"Error querying active LLM provider: {e}")
             return None
@@ -40,7 +40,8 @@ class _BaseLLMClient:
             base_url = (provider.base_url or "").strip() or None
             api_key = (provider.api_key or "").strip()
             model = provider.model
-            protocol = getattr(provider, "protocol", "openai")
+            # For AIConfig, use 'provider' field if 'protocol' doesn't exist
+            protocol = getattr(provider, "protocol", getattr(provider, "provider", "openai"))
         else:
             base_url = (settings.llm_base_url or "").strip() or None
             api_key = (settings.llm_api_key or "").strip()
@@ -83,6 +84,7 @@ class _BaseLLMClient:
                 api_key=api_key,
                 base_url=base_url,
                 timeout=float(settings.llm_timeout_seconds),
+                default_headers={"User-Agent": "Roo Code"}
             )
 
             response = client.chat.completions.create(
@@ -93,6 +95,7 @@ class _BaseLLMClient:
                 ],
                 temperature=temperature,
                 max_tokens=max_tokens,
+                extra_headers={"User-Agent": "claude-code/0.1.0"}
             )
             return response.choices[0].message.content
 
@@ -444,6 +447,55 @@ class LLMGenerationClient(_BaseLLMClient):
             return None
 
 
+    def generate_document_content(
+        self,
+        *,
+        project_name: str,
+        doc_name: str,
+        original_content: str,
+        score_point: str,
+        rule_description: str,
+        extracted_fields: dict[str, str],
+        routed_assets: list[str],
+        technical_cases: list[str] = None,
+    ) -> str | None:
+        if not self.is_llm_ready:
+            return None
+
+        if technical_cases is None:
+            technical_cases = []
+
+        prompt = (
+            f"项目名称:{project_name}\n"
+            f"文档名称:{doc_name}\n"
+            f"文档评分点:{score_point}\n"
+            f"文档填写规则:{rule_description}\n"
+            f"抽取字段:{json.dumps(extracted_fields, ensure_ascii=False)}\n"
+            f"相关素材库:{json.dumps(routed_assets, ensure_ascii=False)}\n"
+            f"相关技术案例:{json.dumps(technical_cases, ensure_ascii=False)}\n"
+            f"文档原始模板/内容:\n{original_content[:10000]}\n"
+            "\n"
+            "请根据以上信息，填写并完善该文档的原始模板。请直接输出填写后的纯文本或 Markdown 格式内容，不要附带 JSON 结构或其他无关内容。\n"
+            "如果没有找到合适的素材填充空白，请保留原有的占位符或下划线，不要编造事实、资质或案例数据。"
+        )
+
+        try:
+            content = self._chat_completion(
+                system_prompt="你是企业投标文件智能生成助手。负责根据素材库、技术案例和评分规则，自动填充商务文档和技术文档的模板。直接输出最终填写的文本，不要附带任何额外的解释或代码块标记。",
+                user_prompt=prompt,
+                temperature=0.2,
+                max_tokens=8192,
+            )
+            content = (content or "").strip()
+            # 移除可能存在的 Markdown 代码块包裹
+            if content.startswith("```"):
+                content = re.sub(r"^```(?:markdown|text)?\s*", "", content)
+                content = re.sub(r"\s*```$", "", content)
+            return content
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM document generation failed for doc %s: %s", doc_name, exc)
+            return None
+
 class LLMDecisionClient(_BaseLLMClient):
     """Thin wrapper around the external LLM provider for bid decision making."""
 
@@ -521,6 +573,89 @@ class LLMDecisionClient(_BaseLLMClient):
         )
 
 
+class LLMProposalClient(_BaseLLMClient):
+    """LLM client for generating and scoring technical proposals."""
+
+    def generate_section(
+        self,
+        *,
+        section_name: str,
+        context: dict[str, Any],
+        scoring_hints: list[str]
+    ) -> str:
+        if not self.is_llm_ready:
+            return f"[{section_name}] LLM 未配置或不可用，无法生成内容。"
+
+        system_prompt = (
+            "你是资深的售前解决方案架构师。你的任务是根据项目背景、公司优势和招标评分要求，"
+            f"为招投标文件编写专业的【{section_name}】章节。\n"
+            "要求：\n"
+            "1. 结构清晰，使用 Markdown 格式（使用 ##, ### 等层级）。\n"
+            "2. 语言专业、具有说服力，体现公司实力和方案针对性。\n"
+            "3. 必须严格响应和覆盖提供的评分重点。\n"
+            "4. 不要输出任何寒暄语或解释性文字，直接输出章节正文内容。"
+        )
+
+        user_prompt = (
+            f"项目名称: {context.get('project_name', '未知项目')}\n"
+            f"客户名称: {context.get('client', '未知客户')}\n"
+            f"投标单位: {context.get('bidding_company', '亚信科技（中国）有限公司')}\n\n"
+            f"招标评分重点提示:\n" + "\n".join(f"- {h}" for h in scoring_hints) + "\n\n"
+            f"请生成【{section_name}】的详细内容："
+        )
+
+        try:
+            content = self._chat_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.7,
+                max_tokens=4096,
+            )
+            return (content or "").strip()
+        except Exception as exc:
+            logger.error("LLM generate_section failed: %s", exc)
+            return f"[{section_name}] 内容生成失败: {exc}"
+
+    def score_section(
+        self,
+        *,
+        section_name: str,
+        content: str,
+        scoring_hints: list[str],
+        max_score: int
+    ) -> int:
+        if not self.is_llm_ready:
+            return max_score * 0.8  # Default to 80% if LLM not available
+
+        system_prompt = (
+            "你是严格的招投标评标专家。你的任务是根据给定的评分标准，对方案章节进行打分。\n"
+            "输出必须是包含 'score' (整数) 和 'reason' (字符串) 的 JSON 对象，不要带 Markdown 代码块标记。\n"
+            '例如: {"score": 85, "reason": "响应了大部分要求，但在安全架构上不够详细"}'
+        )
+
+        user_prompt = (
+            f"评估章节: {section_name}\n"
+            f"满分: {max_score}\n"
+            f"评分重点:\n" + "\n".join(f"- {h}" for h in scoring_hints) + "\n\n"
+            f"待评估内容:\n{content[:8000]}\n\n"
+            "请给出打分和简要理由。"
+        )
+
+        try:
+            result_str = self._chat_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.1,
+                max_tokens=512,
+            )
+            result = self._parse_json_payload(result_str or "")
+            score = int(result.get("score", max_score * 0.8))
+            return min(max_score, max(0, score))
+        except Exception as exc:
+            logger.error("LLM score_section failed: %s", exc)
+            return int(max_score * 0.8)
+
+
 class LLMPreEvaluationClient(_BaseLLMClient):
     """LLM client for pre-evaluation (tender document analysis)."""
 
@@ -566,10 +701,23 @@ class LLMPreEvaluationClient(_BaseLLMClient):
         )
 
     def _build_prompt(self, source_text: str) -> str:
-        truncated = source_text[:15000]
+        # Instead of a hard cut, extract important paragraphs by keywords if the text is too long
+        if len(source_text) <= 40000:
+            content = source_text
+        else:
+            keywords = ["评分", "评标", "技术要求", "资质", "资格", "废标", "无效", "星标", "★"]
+            paragraphs = source_text.split('\n')
+            important_paragraphs = []
+            for p in paragraphs:
+                if any(kw in p for kw in keywords) or len(p) < 20: # keep headers and keywords
+                    important_paragraphs.append(p)
+            content = '\n'.join(important_paragraphs)
+            # fallback truncate if still too long
+            content = content[:40000]
+        
         return (
             "请分析以下招标文件内容，提取评审办法、技术评审表、星标项和整体摘要。\n\n"
-            f"文件内容：\n{truncated}\n\n"
+            f"文件内容：\n{content}\n\n"
             "请返回 JSON 格式的分析结果。"
         )
 
@@ -629,4 +777,5 @@ class LLMPreEvaluationClient(_BaseLLMClient):
 llm_review_client = LLMReviewClient()
 llm_generation_client = LLMGenerationClient()
 llm_decision_client = LLMDecisionClient()
+llm_proposal_client = LLMProposalClient()
 llm_pre_evaluation_client = LLMPreEvaluationClient()

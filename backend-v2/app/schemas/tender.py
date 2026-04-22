@@ -9,6 +9,7 @@ class TenderCreateRequest(BaseModel):
     publish_date: str = ""
     deadline: str = ""
     amount: str = ""
+    margin: str = ""
     project_type: str = ""
     description: str = ""
 
@@ -16,6 +17,8 @@ class TenderCreateRequest(BaseModel):
 class TenderDecisionRequest(BaseModel):
     decision: str  # "bid" | "reject"
     reason: str = ""
+    margin: str = ""
+    project_type: str = ""
 
 
 class TenderSummary(BaseModel):
@@ -25,6 +28,7 @@ class TenderSummary(BaseModel):
     publish_date: str
     deadline: str
     amount: str
+    margin: str
     project_type: str
     description: str
     decision: str

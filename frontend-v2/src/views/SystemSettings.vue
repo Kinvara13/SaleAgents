@@ -226,6 +226,10 @@ function openAIModal(mode: 'create' | 'edit', cfg?: any) {
 }
 
 async function saveAIModal() {
+  if (!aiModalForm.value.name || !aiModalForm.value.api_key || !aiModalForm.value.base_url) {
+    alert('请填写完整的配置信息')
+    return
+  }
   savingAI.value = true
   try {
     if (aiModalMode.value === 'create') {
@@ -235,15 +239,22 @@ async function saveAIModal() {
     }
     showAIModal.value = false
     await loadAIConfigs()
-  } catch (e) { console.error(e) }
-  finally { savingAI.value = false }
+  } catch (e) {
+    console.error(e)
+    alert('保存配置失败')
+  } finally {
+    savingAI.value = false
+  }
 }
 
 async function activateConfig(id: string) {
   try {
     await api.post(`/settings/ai-configs/${id}/activate`)
     await loadAIConfigs()
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error(e)
+    alert('启用配置失败')
+  }
 }
 
 async function deleteConfig(id: string) {
@@ -251,7 +262,10 @@ async function deleteConfig(id: string) {
   try {
     await api.delete(`/settings/ai-configs/${id}`)
     await loadAIConfigs()
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error(e)
+    alert('删除配置失败')
+  }
 }
 
 async function loadMaterials() {
@@ -272,13 +286,24 @@ async function handleMaterialUpload(event: Event) {
   try {
     await api.post('/settings/materials/upload', formData)
     await loadMaterials()
-  } catch (e) { console.error(e) }
-  finally { input.value = '' }
+    alert('上传成功')
+  } catch (e) {
+    console.error(e)
+    alert('上传素材失败')
+  } finally {
+    input.value = ''
+  }
 }
 
 async function deleteMaterial(id: string) {
-  await api.delete(`/settings/materials/${id}`).catch(() => {})
-  await loadMaterials()
+  if (!confirm('确定删除该素材？')) return
+  try {
+    await api.delete(`/settings/materials/${id}`)
+    await loadMaterials()
+  } catch (e) {
+    console.error(e)
+    alert('删除素材失败')
+  }
 }
 
 async function loadRules() {
@@ -289,17 +314,30 @@ async function loadRules() {
 }
 
 async function handleCreateRule() {
+  if (!ruleForm.value.name || !ruleForm.value.content) {
+    alert('请填写规则名称和内容')
+    return
+  }
   try {
     await api.post('/settings/rules', ruleForm.value)
     showRuleModal.value = false
     ruleForm.value = { name: '', rule_type: 'general', content: '' }
     await loadRules()
-  } catch (e) { console.error(e) }
+  } catch (e) {
+    console.error(e)
+    alert('创建规则失败')
+  }
 }
 
 async function deleteRule(id: string) {
-  await api.delete(`/settings/rules/${id}`).catch(() => {})
-  await loadRules()
+  if (!confirm('确定删除该规则？')) return
+  try {
+    await api.delete(`/settings/rules/${id}`)
+    await loadRules()
+  } catch (e) {
+    console.error(e)
+    alert('删除规则失败')
+  }
 }
 
 onMounted(async () => {

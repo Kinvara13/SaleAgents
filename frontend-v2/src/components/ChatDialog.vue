@@ -154,11 +154,17 @@ async function sendMessage() {
   await scrollToBottom()
 
   try {
+    const token = localStorage.getItem('sa_token')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const res = await fetch(
       `${api.defaults.baseURL}/chat/${props.projectId}/message`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ content: text }),
       }
     )
@@ -220,14 +226,12 @@ async function scrollToBottom() {
 
 async function loadHistory() {
   try {
-    const res = await api.get('/chat/${props.projectId}/history')
-    if (res.ok) {
-      const history = await res.json()
-      messages.value = history.map((m: any) => ({
-        ...m,
-        status: 'confirmed',
-      }))
-    }
+    const res = await api.get(`/chat/${props.projectId}/history`)
+    const history = res.data
+    messages.value = history.map((m: any) => ({
+      ...m,
+      status: 'confirmed',
+    }))
   } catch (e) {
     console.error('Load history failed:', e)
   }

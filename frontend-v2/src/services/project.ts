@@ -52,3 +52,19 @@ export async function updateProject(id: string, payload: ProjectUpdateRequest): 
 export async function deleteProject(id: string): Promise<void> {
   await api.delete(`/projects/${id}`)
 }
+
+export async function uploadAndParseTender(projectId: string, file: File): Promise<any> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await api.post(`/parsing/${projectId}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return res.data
+}
+
+export async function getTenderSections(projectId: string): Promise<any> {
+  const res = await api.get(`/parsing/${projectId}/sections`)
+  return res.data
+}

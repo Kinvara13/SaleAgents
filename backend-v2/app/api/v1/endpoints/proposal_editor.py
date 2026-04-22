@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -15,13 +15,18 @@ from app.services import proposal_service
 router = APIRouter()
 
 
-@router.post("/{project_id}/generate", response_model=list[ProposalSectionSummary])
+@router.post("/{project_id}/generate")
 def generate_proposal(
     project_id: str,
+    background_tasks: BackgroundTasks,
     payload: ProposalGenerationRequest | None = None,
     db: Session = Depends(get_db),
-) -> list[ProposalSectionSummary]:
-    return proposal_service.generate_proposal(db, project_id, payload)
+) -> dict:
+    """触发异步生成任务"""
+    if payload is None:
+        payload = ProposalGenerationRequest()
+    background_tasks.add_task(proposal_service.generate_proposal_async, db, project_id, payload)
+    return {"status": "processing", "message": "生成任务已在后台启动"}
 
 
 @router.get("/{project_id}/sections", response_model=list[ProposalSectionSummary])

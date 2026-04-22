@@ -18,6 +18,11 @@ def post_user(payload: UserCreateRequest, db: Session = Depends(get_db)) -> User
     return user_service.create_user(db, payload)
 
 
+@router.get("/roles/list")
+def get_roles() -> list[dict]:
+    return user_service.list_roles()
+
+
 @router.get("/{user_id}", response_model=UserDetail)
 def get_user(user_id: str, db: Session = Depends(get_db)) -> UserDetail:
     user = user_service.get_user(db, user_id)
@@ -43,8 +48,3 @@ def patch_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: str, db: Session = Depends(get_db)) -> None:
     user_service.delete_user(db, user_id)
-
-
-@router.get("/roles/list")
-def get_roles() -> list[dict]:
-    return user_service.list_roles()

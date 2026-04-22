@@ -17,6 +17,8 @@
 
 ### 2026-04-21
 
+- 认领并开始处理任务 `BE-001`: 在 `backend-v2/app/api/router.py` 注册健康检查路由并补 smoke 用例。
+- 认领并开始处理任务 `BE-002`: 修复 `ai_configs` 数据库 schema 漂移。
 - 初始化 worklog
 - 已知阻塞：`ai_configs` 表 schema 漂移导致 AI 配置接口 500
 - 已知阻塞：健康检查路由未注册

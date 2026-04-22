@@ -863,7 +863,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { listProjects } from '../services/project'
+import { createProject, uploadAndParseTender, getProject, getTenderSections } from '../services/project'
 import type { Project } from '../types'
 
 const router = useRouter()
@@ -908,6 +908,8 @@ const formErrors = ref({
   bankInfo: ''
 })
 
+const currentProjectId = ref<string | null>(null)
+
 // 关键信息
 const keyInfo = ref<Record<string, { checked: boolean; value: any }>>({
   projectName: { checked: false, value: '' },
@@ -930,10 +932,10 @@ const keyInfo = ref<Record<string, { checked: boolean; value: any }>>({
   starItems: { checked: false, value: '' }
 })
 
-// 星标项列表（待后端接口完善后对接）
+// 星标项列表
 const starItems = ref<any[]>([])
 
-// 回标文件清单（待后端接口完善后对接）
+// 回标文件清单
 const bidFiles = ref<any[]>([])
 
 // 当前选中的文件
@@ -996,24 +998,137 @@ const assignResponsible = () => {
 }
 
 // 处理文件选择
-const onFileSelected = (event: any) => {
+const onFileSelected = async (event: any) => {
   const file = event.target.files[0]
-  if (file) {
-    uploadedFile.value = {
-      name: file.name,
-      size: file.size
-    }
-    uploadProgress.value = 0
-    uploadStatus.value = '解析中'
+  if (!file) return
+  
+  uploadedFile.value = {
+    name: file.name,
+    size: file.size
+  }
+  uploadProgress.value = 10
+  uploadStatus.value = '解析中'
 
-    // 模拟解析进度
-    const interval = setInterval(() => {
-      uploadProgress.value += 10
-      if (uploadProgress.value >= 100) {
-        clearInterval(interval)
-        uploadStatus.value = '文件解析成功'
+  try {
+    // 1. 如果还没有项目，先创建一个基础项目
+    if (!currentProjectId.value) {
+      const proj = await createProject({
+        name: file.name.split('.')[0] || '新项目',
+        owner: '当前用户',
+        status: '解析中',
+      })
+      currentProjectId.value = proj.id
+    }
+    
+    uploadProgress.value = 40
+    
+    // 2. 调用真实的解析接口
+    const res = await uploadAndParseTender(currentProjectId.value, file)
+    
+    let sections: any[] = []
+    
+    if (res.status === 'processing') {
+      uploadStatus.value = '正在后台解析（可能需要1-3分钟），请耐心等待...'
+      
+      const maxRetries = 120 // 最多等待6分钟
+      let retries = 0
+      
+      while (retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
+        const proj = await getProject(currentProjectId.value)
+        if (proj.status === '解析失败') {
+          throw new Error('后台解析任务失败，请检查文件内容或重试')
+        }
+        
+        if (proj.status === '解析完成') {
+          sections = await getTenderSections(currentProjectId.value)
+          break
+        }
+        
+        retries++
+        uploadProgress.value = Math.min(40 + Math.floor(retries * 0.5), 95)
       }
-    }, 200)
+      
+      if (retries >= maxRetries) {
+        throw new Error('解析超时，请稍后在项目列表中查看')
+      }
+    } else {
+      // 兼容可能同步返回的旧逻辑
+      sections = res
+    }
+    
+    uploadProgress.value = 100
+    uploadStatus.value = '文件解析成功'
+    
+    // 把后端返回的内容塞到基本信息里，暂时放在待确认状态
+    console.log('Parsed sections:', sections)
+    
+    // 假设后端返回了 sections，我们从中找出特定的内容填充表单
+    // (这部分也可以通过后端再提供一个项目基本信息的聚合接口)
+    const bizSections = sections.filter((s: any) => s.section_type === '商务' || s.section_type === '评审')
+    
+    // 我们把解析到的 "评分重点" 塞到 starItems 里用于展示
+    const evalRule = sections.find((s: any) => s.section_name === '评分规则解析')
+    if (evalRule) {
+      starItems.value.push({
+        id: 1,
+        name: '评分重点',
+        type: '评审规则',
+        source: evalRule.source_file,
+        status: '需关注',
+        content: evalRule.content
+      })
+    }
+    
+    // 技术要求
+    const techReq = sections.find((s: any) => s.section_name === '技术要求')
+    if (techReq) {
+      starItems.value.push({
+        id: 2,
+        name: '核心技术要求',
+        type: '技术规范',
+        source: techReq.source_file,
+        status: '需关注',
+        content: techReq.content
+      })
+    }
+
+    // 初始化回标文件清单
+    const files: any[] = []
+    let fileId = 1
+    sections.forEach((s: any) => {
+      // 如果 section_type 存在，我们把它当成一个需要编制的文件（简单模拟）
+      if (s.section_type === '商务' || s.section_type === '技术') {
+        files.push({
+          id: fileId++,
+          name: s.section_name,
+          description: `来源: ${s.source_file}`,
+          status: '待分配',
+          selected: true,
+          icon: s.section_type === '商务' ? '📄' : '💻',
+          preview: (s.content || '').substring(0, 100) + '...',
+          original: s
+        })
+      }
+    })
+    
+    // 去重文件
+    const uniqueFiles: any[] = []
+    const seenNames = new Set()
+    for (const f of files) {
+      if (!seenNames.has(f.name)) {
+        seenNames.add(f.name)
+        uniqueFiles.push(f)
+      }
+    }
+    bidFiles.value = uniqueFiles
+
+  } catch (e: any) {
+    console.error(e)
+    uploadStatus.value = 'error'
+    uploadProgress.value = 0
+    formErrors.value.companyName = e.message || '解析失败'
   }
 }
 
@@ -1207,14 +1322,7 @@ const nextStep = () => {
 }
 
 onMounted(async () => {
-  try {
-    const projList = await listProjects()
-    if (projList.length > 0) {
-      keyInfo.value.projectName.value = projList[0].name
-    }
-  } catch (e) {
-    console.error('加载项目失败', e)
-  }
+  // 如果需要加载已有项目列表
 })
 </script>
 

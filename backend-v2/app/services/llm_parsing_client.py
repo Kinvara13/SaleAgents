@@ -2,7 +2,7 @@ from typing import Any
 import json
 import re
 
-from app.models.llm_provider import LLMProviderModel
+from app.models.settings import AIConfig
 
 
 class LLMParsingClient:
@@ -13,8 +13,8 @@ class LLMParsingClient:
 
         try:
             with SessionLocal() as db:
-                provider = db.query(LLMProviderModel).filter(
-                    LLMProviderModel.is_active == True
+                provider = db.query(AIConfig).filter(
+                    AIConfig.is_active == True
                 ).first()
 
                 if not provider or not provider.api_key:
@@ -24,11 +24,12 @@ class LLMParsingClient:
                 client = OpenAI(
                     api_key=provider.api_key,
                     base_url=provider.base_url,
-                    timeout=45.0,
+                    timeout=180.0,
+                    default_headers={"User-Agent": "claude-code/0.1.0"},
                 )
 
                 model = provider.model
-                protocol = getattr(provider, "protocol", "openai")
+                protocol = getattr(provider, "protocol", getattr(provider, "provider", "openai"))
 
                 return self._call_llm(client, model, protocol, text)
         except Exception as e:
@@ -98,7 +99,7 @@ class LLMParsingClient:
                     "messages": [{"role": "user", "content": user_prompt}],
                 }
 
-                response = httpx.post(base_url_str, headers=headers, json=payload, timeout=45.0)
+                response = httpx.post(base_url_str, headers=headers, json=payload, timeout=180.0)
                 response.raise_for_status()
                 data = response.json()
                 content = data.get("content", [{}])[0].get("text", "")
@@ -110,6 +111,7 @@ class LLMParsingClient:
                         {"role": "user", "content": user_prompt},
                     ],
                     temperature=0.1,
+                    extra_headers={"User-Agent": "claude-code/0.1.0"}
                 )
                 content = response.choices[0].message.content or ""
 

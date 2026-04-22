@@ -40,3 +40,13 @@ def update_business_document(
 ) -> BusinessDocumentDetail:
     """更新商务文档（4.2+ 支持人工修改）"""
     return business_document_service.update_business_document(db, project_id, doc_id, payload)
+
+
+@router.post("/{project_id}/business-documents/{doc_id}/generate", response_model=BusinessDocumentDetail)
+def generate_business_document(
+    project_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+) -> BusinessDocumentDetail:
+    """AI自动生成并填充商务文档内容"""
+    return business_document_service.generate_business_document(db, project_id, doc_id)

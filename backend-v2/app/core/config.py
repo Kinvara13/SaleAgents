@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     llm_ready: bool = False
     llm_model: str = "glm-4"
+    llm_timeout_seconds: int = 120
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_max_review_issues: int = 5
 
     database_url_override: str | None = None
     storage_path: str | None = None
@@ -25,7 +29,9 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         if self.database_url_override:
             return self.database_url_override
-        return "sqlite:////Users/sen/SaleAgents/backend-v2/sale_agents_v2.db"
+        # Ensure database is created in the project root of backend-v2
+        db_path = Path(__file__).resolve().parents[2] / "sale_agents_v2.db"
+        return f"sqlite:///{db_path}"
 
     @property
     def cors_origins(self) -> list[str]:

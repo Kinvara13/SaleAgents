@@ -33,6 +33,10 @@
             <span class="text-gray-800 font-semibold">{{ tender.amount || '-' }}</span>
           </div>
           <div>
+            <span class="text-gray-500">保证金：</span>
+            <span class="text-gray-800">{{ tender.margin || '-' }}</span>
+          </div>
+          <div>
             <span class="text-gray-500">发布日期：</span>
             <span class="text-gray-800">{{ tender.publish_date || '-' }}</span>
           </div>
@@ -105,9 +109,21 @@
         <!-- Bid Action -->
         <div v-if="actionTab === 'bid'">
           <p class="text-sm text-gray-600 mb-3">上传招标文件，系统将自动创建投标项目并进入标书制作流程。</p>
+          
+          <div class="mb-4 space-y-3">
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">保证金要求</label>
+              <input v-model="marginInput" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="如：50000元 或 免收" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">项目类型</label>
+              <input v-model="projectTypeInput" class="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="如：软件开发 / 系统集成 / 硬件采购" />
+            </div>
+          </div>
+
           <label class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 cursor-pointer text-sm inline-block transition-all">
             选择标书文件上传
-            <input type="file" accept=".pdf,.doc,.docx" class="hidden" @change="handleBidUpload" />
+            <input type="file" accept=".pdf,.doc,.docx,.zip" class="hidden" @change="handleBidUpload" />
           </label>
           <p v-if="uploading" class="text-sm text-gray-500 mt-2">正在上传并创建投标项目...</p>
         </div>
@@ -163,6 +179,8 @@ const tender = ref<Tender | null>(null)
 const loading = ref(false)
 const actionTab = ref<'bid' | 'reject'>('bid')
 const rejectReason = ref('')
+const marginInput = ref('')
+const projectTypeInput = ref('')
 const submitting = ref(false)
 const uploading = ref(false)
 
@@ -170,6 +188,11 @@ async function loadTender() {
   loading.value = true
   try {
     tender.value = await getTender(tenderId)
+    if (tender.value) {
+      marginInput.value = tender.value.margin || ''
+      projectTypeInput.value = tender.value.project_type || ''
+      rejectReason.value = tender.value.reject_reason || ''
+    }
   } catch (e) {
     console.error(e)
   } finally {
@@ -183,7 +206,7 @@ async function handleBidUpload(event: Event) {
   if (!file) return
   uploading.value = true
   try {
-    tender.value = await uploadBidDocument(tenderId, file)
+    tender.value = await uploadBidDocument(tenderId, file, marginInput.value, projectTypeInput.value)
   } catch (e) {
     console.error(e)
   } finally {

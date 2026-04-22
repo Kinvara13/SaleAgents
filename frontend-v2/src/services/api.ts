@@ -1,8 +1,8 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: (import.meta.env.VITE_API_BASE || 'http://localhost:8000') + '/api/v1',
-  timeout: 30000,
+  baseURL: (import.meta.env.VITE_API_BASE || '') + '/api/v1',
+  timeout: 180000, // 3 minutes timeout for LLM-heavy operations
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

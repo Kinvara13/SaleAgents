@@ -144,11 +144,13 @@ def create_material(db: Session, name: str, material_type: str, file_path: str, 
     return mat
 
 
-def delete_material(db: Session, material_id: str) -> None:
+def delete_material(db: Session, material_id: str) -> bool:
     mat = db.query(Material).filter(Material.id == material_id).first()
     if mat:
         db.delete(mat)
         db.commit()
+        return True
+    return False
 
 
 # ---- Rules ----
@@ -171,8 +173,10 @@ def create_rule(db: Session, name: str, rule_type: str, content: str) -> Rule:
     return rule
 
 
-def delete_rule(db: Session, rule_id: str) -> None:
+def delete_rule(db: Session, rule_id: str) -> bool:
     rule = db.query(Rule).filter(Rule.id == rule_id).first()
     if rule:
         db.delete(rule)
         db.commit()
+        return True
+    return False

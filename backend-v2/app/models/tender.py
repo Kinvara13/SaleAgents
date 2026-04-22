@@ -16,6 +16,7 @@ class Tender(Base):
     publish_date: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     deadline: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     amount: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    margin: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     project_type: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # 状态: pending(待处理) / bid(已投标) / reject(不投标)

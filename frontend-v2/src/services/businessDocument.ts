@@ -50,3 +50,13 @@ export async function updateBusinessDocument(
   )
   return res.data
 }
+
+export async function generateBusinessDocument(
+  projectId: string,
+  docId: string
+): Promise<BusinessDocumentDetail> {
+  const res = await api.post<BusinessDocumentDetail>(
+    `/projects/${projectId}/business-documents/${docId}/generate`
+  )
+  return res.data
+}

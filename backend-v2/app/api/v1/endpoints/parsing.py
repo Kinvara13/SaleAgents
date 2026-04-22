@@ -15,7 +15,7 @@ router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".zip"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
-UNZIP_DIR = Path(settings.storage_path or "/Users/sen/SaleAgents/backend-v2/storage") / "unzip_temp"
+UNZIP_DIR = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "unzip_temp"
 
 
 def _extract_text_from_file(file_path: Path, ext: str) -> str:
@@ -169,13 +169,14 @@ def _handle_zip(project_id: str, zip_path: Path, db: Session) -> list[dict]:
     return all_sections
 
 
-@router.post("/{project_id}/upload", response_model=list[ParsingSectionSummary])
+@router.post("/{project_id}/upload")
 async def upload_and_parse(
     project_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-) -> list[ParsingSectionSummary]:
-    """上传招标文件（支持ZIP包）并解析"""
+) -> dict:
+    """上传招标文件（支持ZIP包）并触发后台异步解析"""
     filename = file.filename or "unknown"
     ext = Path(filename).suffix.lower()
 
@@ -194,30 +195,80 @@ async def upload_and_parse(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
-    upload_dir = Path(settings.storage_path or "/Users/sen/SaleAgents/backend-v2/storage/projects") / project_id / "bid_documents"
+    upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_documents"
     upload_dir.mkdir(parents=True, exist_ok=True)
-
-    sections = []
 
     if ext == ".zip":
         # Handle ZIP archive
         zip_path = upload_dir / filename
         with open(zip_path, "wb") as f:
             f.write(content)
-        sections = _handle_zip(project_id, zip_path, db)
-        # Remove uploaded zip
-        zip_path.unlink(missing_ok=True)
+        background_tasks.add_task(_handle_zip_async, project_id, zip_path)
     else:
         # Handle single file
         file_path = upload_dir / filename
         with open(file_path, "wb") as f:
             f.write(content)
-        sections = _parse_uploaded_file(project_id, file_path, filename, db)
+        background_tasks.add_task(_parse_single_file_async, project_id, file_path, filename)
 
-    # Clear old sections and save new ones
+    return {"status": "processing", "message": "文件已接收，后台解析任务已启动"}
+
+def _handle_zip_async(project_id: str, zip_path: Path):
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            project.status = "解析中"
+            db.commit()
+            
+        sections = _handle_zip(project_id, zip_path, db)
+        _save_parsed_sections(project_id, sections, db)
+        zip_path.unlink(missing_ok=True)
+        
+        if project:
+            project.status = "解析完成"
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.error(f"Zip parsing failed for project {project_id}: {e}")
+        db.rollback()
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            project.status = "解析失败"
+            db.commit()
+    finally:
+        db.close()
+
+def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            project.status = "解析中"
+            db.commit()
+            
+        sections = _parse_uploaded_file(project_id, file_path, filename, db)
+        _save_parsed_sections(project_id, sections, db)
+        
+        if project:
+            project.status = "解析完成"
+            db.commit()
+    except Exception as e:
+        import logging
+        logging.error(f"Single file parsing failed for project {project_id}: {e}")
+        db.rollback()
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            project.status = "解析失败"
+            db.commit()
+    finally:
+        db.close()
+
+def _save_parsed_sections(project_id: str, sections: list[dict], db: Session):
     db.query(ParsingSection).filter(ParsingSection.project_id == project_id).delete()
 
-    created = []
     for sec in sections:
         section = ParsingSection(
             id=f"sec_{uuid4().hex[:12]}",
@@ -229,10 +280,8 @@ async def upload_and_parse(
             source_file=sec["source_file"],
         )
         db.add(section)
-        created.append(section)
 
     db.commit()
-    return [ParsingSectionSummary.model_validate(s) for s in created]
 
 
 @router.get("/{project_id}/sections", response_model=list[ParsingSectionSummary])

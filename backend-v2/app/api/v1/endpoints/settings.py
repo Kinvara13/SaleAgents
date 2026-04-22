@@ -194,11 +194,13 @@ async def upload_material(
 ) -> MaterialResponse:
     # Store file to storage directory
     import os, uuid
-    storage_dir = "/Users/sen/SaleAgents/backendv2/storage/materials"
-    os.makedirs(storage_dir, exist_ok=True)
+    from pathlib import Path
+    from app.core.config import settings
+    storage_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "materials"
+    storage_dir.mkdir(parents=True, exist_ok=True)
     file_id = f"mat_{uuid.uuid4().hex[:12]}"
     ext = os.path.splitext(file.filename or "")[1] or ""
-    file_path = f"{storage_dir}/{file_id}{ext}"
+    file_path = str(storage_dir / f"{file_id}{ext}")
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -211,6 +213,14 @@ async def upload_material(
         description=mat.description,
         created_at=mat.created_at.isoformat(),
     )
+
+
+@router.delete("/materials/{material_id}", status_code=204)
+def delete_material(material_id: str, db: Session = Depends(get_db)) -> None:
+    ok = settings_service.delete_material(db, material_id)
+    if not ok:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material not found")
 
 
 # ---- Rules ----
@@ -243,3 +253,11 @@ def post_rule(
         content=rule.content,
         is_active=rule.is_active,
     )
+
+
+@router.delete("/rules/{rule_id}", status_code=204)
+def delete_rule(rule_id: str, db: Session = Depends(get_db)) -> None:
+    ok = settings_service.delete_rule(db, rule_id)
+    if not ok:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")

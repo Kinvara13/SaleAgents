@@ -22,7 +22,7 @@ def get_tender(db: Session, tender_id: str) -> Tender:
     return tender
 
 
-def create_tender(db: Session, payload: TenderCreateRequest) -> TenderSummary:
+def create_tender(db: Session, payload: TenderCreateRequest, user_id: str = "") -> TenderSummary:
     tender = Tender(
         id=f"tend_{uuid4().hex[:12]}",
         title=payload.title,
@@ -30,9 +30,11 @@ def create_tender(db: Session, payload: TenderCreateRequest) -> TenderSummary:
         publish_date=payload.publish_date,
         deadline=payload.deadline,
         amount=payload.amount,
+        margin=payload.margin,
         project_type=payload.project_type,
         description=payload.description,
         decision="pending",
+        user_id=user_id,
     )
     db.add(tender)
     db.commit()
@@ -47,6 +49,11 @@ def update_tender_decision(
     tender.decision = payload.decision
     if payload.decision == "reject":
         tender.reject_reason = payload.reason or ""
+    elif payload.decision == "bid":
+        if payload.margin:
+            tender.margin = payload.margin
+        if payload.project_type:
+            tender.project_type = payload.project_type
     db.commit()
     db.refresh(tender)
     return TenderSummary.model_validate(tender)

@@ -371,10 +371,8 @@ async function fetchSections() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await api.get('/proposal-editor/${projectId}/sections')
-    if (res.ok) {
-      sections.value = await res.json()
-    }
+    const res = await api.get(`/proposal-editor/${projectId}/sections`)
+    sections.value = res.data
   } catch (e) {
     console.error('Failed to fetch sections:', e)
   }
@@ -384,11 +382,8 @@ async function fetchScoringRules() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await api.get('/proposal-editor/${projectId}/scoring-rules')
-    if (res.ok) {
-      const data = await res.json()
-      scoringRules.value = data.sections
-    }
+    const res = await api.get(`/proposal-editor/${projectId}/scoring-rules`)
+    scoringRules.value = res.data.sections
   } catch (e) {
     console.error('Failed to fetch scoring rules:', e)
   }
@@ -418,9 +413,7 @@ async function handleGenerate() {
     clearInterval(progressInterval)
     generateProgress.value = 100
 
-    if (res.ok) {
-      sections.value = await res.json()
-    }
+    sections.value = res.data
   } catch (e) {
     console.error('Generate failed:', e)
   } finally {
@@ -442,12 +435,9 @@ async function handleScore() {
   if (!projectId) return
   scoring.value = true
   try {
-    const res = await api.post('/proposal-editor/${projectId}/score')
-    if (res.ok) {
-      const data = await res.json()
-      sections.value = data.sections
-      totalScore.value = data.total_score
-    }
+    const res = await api.post(`/proposal-editor/${projectId}/score`)
+    sections.value = res.data.sections
+    totalScore.value = res.data.total_score
   } catch (e) {
     console.error('Score failed:', e)
   } finally {
@@ -460,13 +450,10 @@ async function handleRescore() {
   if (!projectId) return
   scoring.value = true
   try {
-    const res = await api.post('/proposal-editor/${projectId}/rescore')
-    if (res.ok) {
-      const data = await res.json()
-      sections.value = data.sections
-      totalScore.value = data.total_score
-      hasEdited.value = false
-    }
+    const res = await api.post(`/proposal-editor/${projectId}/rescore`)
+    sections.value = res.data.sections
+    totalScore.value = res.data.total_score
+    hasEdited.value = false
   } catch (e) {
     console.error('Rescore failed:', e)
   } finally {
@@ -492,10 +479,8 @@ async function handleConfirm() {
   const projectId = route.params.projectId as string
   if (!projectId) return
   try {
-    const res = await api.post('/proposal-editor/${projectId}/confirm')
-    if (res.ok) {
-      sections.value = await res.json()
-    }
+    const res = await api.post(`/proposal-editor/${projectId}/confirm`)
+    sections.value = res.data
   } catch (e) {
     console.error('Confirm all failed:', e)
   }
@@ -504,10 +489,9 @@ async function handleConfirm() {
 function selectSection(section: ProposalSection) {
   // 获取完整内容
   const projectId = route.params.projectId as string
-  api.get('/proposal-editor/${projectId}/sections/${section.id}')
-    .then(res => res.json())
-    .then(detail => {
-      selectedSection.value = detail
+  api.get(`/proposal-editor/${projectId}/sections/${section.id}`)
+    .then(res => {
+      selectedSection.value = res.data
     })
     .catch(e => console.error('Fetch detail failed:', e))
 }
@@ -516,10 +500,9 @@ function openEditSection(section: ProposalSection) {
   editingSection.value = section
   // 获取最新内容
   const projectId = route.params.projectId as string
-  api.get('/proposal-editor/${projectId}/sections/${section.id}')
-    .then(res => res.json())
-    .then(detail => {
-      editContent.value = detail.content
+  api.get(`/proposal-editor/${projectId}/sections/${section.id}`)
+    .then(res => {
+      editContent.value = res.data.content
       showEditModal.value = true
     })
     .catch(e => console.error('Fetch detail failed:', e))

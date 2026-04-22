@@ -526,3 +526,59 @@ def update_business_document(
     db.commit()
     db.refresh(doc)
     return BusinessDocumentDetail.model_validate(doc)
+
+
+def generate_business_document(
+    db: Session, project_id: str, doc_id: str
+) -> BusinessDocumentDetail:
+    doc = db.query(BusinessDocument).filter(
+        BusinessDocument.id == doc_id,
+        BusinessDocument.project_id == project_id,
+    ).first()
+    if not doc:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
+
+    project = get_or_create_project(db, project_id)
+    
+    from app.services.workspace_service import get_extracted_fields
+    extracted_fields = {item.label: item.value for item in get_extracted_fields(db)}
+
+    from app.services.asset_routing_service import asset_routing_service
+    routed_assets = asset_routing_service.route_assets_for_section(
+        db,
+        section_title=doc.doc_name,
+        project_summary="",
+        tender_requirements="",
+        delivery_deadline="",
+        service_commitment="",
+        selected_asset_titles=[],
+        fixed_asset_titles=[],
+        excluded_asset_titles=[],
+        extracted_fields=extracted_fields,
+        limit=3,
+    )
+    routed_asset_payloads = [
+        f"{item.asset_title}｜{item.chunk_title}｜{item.snippet}"
+        for item in routed_assets
+    ]
+
+    from app.services.llm_client import llm_generation_client
+    generated_content = llm_generation_client.generate_document_content(
+        project_name=project.name,
+        doc_name=doc.doc_name,
+        original_content=doc.original_content,
+        score_point=doc.score_point,
+        rule_description=doc.rule_description,
+        extracted_fields=extracted_fields,
+        routed_assets=routed_asset_payloads,
+        technical_cases=[],
+    )
+
+    if generated_content:
+        doc.editable_content = generated_content
+        doc.status = "filled"
+        db.commit()
+        db.refresh(doc)
+
+    return BusinessDocumentDetail.model_validate(doc)
