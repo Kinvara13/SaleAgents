@@ -306,7 +306,7 @@
 
 <script setup lang="ts">
 import api from '../services/api'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '../services/project'
 import type { Project } from '../types'
@@ -389,11 +389,40 @@ async function fetchScoringRules() {
   }
 }
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let pollCount = 0
+const MAX_POLL_COUNT = 60 // 最多轮询5分钟
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer)
+  pollCount = 0
+  pollTimer = setInterval(async () => {
+    pollCount++
+    if (pollCount > MAX_POLL_COUNT) {
+      if (pollTimer) clearInterval(pollTimer)
+      pollTimer = null
+      generating.value = false
+      generateProgress.value = 0
+      console.warn('生成任务超时，请刷新页面检查结果')
+      return
+    }
+    await fetchSections()
+    const hasGen = sections.value.some(s => s.is_generated)
+    if (hasGen) {
+      if (pollTimer) clearInterval(pollTimer)
+      pollTimer = null
+      generating.value = false
+      generateProgress.value = 0
+      // 自动计算总分
+      totalScore.value = sections.value.reduce((sum, s) => sum + (s.score || 0), 0)
+    }
+  }, 2000)
+}
+
 async function handleGenerate() {
   const projectId = route.params.projectId as string
   if (!projectId) return
 
-  // 启动进度动画
   generating.value = true
   generateProgress.value = 0
 
@@ -410,17 +439,27 @@ async function handleGenerate() {
       include_company_bg: true,
       reference_scoring: true,
     })
-    clearInterval(progressInterval)
-    generateProgress.value = 100
 
-    sections.value = res.data
-  } catch (e) {
-    console.error('Generate failed:', e)
-  } finally {
-    setTimeout(() => {
+    // 后端返回 processing 状态，启动轮询
+    if (res.data && res.data.status === 'processing') {
+      startPolling()
+    } else {
+      // 后端直接返回结果（同步模式）
+      clearInterval(progressInterval)
+      generateProgress.value = 100
+      sections.value = res.data
       generating.value = false
-      generateProgress.value = 0
-    }, 800)
+      totalScore.value = sections.value.reduce((sum, s) => sum + (s.score || 0), 0)
+    }
+  } catch (e) {
+    clearInterval(progressInterval)
+    console.error('Generate failed:', e)
+    generating.value = false
+    generateProgress.value = 0
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
   }
 }
 
@@ -544,6 +583,13 @@ onMounted(async () => {
     console.error('Load failed:', e)
   } finally {
     loading.value = false
+  }
+})
+
+onUnmounted(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 })
 </script>

@@ -220,6 +220,11 @@ def _handle_zip_async(project_id: str, zip_path: Path):
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
+            project.parse_status = "解析中"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "processing"
+            else:
+                project.node_status = {"parsing": "processing"}
             db.commit()
             
         sections = _handle_zip(project_id, zip_path, db)
@@ -228,6 +233,9 @@ def _handle_zip_async(project_id: str, zip_path: Path):
         
         if project:
             project.status = "解析完成"
+            project.parse_status = "已解析"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "completed"
             db.commit()
     except Exception as e:
         import logging
@@ -236,6 +244,9 @@ def _handle_zip_async(project_id: str, zip_path: Path):
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析失败"
+            project.parse_status = "解析失败"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "failed"
             db.commit()
     finally:
         db.close()
@@ -247,6 +258,11 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
+            project.parse_status = "解析中"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "processing"
+            else:
+                project.node_status = {"parsing": "processing"}
             db.commit()
             
         sections = _parse_uploaded_file(project_id, file_path, filename, db)
@@ -254,6 +270,9 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
         
         if project:
             project.status = "解析完成"
+            project.parse_status = "已解析"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "completed"
             db.commit()
     except Exception as e:
         import logging
@@ -262,6 +281,9 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析失败"
+            project.parse_status = "解析失败"
+            if isinstance(project.node_status, dict):
+                project.node_status["parsing"] = "failed"
             db.commit()
     finally:
         db.close()

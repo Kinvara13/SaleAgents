@@ -126,16 +126,37 @@ def update_section(
 
 
 def generate_proposal_async(
-    db: Session,
     project_id: str,
     payload: ProposalGenerationRequest,
 ) -> None:
-    """异步后台生成技术建议书章节"""
+    """异步后台生成技术建议书章节（独立 Session）"""
+    from app.db.session import SessionLocal
+    from app.models.project import Project
+    db = SessionLocal()
     try:
-        generate_proposal(db, project_id, payload)
+        result = generate_proposal(db, project_id, payload)
+        # 更新项目状态
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            if isinstance(project.node_status, dict):
+                project.node_status["generation"] = "completed"
+            else:
+                project.node_status = {"generation": "completed"}
+            db.commit()
     except Exception as e:
         import logging
         logging.error(f"Async proposal generation failed for project {project_id}: {e}")
+        db.rollback()
+        # 更新失败状态
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            if isinstance(project.node_status, dict):
+                project.node_status["generation"] = "failed"
+            else:
+                project.node_status = {"generation": "failed"}
+            db.commit()
+    finally:
+        db.close()
 
 def generate_proposal(
     db: Session,

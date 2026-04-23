@@ -25,7 +25,17 @@ def generate_proposal(
     """触发异步生成任务"""
     if payload is None:
         payload = ProposalGenerationRequest()
-    background_tasks.add_task(proposal_service.generate_proposal_async, db, project_id, payload)
+    
+    # 更新项目生成状态
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project:
+        if isinstance(project.node_status, dict):
+            project.node_status["generation"] = "processing"
+        else:
+            project.node_status = {"generation": "processing"}
+        db.commit()
+    
+    background_tasks.add_task(proposal_service.generate_proposal_async, project_id, payload)
     return {"status": "processing", "message": "生成任务已在后台启动"}
 
 
