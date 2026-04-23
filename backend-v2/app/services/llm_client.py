@@ -99,6 +99,23 @@ class _BaseLLMClient:
             )
             return response.choices[0].message.content
 
+    def chat(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+    ) -> str | None:
+        """通用聊天接口，调用 LLM 生成回复。"""
+        if not self.is_llm_ready:
+            return None
+        return self._chat_completion(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
     def _parse_json_payload(self, content: str) -> dict[str, Any]:
         candidate = content.strip()
         if candidate.startswith("```"):
@@ -581,28 +598,54 @@ class LLMProposalClient(_BaseLLMClient):
         *,
         section_name: str,
         context: dict[str, Any],
-        scoring_hints: list[str]
+        scoring_hints: list[str],
+        routed_assets: list[str] | None = None,
+        technical_cases: list[str] | None = None,
     ) -> str:
         if not self.is_llm_ready:
             return f"[{section_name}] LLM 未配置或不可用，无法生成内容。"
 
         system_prompt = (
-            "你是资深的售前解决方案架构师。你的任务是根据项目背景、公司优势和招标评分要求，"
+            "你是资深的售前解决方案架构师。你的任务是根据项目背景、公司优势、素材库资料和招标评分要求，"
             f"为招投标文件编写专业的【{section_name}】章节。\n"
             "要求：\n"
             "1. 结构清晰，使用 Markdown 格式（使用 ##, ### 等层级）。\n"
             "2. 语言专业、具有说服力，体现公司实力和方案针对性。\n"
             "3. 必须严格响应和覆盖提供的评分重点。\n"
-            "4. 不要输出任何寒暄语或解释性文字，直接输出章节正文内容。"
+            "4. 如果提供了素材库资料或技术案例，请尽量引用其中的真实数据，不要编造资质或案例。\n"
+            "5. 不要输出任何寒暄语或解释性文字，直接输出章节正文内容。"
         )
 
-        user_prompt = (
-            f"项目名称: {context.get('project_name', '未知项目')}\n"
-            f"客户名称: {context.get('client', '未知客户')}\n"
-            f"投标单位: {context.get('bidding_company', '亚信科技（中国）有限公司')}\n\n"
-            f"招标评分重点提示:\n" + "\n".join(f"- {h}" for h in scoring_hints) + "\n\n"
-            f"请生成【{section_name}】的详细内容："
-        )
+        user_prompt_parts = [
+            f"项目名称: {context.get('project_name', '未知项目')}",
+            f"客户名称: {context.get('client', '未知客户')}",
+            f"投标单位: {context.get('bidding_company', '亚信科技（中国）有限公司')}",
+        ]
+        if context.get("deadline"):
+            user_prompt_parts.append(f"截止日期: {context['deadline']}")
+        if context.get("amount"):
+            user_prompt_parts.append(f"投标金额: {context['amount']}")
+        user_prompt_parts.append("")
+
+        if routed_assets:
+            user_prompt_parts.append("可引用的素材库资料：")
+            for asset in routed_assets:
+                user_prompt_parts.append(f"- {asset}")
+            user_prompt_parts.append("")
+
+        if technical_cases:
+            user_prompt_parts.append("可引用的技术案例：")
+            for case in technical_cases:
+                user_prompt_parts.append(f"- {case}")
+            user_prompt_parts.append("")
+
+        user_prompt_parts.append("招标评分重点提示：")
+        for h in scoring_hints:
+            user_prompt_parts.append(f"- {h}")
+        user_prompt_parts.append("")
+        user_prompt_parts.append(f"请生成【{section_name}】的详细内容：")
+
+        user_prompt = "\n".join(user_prompt_parts)
 
         try:
             content = self._chat_completion(

@@ -377,17 +377,51 @@ def generate_proposal_plan(
 
     project = get_or_create_project(db, project_id)
 
+    # Gather real project & tender info for generation
+    from app.models.tender import Tender
+    tender = db.query(Tender).filter(Tender.project_id == project_id).first()
+
+    # Extract tender requirements from parsing sections
+    from app.models.parsing_section import ParsingSection
+    parsing_sections = db.query(ParsingSection).filter(ParsingSection.project_id == project_id).all()
+    tender_requirements = "\n\n".join([
+        f"[{s.section_name}]\n{s.content[:500]}"
+        for s in parsing_sections if s.content
+    ]) if parsing_sections else ""
+
+    # Build project summary
+    project_summary = f"项目名称: {project.name}\n"
+    if project.client:
+        project_summary += f"招标人: {project.client}\n"
+    if project.amount:
+        project_summary += f"投标金额: {project.amount}\n"
+    if project.deadline:
+        project_summary += f"截止日期: {project.deadline}\n"
+    if project.bidding_company:
+        project_summary += f"投标公司: {project.bidding_company}\n"
+    if project.agent_name:
+        project_summary += f"联系人: {project.agent_name}\n"
+
+    delivery_deadline = project.deadline or ""
+    service_commitment = tender.service_commitment if tender else ""
+
     from app.services.workspace_service import get_extracted_fields
     extracted_fields = {item.label: item.value for item in get_extracted_fields(db)}
+
+    # Also include project's extracted_fields if available
+    if project.extracted_fields:
+        for f in project.extracted_fields:
+            if isinstance(f, dict) and "label" in f and "value" in f:
+                extracted_fields[f["label"]] = str(f["value"])
 
     from app.services.asset_routing_service import asset_routing_service
     routed_assets = asset_routing_service.route_assets_for_section(
         db,
         section_title=doc.doc_name,
-        project_summary="",
-        tender_requirements="",
-        delivery_deadline="",
-        service_commitment="",
+        project_summary=project_summary,
+        tender_requirements=tender_requirements,
+        delivery_deadline=delivery_deadline,
+        service_commitment=service_commitment,
         selected_asset_titles=[],
         fixed_asset_titles=[],
         excluded_asset_titles=[],

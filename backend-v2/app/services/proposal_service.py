@@ -166,7 +166,7 @@ def generate_proposal(
             id=f"prop_{uuid4().hex[:12]}",
             project_id=project_id,
             section_name=name,
-            content=_generate_section_content(name, ctx, scoring_hints, payload),
+            content=_generate_section_content(db, project_id, name, ctx, scoring_hints, payload),
             score=section_score,
             is_confirmed=False,
             is_generated=True,
@@ -213,13 +213,15 @@ def _compute_section_score(section_name: str, ctx: dict, scoring_hints: list[str
 
 
 def _generate_section_content(
+    db: Session,
+    project_id: str,
     section_name: str,
     ctx: dict,
     scoring_hints: list[str],
     payload: ProposalGenerationRequest,
 ) -> str:
-    """生成章节内容，结合客户/公司背景和评分要求，真实调用 LLM"""
-    
+    """生成章节内容，结合客户/公司背景、素材库、技术案例和评分要求，真实调用 LLM"""
+
     # 准备传给 LLM 的上下文
     llm_context = {
         "project_name": ctx.get("project_name", "待定项目"),
@@ -228,19 +230,76 @@ def _generate_section_content(
         "deadline": ctx.get("deadline", ""),
         "amount": ctx.get("amount", "")
     }
-    
+
+    # Gather real project & tender info for asset routing
+    from app.models.tender import Tender
+    tender = db.query(Tender).filter(Tender.project_id == project_id).first()
+
+    from app.models.parsing_section import ParsingSection
+    parsing_sections = db.query(ParsingSection).filter(ParsingSection.project_id == project_id).all()
+    tender_requirements = "\n\n".join([
+        f"[{s.section_name}]\n{s.content[:500]}"
+        for s in parsing_sections if s.content
+    ]) if parsing_sections else ""
+
+    project_summary = f"项目名称: {ctx.get('project_name', '')}\n"
+    if ctx.get("client"):
+        project_summary += f"招标人: {ctx['client']}\n"
+    if ctx.get("amount"):
+        project_summary += f"投标金额: {ctx['amount']}\n"
+    if ctx.get("deadline"):
+        project_summary += f"截止日期: {ctx['deadline']}\n"
+    if ctx.get("bidding_company"):
+        project_summary += f"投标公司: {ctx['bidding_company']}\n"
+
+    delivery_deadline = ctx.get("deadline", "")
+    service_commitment = tender.service_commitment if tender else ""
+
+    from app.services.workspace_service import get_extracted_fields
+    extracted_fields = {item.label: item.value for item in get_extracted_fields(db)}
+
+    # 调用素材路由服务获取相关素材
+    from app.services.asset_routing_service import asset_routing_service
+    routed_assets = asset_routing_service.route_assets_for_section(
+        db,
+        section_title=section_name,
+        project_summary=project_summary,
+        tender_requirements=tender_requirements,
+        delivery_deadline=delivery_deadline,
+        service_commitment=service_commitment,
+        selected_asset_titles=[],
+        fixed_asset_titles=[],
+        excluded_asset_titles=[],
+        extracted_fields=extracted_fields,
+        limit=3,
+    )
+    routed_asset_payloads = [
+        f"{item.asset_title}�{item.chunk_title}�{item.snippet}"
+        for item in routed_assets
+    ]
+
+    # 调用技术案例服务获取相关案例
+    from app.services.technical_case_service import search_technical_cases
+    cases = search_technical_cases(db, project_id, keyword=section_name)
+    case_payloads = [
+        f"案例名称：{case.title}�合同：{case.contract_name}�摘要：{case.summary}"
+        for case in cases[:3]
+    ]
+
     # 筛选相关提示词
     filtered_hints = scoring_hints
     if not payload.reference_scoring:
         filtered_hints = []
-        
+
     # 调用大模型生成章节
     content = llm_proposal_client.generate_section(
         section_name=section_name,
         context=llm_context,
-        scoring_hints=filtered_hints
+        scoring_hints=filtered_hints,
+        routed_assets=routed_asset_payloads,
+        technical_cases=case_payloads,
     )
-    
+
     return content
 
 

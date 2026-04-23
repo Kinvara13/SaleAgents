@@ -26,11 +26,11 @@ class ProjectSummary(BaseModel):
     confirmed_at: str = ""
     user_id: str = "user-001"
     # === 解析与工作台链路（F052-F053） ===
-    tender_id: str = ""
-    parse_status: str = "未上传"
-    file_list: list = []
-    node_status: dict = {}
-    extracted_fields: list = []
+    tender_id: str | None = None
+    parse_status: str | None = None
+    file_list: list | None = None
+    node_status: dict | None = None
+    extracted_fields: list | None = None
 
 
 class ProjectCreateRequest(BaseModel):

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage, ChatContext
 from app.models.project import Project
+from app.services.llm_client import llm_generation_client
 
 
 PROMPT_TEMPLATES = {
@@ -32,10 +33,9 @@ def _system_prompt(context: str = "") -> str:
 
 def _mock_stream(response_text: str):
     """Yield tokens one by one for SSE streaming simulation."""
-    words = response_text.split(" ")
-    for i, word in enumerate(words):
-        yield f"data: {word}" + (" " if i < len(words) - 1 else "")
-        # Small delay simulated
+    # 将回复按字符拆分，模拟流式输出
+    for char in response_text:
+        yield f"data: {char}"
     yield "data: [DONE]"
 
 
@@ -61,8 +61,15 @@ def send_message(
     # Build system prompt
     system_content = _system_prompt(context)
 
-    # Simulated AI response
-    response_text = _generate_response(message, history, context)
+    # Build user prompt with recent history
+    history_text = _build_history_text(history[-6:])  # 最近 6 轮
+    user_prompt = f"{history_text}\n\n用户当前问题：{message}"
+
+    # Call LLM for real response
+    response_text = _generate_llm_response(system_content, user_prompt)
+    if not response_text:
+        response_text = "抱歉，当前 AI 服务未配置或暂时不可用。请检查系统设置中的 AI 配置，或稍后重试。"
+
     assistant_msg = ChatMessage(
         id=f"msg_{uuid4().hex[:12]}",
         project_id=project_id,
@@ -74,6 +81,31 @@ def send_message(
     db.refresh(assistant_msg)
 
     return assistant_msg.id, list(_mock_stream(response_text))
+
+
+def _generate_llm_response(system_prompt: str, user_prompt: str) -> str:
+    """调用 LLM 生成真实回复。"""
+    try:
+        result = llm_generation_client.chat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.7,
+            max_tokens=2048,
+        )
+        return result or ""
+    except Exception:
+        return ""
+
+
+def _build_history_text(history: list[ChatMessage]) -> str:
+    """将历史消息拼接成文本。"""
+    if not history:
+        return ""
+    lines = []
+    for msg in history:
+        role = "用户" if msg.role == "user" else "助手"
+        lines.append(f"{role}: {msg.content}")
+    return "\n".join(lines)
 
 
 def _generate_response(message: str, history: list[ChatMessage], context: str) -> str:
