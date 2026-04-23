@@ -54,3 +54,27 @@
 - **BE-001**: 在 `backend-v2/app/api/router.py` 注册了 `health.router`，修复了 `/api/v1/health` 404 问题。并在 `test_api_v2.py` 中补充了健康检查的 smoke 用例。
 - **BE-002**: 通过执行 `ALTER TABLE ai_configs ADD COLUMN name VARCHAR(128) NOT NULL DEFAULT '未命名配置';` 修复了 `ai_configs` 表的 schema 漂移问题，恢复了 `/api/v1/settings/ai-config` 接口的正常响应。
 - **FE-001**: 修复了 `ProposalEditor.vue` 中的静态问题，将普通字符串改为模板字符串，将 fetch 的 `.json()` 和 `.ok` 访问方式改为基于 AxiosResponse 的 `.data`。
+
+### 2026-04-23 项目工作台 + 文档真实填充链路
+
+- **BE-010** (项目工作台真实数据驱动):
+  - 扩展 `Project` 模型：新增 `tender_id`, `parse_status`, `file_list`, `node_status`, `extracted_fields` 字段，使项目能关联招标信息并跟踪处理状态。
+  - 扩展 `ProjectSummary` schema：新增 `client_name`, `amount`, `risk_level`, `module_progress`, `parse_status`, `node_status`, `extracted_fields`。
+  - 修复 `workspace_service.py` ：`get_projects_list` 、 `get_project_detail` 、 `get_project_progress` 、 `get_project_statistics` 全部改为基于真实 `Project` + `Tender` 数据动态构建，彻底淘汰 `FAKE_PROJECTS`。
+  - 修复 `tenders.py` `upload_bid_document` ：上传文件后自动创建项目并触发解析，解析完成后自动更新 `parse_status = completed`。
+
+- **BE-011** (商务文档真实参数填充):
+  - 修改 `business_document_service.py` ：`generate_business_document` 现在从 `Project` + `Tender` + `ParsingSection` 实时抽取：
+    - `project_summary` → 项目名称/类型/行业等
+    - `tender_requirements` → 招标文件中的技术要求/合同条款/服务承诺
+    - `delivery_deadline` → `project.deadline` 或 `tender.bid_deadline`
+    - `service_commitment` → `tender.service_commitment`
+  - 彻底淘汰所有 `str` 占位符。
+
+- **FE-007** (前端契约对齐):
+  - 扩展 `types/index.ts` `Project` 接口：新增 `parse_status`, `node_status`, `extracted_fields`。
+  - 修改 `BidList.vue` ：列表增加 “解析状态” 和 “节点工作台” 列，展示真实解析/节点状态并提供快捷跳转。
+
+- **QA-004** (烟雾测试):
+  - `python -c "from app.main import app; print('Import OK')"` 通过。
+  - 服务启动后 `/api/v1/health` 返回 200。

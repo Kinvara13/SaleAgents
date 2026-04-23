@@ -10,6 +10,25 @@ export interface Project {
   amount: string
   risk: string
   module_progress?: Record<string, string>
+  tender_id?: string
+  parse_status?: string
+  file_list?: Array<{name: string; path: string; uploaded_at?: string}>
+  node_status?: Record<string, string>
+  extracted_fields?: Array<{label: string; value: string; confidence?: string}>
+  bidding_company?: string
+  agent_name?: string
+  agent_phone?: string
+  agent_email?: string
+  company_address?: string
+  bank_name?: string
+  bank_account?: string
+  confirm_status?: string
+  confirm_feedback?: string
+  confirmed_by?: string
+  confirmed_at?: string | null
+  user_id?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ParsingSection {

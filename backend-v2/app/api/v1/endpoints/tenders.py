@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -70,12 +70,15 @@ def upload_bid_document(
     file: UploadFile = File(...),
     margin: str = Form(""),
     project_type: str = Form(""),
+    background_tasks: BackgroundTasks = None,
     current_user: UserInfoResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TenderSummary:
-    """上传标书文件，投投标"""
+    """上传标书文件，投标"""
     import os
     import uuid
+    from datetime import datetime
+    from pathlib import Path
 
     from app.core.config import settings
 
@@ -105,6 +108,18 @@ def upload_bid_document(
     )
     tender_service.bind_project(db, tender_id, project.id)
     
+    # Update project tender_id and file list
+    project.tender_id = tender_id
+    project.parse_status = "解析中"
+    project.file_list = [{"name": file.filename, "path": saved_path, "uploaded_at": str(datetime.utcnow())}]
+    project.node_status = {
+        "decision": "done",
+        "parsing": "in_progress",
+        "generation": "pending",
+        "review": "pending",
+    }
+    db.commit()
+    
     # Update tender margin and project_type
     tender = tender_service.get_tender(db, tender_id)
     if margin:
@@ -112,5 +127,10 @@ def upload_bid_document(
     if project_type:
         tender.project_type = project_type
     db.commit()
+    
+    # Trigger async parsing in background
+    if background_tasks is not None:
+        from app.api.v1.endpoints.parsing import _parse_single_file_async
+        background_tasks.add_task(_parse_single_file_async, project.id, Path(saved_path), file.filename or "unknown")
     
     return TenderSummary.model_validate(tender_service.get_tender(db, tender_id))

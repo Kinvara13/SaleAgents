@@ -57,7 +57,12 @@ def initialize_database(db: Session) -> None:
                     deadline=item.deadline,
                     amount=item.amount,
                     risk=item.risk,
-                    module_progress=item.module_progress,
+                    node_status={
+                        "decision": "pending",
+                        "parsing": "pending",
+                        "generation": "pending",
+                        "review": "pending",
+                    },
                 )
             )
 
@@ -163,52 +168,172 @@ def _to_project_summary(row: Project) -> ProjectSummary:
         deadline=row.deadline,
         amount=row.amount,
         risk=row.risk,
-        module_progress=row.module_progress,
+        bidding_company=row.bidding_company,
+        agent_name=row.agent_name,
+        agent_phone=row.agent_phone,
+        agent_email=row.agent_email,
+        company_address=row.company_address,
+        bank_name=row.bank_name,
+        bank_account=row.bank_account,
+        confirm_status=row.confirm_status,
+        confirm_feedback=row.confirm_feedback,
+        confirmed_by=row.confirmed_by,
+        confirmed_at=row.confirmed_at,
+        user_id=row.user_id,
+        tender_id=row.tender_id,
+        parse_status=row.parse_status,
+        file_list=row.file_list if row.file_list else [],
+        node_status=row.node_status if row.node_status else {},
+        extracted_fields=row.extracted_fields if row.extracted_fields else [],
     )
 
 
 def get_parse_sections(db: Session) -> list[ParseSection]:
-    return [ParseSection(**item) for item in _panel_payload(db, "parse_sections")]
+    """基于最近解析的项目动态构建章节列表"""
+    from app.models.parsing_section import ParsingSection
+    sections = db.query(ParsingSection).order_by(ParsingSection.created_at.desc()).limit(20).all()
+    return [
+        ParseSection(
+            title=s.section_name,
+            page="-",
+            state="已解析" if s.content and len(s.content) > 20 else "待填充",
+            source_text=s.content[:200] if s.content else "",
+            source_file=s.source_file or "",
+        )
+        for s in sections
+    ]
 
 
 def get_extracted_fields(db: Session) -> list[ExtractedField]:
-    return [ExtractedField(**item) for item in _panel_payload(db, "extracted_fields")]
+    """基于最近解析项目的 extracted_fields 动态构建"""
+    from app.models.project import Project
+    projects = db.query(Project).filter(Project.extracted_fields != []).order_by(Project.updated_at.desc()).limit(5).all()
+    fields = []
+    for p in projects:
+        for f in (p.extracted_fields or []):
+            if isinstance(f, dict):
+                fields.append(ExtractedField(
+                    label=f.get("label", "未知字段"),
+                    value=str(f.get("value", "")),
+                    confidence=f.get("confidence", "80%"),
+                ))
+    return fields[:10]
 
 
 def get_score_cards(db: Session) -> list[ScoreCard]:
-    return [ScoreCard(**item) for item in _panel_payload(db, "score_cards")]
+    """基于规则库动态构建评分卡片"""
+    from app.models.settings import Rule
+    rules = db.query(Rule).filter(Rule.is_active == True).limit(10).all()
+    return [
+        ScoreCard(label=r.name, score=r.score or 0, note=r.description or "")
+        for r in rules
+    ]
 
 
 def get_rule_hits(db: Session) -> list[RuleHit]:
-    return [RuleHit(**item) for item in _panel_payload(db, "rule_hits")]
+    """基于规则库动态构建规则命中"""
+    from app.models.settings import Rule
+    rules = db.query(Rule).filter(Rule.is_active == True).limit(10).all()
+    return [
+        RuleHit(name=r.name, result="已配置", detail=r.description or "", level="info")
+        for r in rules
+    ]
 
 
 def get_ai_reasons(db: Session) -> list[str]:
-    return list(_panel_payload(db, "ai_reasons"))
+    """基于项目状态动态构建 AI 分析理由"""
+    from app.models.project import Project
+    reasons = []
+    recent = db.query(Project).order_by(Project.updated_at.desc()).limit(3).all()
+    for p in recent:
+        if p.parse_status == "已解析":
+            reasons.append(f"项目 {p.name} 已完成标书解析，共提取 {(p.extracted_fields or []).__len__()} 个关键字段")
+        elif p.parse_status == "解析中":
+            reasons.append(f"项目 {p.name} 正在解析中...")
+    return reasons or ["暂无最近的 AI 分析记录"]
 
 
 def get_generation_sections(db: Session) -> list[GenerationSection]:
-    return [GenerationSection(**item) for item in _panel_payload(db, "generation_sections")]
+    """基于商务/技术文档生成状态动态构建"""
+    from app.models.business_document import BusinessDocument
+    from app.models.technical_document import TechnicalDocument
+    biz = db.query(BusinessDocument).limit(10).all()
+    tech = db.query(TechnicalDocument).limit(10).all()
+    sections = []
+    for d in biz:
+        sections.append(GenerationSection(
+            title=d.doc_name,
+            status=d.status,
+            citations=0,
+            todo=1 if d.status in ["待填充", "待生成"] else 0,
+        ))
+    for d in tech:
+        sections.append(GenerationSection(
+            title=d.doc_name,
+            status=d.status,
+            citations=0,
+            todo=1 if d.status in ["待填充", "待生成"] else 0,
+        ))
+    return sections[:20]
 
 
 def get_generation_assets(db: Session) -> list[KnowledgeAsset]:
-    return [KnowledgeAsset(**item) for item in _panel_payload(db, "generation_assets")]
+    """基于素材库动态构建"""
+    from app.models.settings import Material
+    mats = db.query(Material).filter(Material.is_active == True).limit(10).all()
+    return [
+        KnowledgeAsset(title=m.name, type=m.category or "通用", score="90", status="可用")
+        for m in mats
+    ]
 
 
 def get_generation_todos(db: Session) -> list[str]:
-    return list(_panel_payload(db, "generation_todos"))
+    """基于文档状态动态构建待办事项"""
+    from app.models.business_document import BusinessDocument
+    from app.models.technical_document import TechnicalDocument
+    todos = []
+    biz_pending = db.query(BusinessDocument).filter(BusinessDocument.status.in_(["待填充", "待生成"])).count()
+    tech_pending = db.query(TechnicalDocument).filter(TechnicalDocument.status.in_(["待填充", "待生成"])).count()
+    if biz_pending > 0:
+        todos.append(f"商务文档待生成: {biz_pending} 份")
+    if tech_pending > 0:
+        todos.append(f"技术文档待生成: {tech_pending} 份")
+    return todos or ["暂无待办事项"]
 
 
 def get_review_summary(db: Session) -> list[MetricItem]:
-    return [MetricItem(**item) for item in _panel_payload(db, "review_summary")]
+    """基于审查问题数量动态构建"""
+    from app.models.business_document import BusinessDocument
+    from app.models.technical_document import TechnicalDocument
+    biz_total = db.query(BusinessDocument).count()
+    tech_total = db.query(TechnicalDocument).count()
+    biz_done = db.query(BusinessDocument).filter(BusinessDocument.status == "已完成").count()
+    tech_done = db.query(TechnicalDocument).filter(TechnicalDocument.status == "已完成").count()
+    return [
+        MetricItem(label="商务文档", value=f"{biz_done}/{biz_total}", hint="完成度", tone="good" if biz_done == biz_total else "warning"),
+        MetricItem(label="技术文档", value=f"{tech_done}/{tech_total}", hint="完成度", tone="good" if tech_done == tech_total else "warning"),
+    ]
 
 
 def get_review_issues(db: Session) -> list[ReviewIssue]:
-    return [ReviewIssue(**item) for item in _panel_payload(db, "review_issues")]
+    """基于规则库动态构建审查问题"""
+    from app.models.settings import Rule
+    rules = db.query(Rule).filter(Rule.is_active == True, Rule.is_mandatory == True).limit(10).all()
+    return [
+        ReviewIssue(
+            title=r.name,
+            type="rule",
+            level="high" if r.is_mandatory else "medium",
+            status="待检查",
+            document="全局",
+            detail=r.description or "",
+        )
+        for r in rules
+    ]
 
 
 def get_review_actions(db: Session) -> list[str]:
-    return list(_panel_payload(db, "review_actions"))
+    return ["执行完整审查流程", "导出审查报告"]
 
 
 def get_workspace_data(db: Session) -> WorkspaceData:

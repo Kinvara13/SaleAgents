@@ -31,6 +31,12 @@ class Project(Base):
     confirmed_by: Mapped[str] = mapped_column(String(128), nullable=False, default="")       # 确认人
     confirmed_at: Mapped[str] = mapped_column(String(64), nullable=False, default="")           # 确认时间
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, default="user-001")   # 所属用户ID
+    # === 解析与工作台链路字段（F052-F053） ===
+    tender_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")         # 关联招标信息ID
+    parse_status: Mapped[str] = mapped_column(String(32), nullable=False, default="未上传")   # 未上传/解析中/已解析/解析失败
+    file_list: Mapped[list | dict] = mapped_column(JSON, nullable=False, default=list)       # 上传文件清单 [{name, path, uploaded_at}]
+    node_status: Mapped[list | dict] = mapped_column(JSON, nullable=False, default=dict)     # 节点工作台状态 {decision, parsing, generation, review}
+    extracted_fields: Mapped[list | dict] = mapped_column(JSON, nullable=False, default=list) # LLM解析提取的字段 [{label, value, confidence}]
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )

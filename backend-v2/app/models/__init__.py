@@ -7,6 +7,10 @@ from app.models.settings import AIConfig, Material, Rule
 from app.models.tender import Tender
 from app.models.technical_case import TechnicalCase
 from app.models.pre_evaluation import PreEvaluationJob
+from app.models.business_document import BusinessDocument
+from app.models.technical_document import TechnicalDocument
+from app.models.workspace_panel import WorkspacePanel
+from app.models.proposal_plan import ProposalPlan
 
 __all__ = [
     "Project",
@@ -21,4 +25,8 @@ __all__ = [
     "Tender",
     "TechnicalCase",
     "PreEvaluationJob",
+    "BusinessDocument",
+    "TechnicalDocument",
+    "WorkspacePanel",
+    "ProposalPlan",
 ]

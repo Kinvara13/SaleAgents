@@ -25,6 +25,12 @@ class ProjectSummary(BaseModel):
     confirmed_by: str = ""
     confirmed_at: str = ""
     user_id: str = "user-001"
+    # === 解析与工作台链路（F052-F053） ===
+    tender_id: str = ""
+    parse_status: str = "未上传"
+    file_list: list = []
+    node_status: dict = {}
+    extracted_fields: list = []
 
 
 class ProjectCreateRequest(BaseModel):
@@ -63,3 +69,9 @@ class ProjectUpdateRequest(BaseModel):
     confirm_feedback: str | None = Field(default=None, max_length=1024)
     confirmed_by: str | None = Field(default=None, max_length=128)
     confirmed_at: str | None = Field(default=None, max_length=64)
+    # === 解析与工作台（F052-F053） ===
+    tender_id: str | None = Field(default=None, max_length=64)
+    parse_status: str | None = Field(default=None, max_length=32)
+    file_list: list | None = Field(default=None)
+    node_status: dict | None = Field(default=None)
+    extracted_fields: list | None = Field(default=None)

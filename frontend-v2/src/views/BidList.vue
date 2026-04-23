@@ -51,6 +51,8 @@
             <th class="pb-3 font-medium">客户</th>
             <th class="pb-3 font-medium">截止时间</th>
             <th class="pb-3 font-medium">金额</th>
+            <th class="pb-3 font-medium">解析状态</th>
+            <th class="pb-3 font-medium">节点进度</th>
             <th class="pb-3 font-medium">状态</th>
             <th class="pb-3 font-medium">操作</th>
           </tr>
@@ -65,6 +67,27 @@
             <td class="py-3 text-gray-600">{{ project.client || '-' }}</td>
             <td class="py-3 text-gray-600">{{ project.deadline || '-' }}</td>
             <td class="py-3 text-gray-600">{{ project.amount || '-' }}</td>
+            <td class="py-3">
+              <span
+                class="px-2 py-1 text-xs font-medium rounded-full"
+                :class="parseStatusClass(project.parse_status)"
+              >
+                {{ project.parse_status || '未上传' }}
+              </span>
+            </td>
+            <td class="py-3">
+              <div class="flex items-center space-x-1">
+                <span
+                  v-for="(val, key) in project.node_status || {}"
+                  :key="key"
+                  class="px-1.5 py-0.5 text-xs rounded"
+                  :class="nodeStatusClass(val)"
+                  :title="key"
+                >
+                  {{ nodeStatusLabel(key) }}
+                </span>
+              </div>
+            </td>
             <td class="py-3">
               <span
                 class="px-2 py-1 text-xs font-medium rounded-full"
@@ -290,6 +313,34 @@ function statusClass(status: string) {
     case '已中标': return 'bg-green-100 text-green-600'
     default: return 'bg-gray-100 text-gray-600'
   }
+}
+
+function parseStatusClass(parseStatus: string | undefined) {
+  switch (parseStatus) {
+    case '已解析': return 'bg-green-100 text-green-600'
+    case '解析中': return 'bg-yellow-100 text-yellow-600'
+    case '解析失败': return 'bg-red-100 text-red-600'
+    default: return 'bg-gray-100 text-gray-400'
+  }
+}
+
+function nodeStatusClass(val: string) {
+  switch (val) {
+    case 'done': return 'bg-green-100 text-green-600'
+    case 'in_progress': return 'bg-blue-100 text-blue-600'
+    case 'pending': return 'bg-gray-100 text-gray-400'
+    default: return 'bg-gray-100 text-gray-400'
+  }
+}
+
+function nodeStatusLabel(key: string) {
+  const map: Record<string, string> = {
+    decision: '决策',
+    parsing: '解析',
+    generation: '生成',
+    review: '审查',
+  }
+  return map[key] || key
 }
 
 async function fetchProjects() {

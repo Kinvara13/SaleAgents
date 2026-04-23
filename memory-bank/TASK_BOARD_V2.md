@@ -14,10 +14,14 @@
 | FE-002 | 支撑能力-用户/角色 | 前端 | 修复 `UserManagement.vue`、`RoleManagement.vue` 的 axios 用法与动态路径错误 | Frontend Agent | done | AUDIT-001 | 用户 CRUD 与角色列表在页面可正常工作 | `memory-bank/agent-worklogs/frontend-agent.md` |
 | FE-003 | 支撑能力-系统设置 | 前端 | 对齐 `SystemSettings.vue` 与当前后端契约，补错误态和兼容提示 | Frontend Agent | done | BE-002 | AI 配置、规则、素材区的成功/失败态可见且可回归 | `memory-bank/agent-worklogs/frontend-agent.md` |
 | FE-004 | F052-F053 | 前端 | 把 `ProjectCreate.vue` 和 `BidList.vue` 提升为真实项目工作台，而非仅基础 CRUD | Frontend Agent | done | AUDIT-001 | 页面展示项目重点字段、确认状态、文件清单和节点工作台 | `memory-bank/agent-worklogs/frontend-agent.md` |
-| FE-005 | F054-F079,F081 | 前端 | 补齐 `TenderDetail.vue` 的工作流信息、人工确认、重算反馈和错误态 | Frontend Agent | done | BE-003,BE-004,BE-005 | 文档区块能明确显示规则来源、当前状态、修改结果和待人工事项 | `memory-bank/agent-worklogs/frontend-agent.md` |
-| BE-003 | F050-F053 | 后端 | 完善招标处理字段：保证金、项目类型、拒绝原因、项目绑定和流程状态 | Backend Agent | done | AUDIT-001 | 决策和上传接口能完整承载 Excel 行 50-53 的业务字段 | `memory-bank/agent-worklogs/backend-agent.md` |
-| BE-004 | F052,F054-F075 | 后端 | 完成真实解析链路：上传标书 -> 章节 -> 星标项 -> 文档清单/详情 | Backend Agent | done | AUDIT-001 | 真实样本上传后能生成解析章节并驱动商务/技术文档区 | `memory-bank/agent-worklogs/backend-agent.md` |
-| BE-005 | F058,F069-F081 | 后端 | 把素材库/技术案例/评分规则真正接入商务文档、技术文档、方案建议书和案例检索 | Backend Agent | done | BE-002,BE-004 | 关键模板能根据素材和评分规则自动填充并回显规则说明 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| FE-005 | F054-F079,F081 | 前端 | 补齐 `TenderDetail.vue` 的工作流信息、人工确认、重算反馈和错误态 | Frontend Agent | done | BE-003,BE-004,BE-005 | 文档区块能明确显示规则来源、当前状态、修改结果和待人工事项 | `memory-bank/agent-worklogs/frontend-agent.md` |
+|| BE-003 | F050-F053 | 后端 | 完善招标处理字段：保证金、项目类型、拒绝原因、项目绑定和流程状态 | Backend Agent | done | AUDIT-001 | 决策和上传接口能完整承载 Excel 行 50-53 的业务字段 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| BE-004 | F052,F054-F075 | 后端 | 完成真实解析链路：上传标书 -> 章节 -> 星标项 -> 文档清单/详情 | Backend Agent | done | AUDIT-001 | 真实样本上传后能生成解析章节并驱动商务/技术文档区 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| BE-005 | F058,F069-F081 | 后端 | 把素材库/技术案例/评分规则真正接入商务文档、技术文档、方案建议书和案例检索 | Backend Agent | done | BE-002,BE-004 | 关键模板能根据素材和评分规则自动填充并回显规则说明 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| BE-010 | F050-F053,项目工作台 | 后端 | 项目工作台真实数据驱动：Project 模型扩展 + workspace_service 动态构建 + upload 触发解析 | Backend Agent | done | BE-003,BE-004 | `get_projects_list`、`get_project_detail`、`get_project_progress`、`get_statistics` 全部基于真实 DB 数据 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| BE-011 | F058,F069-F081 | 后端 | 商务文档真实参数填充：`generate_business_document` 从 Project/Tender/ParsingSection 实时抽取 | Backend Agent | done | BE-004,BE-010 | 无 `str` 占位符，所有生成参数均来源于实际数据 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| FE-007 | 项目列表页面 | 前端 | 前端契约对齐：扩展 Project 类型 + BidList 增加解析/节点状态展示 | Frontend Agent | done | BE-010 | `解析状态`、`节点工作台`列正确展示，快捷跳转可用 | `memory-bank/agent-worklogs/frontend-agent.md` |
+|| QA-004 | 全局 | 测试 | 后端烟雾测试：导入检查 + health 端点验证 | QA Agent | done | BE-010,BE-011 | `python -c "from app.main import app"` 通过，`/api/v1/health` 返回 200 | `memory-bank/agent-worklogs/qa-agent.md` |
 | QA-001 | 全局 | 测试 | 重建 Python 3.11 基线下的 API smoke 套件，覆盖当前真实契约 | QA Agent | done | BE-001,BE-002 | 新 smoke 用例可复现本次报告中的关键结论并持续回归 | `memory-bank/agent-worklogs/qa-agent.md` |
 | QA-002 | F049-F082 + 支撑能力 | 测试 | 建立页面人工走查清单，补页面级验证记录 | QA Agent | done | FE-001,FE-002,FE-003,FE-004,FE-005 | 所有关键页面至少有 1 条页面走查记录和结果 | `memory-bank/agent-worklogs/qa-agent.md` |
 | QA-003 | 全局 | 测试 | 评估并选型是否引入浏览器自动化验证 v2 页面 | QA Agent | done | QA-002 | 给出是否引入浏览器自动化的决策和最小落地方案 | `memory-bank/agent-worklogs/qa-agent.md` |
