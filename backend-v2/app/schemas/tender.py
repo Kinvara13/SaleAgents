@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class TenderCreateRequest(BaseModel):
@@ -28,7 +28,7 @@ class TenderSummary(BaseModel):
     publish_date: str
     deadline: str
     amount: str
-    margin: str
+    margin: str | None = None
     project_type: str
     description: str
     decision: str
@@ -38,3 +38,10 @@ class TenderSummary(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator('margin', mode='before')
+    @classmethod
+    def convert_margin_to_str(cls, v):
+        if v is None:
+            return ""
+        return str(v)
