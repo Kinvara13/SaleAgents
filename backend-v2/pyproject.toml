@@ -25,6 +25,7 @@ dependencies = [
   "rapidocr_onnxruntime>=1.4.4",
   "PyJWT>=2.8.0",
   "bcrypt>=4.0.0",
+  "apscheduler>=3.10.0",
 ]
 
 [tool.setuptools.packages.find]
