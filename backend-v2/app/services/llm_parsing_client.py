@@ -137,4 +137,70 @@ class LLMParsingClient:
             return {}
 
 
+    def summarize_text(self, text: str, title: str = "", max_words: int = 2000) -> str:
+        """Summarize long text using LLM. Returns summary or empty string on failure."""
+        from app.db.session import SessionLocal
+        from openai import OpenAI
+
+        try:
+            with SessionLocal() as db:
+                provider = db.query(AIConfig).filter(AIConfig.is_active == True).first()
+                if not provider or not provider.api_key:
+                    return ""
+
+                client = OpenAI(
+                    api_key=provider.api_key,
+                    base_url=provider.base_url,
+                    timeout=180.0,
+                    default_headers={"User-Agent": "claude-code/0.1.0"},
+                )
+
+                system_prompt = (
+                    "你是招投标文档摘要助手。请对以下超长章节生成精炼摘要，"
+                    "保留所有关键评分点、资质要求、技术参数、合同条款和商务条件。"
+                    "摘要需包含：核心要求、关键数字、硬性门槛、注意事项。"
+                )
+                user_prompt = f"章节名称：{title}\n\n原始内容（前12000字）：\n{text[:12000]}\n\n请生成摘要（约{max_words}字）："
+
+                model = provider.model
+                protocol = getattr(provider, "protocol", getattr(provider, "provider", "openai"))
+
+                if protocol == "anthropic":
+                    import httpx
+                    headers = {
+                        "x-api-key": client.api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    }
+                    base_url_str = str(client.base_url) if client.base_url else "https://api.anthropic.com/v1"
+                    if not base_url_str.endswith("/messages"):
+                        base_url_str = base_url_str.rstrip("/") + "/messages"
+                    payload = {
+                        "model": model,
+                        "max_tokens": min(max_words, 4096),
+                        "temperature": 0.2,
+                        "system": system_prompt,
+                        "messages": [{"role": "user", "content": user_prompt}],
+                    }
+                    resp = httpx.post(base_url_str, headers=headers, json=payload, timeout=180.0)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data.get("content", [{}])[0].get("text", "").strip()
+                else:
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        temperature=0.2,
+                        max_tokens=min(max_words, 4096),
+                        extra_headers={"User-Agent": "claude-code/0.1.0"},
+                    )
+                    return (resp.choices[0].message.content or "").strip()
+        except Exception as e:
+            print(f"Summarization error: {e}")
+            return ""
+
+
 llm_parsing_client = LLMParsingClient()

@@ -7,13 +7,34 @@
 
 ## 待跟进任务
 
-- `BE-001`
-- `BE-002`
-- `BE-003`
-- `BE-004`
-- `BE-005`
+- `BE-008` ✓ done
+- `BE-009` ✓ done
 
 ## 日志
+
+### 2026-04-24 (BE-008 + BE-009)
+
+**BE-008: LLM接入 - 重构 proposal_service**
+- 修改 `generate_proposal()` 使用 LLM 语义打分替代关键词匹配打分
+- 修改 `compute_score(force=False)` 在分数为 0 时自动使用 LLM 补打语义分数
+- `检收标准`: `generate_proposal` 能根据上下文真实生成不同内容的文档，`score_proposal` 能给出语义化预打分
+
+**BE-009: PDF 分块解析优化**
+- 重构 `parsing_service.py` 为类型服务 `ParsingService`，支持:
+  - `parse_document()` / `parse_pdf()`: 真实 PDF 文本提取
+  - 按标题分块（heading-based chunking）避免硬截断
+  - 超长章节自动摘要（LLM）
+  - `项目字段映射` (`project_fields_map`)
+  - `解析上下文` (`get_project_context`) 供生成模块使用
+- 更新 `llm_parsing_client.py` 添加 `summarize_text()` 方法用于超长文本摘要
+- 更新 `parsing.py` 使用新的 `parsing_service.parse_document()`
+- `检收标准`: 支持超长 PDF 解析（末尾技术要求/合同条款不会丢弃）
+
+**关键文件变更**:
+- `app/services/proposal_service.py`: 11 行修改
+- `app/services/parsing_service.py`: 584 行重构
+- `app/services/llm_parsing_client.py`: 66 行新增
+- `app/api/v1/endpoints/parsing.py`: 简化 218 行
 
 ### 2026-04-21
 

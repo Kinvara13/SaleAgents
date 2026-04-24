@@ -181,13 +181,14 @@ def generate_proposal(
     created = []
     for name in PROPOSAL_SECTIONS:
         rule_info = SCORING_RULES.get(name, {"max": 100})
-        section_score = _compute_section_score(name, ctx, scoring_hints)
+        content = _generate_section_content(db, project_id, name, ctx, scoring_hints, payload)
+        section_score = _recalculate_score(name, content, ctx, scoring_hints)
 
         section = ProposalSection(
             id=f"prop_{uuid4().hex[:12]}",
             project_id=project_id,
             section_name=name,
-            content=_generate_section_content(db, project_id, name, ctx, scoring_hints, payload),
+            content=content,
             score=section_score,
             is_confirmed=False,
             is_generated=True,
@@ -200,7 +201,7 @@ def generate_proposal(
 
 
 def _compute_section_score(section_name: str, ctx: dict, scoring_hints: list[str]) -> int:
-    """根据章节名称和评分提示计算章节得分"""
+    """Legacy keyword-based scorer; kept for reference but no longer used in generation."""
     base_score = 75  # 基础分
 
     # 结合评分规则调整
@@ -346,6 +347,10 @@ def compute_score(
     for section in sections:
         if force:
             # 强制重算：基于内容重新计算得分
+            new_score = _recalculate_score(section.section_name, section.content, ctx, scoring_hints)
+            section.score = new_score
+        elif section.score == 0:
+            # 首次评分：对尚未打分的章节进行语义化预打分
             new_score = _recalculate_score(section.section_name, section.content, ctx, scoring_hints)
             section.score = new_score
 

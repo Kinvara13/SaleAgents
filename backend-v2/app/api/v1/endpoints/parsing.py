@@ -7,7 +7,7 @@ import zipfile, tempfile, os, shutil
 from app.db.session import get_db
 from app.schemas.parsing import ParsingSectionSummary, ParsingSectionDetail, ParsingSectionUpdateRequest
 from app.schemas.task import TaskSubmitResponse
-from app.services.llm_parsing_client import llm_parsing_client
+from app.services.parsing_service import parsing_service
 from app.services.task_service import create_task, update_task_status
 from app.models.parsing_section import ParsingSection
 from app.models.project import Project
@@ -18,157 +18,6 @@ router = APIRouter()
 ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".zip"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 UNZIP_DIR = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "unzip_temp"
-
-
-def _extract_text_from_file(file_path: Path, ext: str) -> str:
-    """Extract text content from a file."""
-    try:
-        if ext == ".txt":
-            return file_path.read_text(encoding="utf-8", errors="replace")
-        elif ext == ".docx":
-            try:
-                from docx import Document
-                doc = Document(str(file_path))
-                return "\n".join([p.text for p in doc.paragraphs])
-            except Exception:
-                return ""
-        elif ext == ".xlsx":
-            try:
-                import openpyxl
-                wb = openpyxl.load_workbook(str(file_path), data_only=True)
-                lines = []
-                for sheet in wb.sheetnames:
-                    ws = wb[sheet]
-                    for row in ws.iter_rows(values_only=True):
-                        line = " ".join([str(c) if c else "" for c in row])
-                        if line.strip():
-                            lines.append(line)
-                return "\n".join(lines)
-            except Exception:
-                return ""
-        elif ext == ".pdf":
-            try:
-                import pypdf
-                reader = pypdf.PdfReader(str(file_path))
-                text = ""
-                for page in reader.pages:
-                    text += page.extract_text() or ""
-                return text
-            except Exception:
-                try:
-                    import pdfplumber
-                    text = ""
-                    with pdfplumber.open(str(file_path)) as pdf:
-                        for page in pdf.pages:
-                            text += page.extract_text() or ""
-                    return text
-                except Exception:
-                    return ""
-        else:
-            # Fallback: read as text
-            return file_path.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"[文件读取失败: {e}]"
-
-
-def _parse_uploaded_file(project_id: str, file_path: Path, filename: str, db: Session) -> list[dict]:
-    """Parse a single uploaded file and return section dicts."""
-    ext = Path(filename).suffix.lower()
-    text = _extract_text_from_file(file_path, ext)
-    
-    if not text or len(text.strip()) < 50:
-        return []
-    
-    # Use LLM to extract tender info
-    tender_info = llm_parsing_client.extract_tender_fields(text)
-    
-    sections = []
-    
-    # Create sections based on what was parsed
-    if tender_info:
-        # Parse scoring rules (评分重点) into individual sections
-        scoring_text = tender_info.get("评分重点", {}).get("value", "") or tender_info.get("评分重点", "")
-        if scoring_text and len(scoring_text) > 20:
-            sections.append({
-                "project_id": project_id,
-                "section_name": "评分规则解析",
-                "section_type": "评审",
-                "content": scoring_text,
-                "is_star_item": True,
-                "source_file": filename,
-            })
-        
-        # Technical requirements
-        tech_req = tender_info.get("技术要求", {}).get("value", "") or tender_info.get("技术要求", "")
-        if tech_req and len(tech_req) > 20:
-            sections.append({
-                "project_id": project_id,
-                "section_name": "技术要求",
-                "section_type": "评审",
-                "content": tech_req,
-                "is_star_item": True,
-                "source_file": filename,
-            })
-        
-        # Business sections
-        for name in ["商务偏离表", "应答承诺函", "授权委托书", "营业执照"]:
-            sections.append({
-                "project_id": project_id,
-                "section_name": name,
-                "section_type": "商务",
-                "content": f"【{name}】\n\n解析自招标文件 {filename}，请根据招标要求及公司实际情况填写。\n\n参考信息：{tender_info.get('必备资质', {}).get('value', '待补充')}",
-                "is_star_item": name in ["商务偏离表", "应答承诺函"],
-                "source_file": filename,
-            })
-        
-        # Technical sections
-        for name in ["技术条款偏离表", "CMMI证书", "计算机软件著作权证书", "项目案例", "自查确认单"]:
-            sections.append({
-                "project_id": project_id,
-                "section_name": name,
-                "section_type": "技术",
-                "content": f"【{name}】\n\n解析自招标文件 {filename}，请根据技术规范书要求填写。",
-                "is_star_item": name in ["技术条款偏离表", "项目案例"],
-                "source_file": filename,
-            })
-    else:
-        # Fallback: create generic sections without LLM
-        for name in ["商务偏离表", "应答承诺函", "授权委托书", "营业执照", "技术条款偏离表"]:
-            sections.append({
-                "project_id": project_id,
-                "section_name": name,
-                "section_type": "商务" if name in ["商务偏离表", "应答承诺函", "授权委托书", "营业执照"] else "技术",
-                "content": f"【{name}】\n\n上传文件：{filename}\n\n（请在下方编辑器中填写内容）",
-                "is_star_item": False,
-                "source_file": filename,
-            })
-    
-    return sections
-
-
-def _handle_zip(project_id: str, zip_path: Path, db: Session) -> list[dict]:
-    """Extract and parse all files inside a ZIP archive."""
-    import tempfile
-    all_sections = []
-    
-    try:
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(UNZIP_DIR / project_id)
-        
-        # Walk extracted files
-        for root, dirs, files in os.walk(UNZIP_DIR / project_id):
-            for fname in files:
-                fpath = Path(root) / fname
-                ext = fpath.suffix.lower()
-                if ext in ALLOWED_EXTENSIONS and ext != ".zip":
-                    sections = _parse_uploaded_file(project_id, fpath, fname, db)
-                    all_sections.extend(sections)
-    except Exception as e:
-        pass
-    
-    # Cleanup
-    shutil.rmtree(UNZIP_DIR / project_id, ignore_errors=True)
-    return all_sections
 
 
 @router.post("/{project_id}/upload", response_model=TaskSubmitResponse)
@@ -227,7 +76,7 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
     db = SessionLocal()
     try:
         update_task_status(db, task_id, "processing")
-        
+
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
@@ -237,19 +86,40 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
             else:
                 project.node_status = {"parsing": "processing"}
             db.commit()
-            
-        sections = _handle_zip(project_id, zip_path, db)
-        _save_parsed_sections(project_id, sections, db)
+
+        # Extract and parse each file, keeping the first one to clear existing sections
+        first = True
+        total_sections = 0
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(UNZIP_DIR / project_id)
+
+        for root, dirs, files in os.walk(UNZIP_DIR / project_id):
+            for fname in files:
+                fpath = Path(root) / fname
+                ext = fpath.suffix.lower()
+                if ext in ALLOWED_EXTENSIONS and ext != ".zip":
+                    try:
+                        result = parsing_service.parse_document(
+                            db, project_id, fpath, fname, clear_existing=first
+                        )
+                        total_sections += len(result)
+                        first = False
+                    except Exception as e:
+                        import logging
+                        logging.warning(f"Failed to parse {fname} in ZIP: {e}")
+
+        # Cleanup
+        shutil.rmtree(UNZIP_DIR / project_id, ignore_errors=True)
         zip_path.unlink(missing_ok=True)
-        
+
         if project:
             project.status = "解析完成"
             project.parse_status = "已解析"
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
             db.commit()
-        
-        update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
+
+        update_task_status(db, task_id, "completed", result={"section_count": total_sections})
     except Exception as e:
         import logging
         logging.error(f"Zip parsing failed for project {project_id}: {e}")
@@ -270,7 +140,7 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
     db = SessionLocal()
     try:
         update_task_status(db, task_id, "processing")
-        
+
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
@@ -280,17 +150,16 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
             else:
                 project.node_status = {"parsing": "processing"}
             db.commit()
-            
-        sections = _parse_uploaded_file(project_id, file_path, filename, db)
-        _save_parsed_sections(project_id, sections, db)
-        
+
+        sections = parsing_service.parse_document(db, project_id, file_path, filename)
+
         if project:
             project.status = "解析完成"
             project.parse_status = "已解析"
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
             db.commit()
-        
+
         update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
     except Exception as e:
         import logging
@@ -306,23 +175,6 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
         update_task_status(db, task_id, "failed", error_message=str(e))
     finally:
         db.close()
-
-def _save_parsed_sections(project_id: str, sections: list[dict], db: Session):
-    db.query(ParsingSection).filter(ParsingSection.project_id == project_id).delete()
-
-    for sec in sections:
-        section = ParsingSection(
-            id=f"sec_{uuid4().hex[:12]}",
-            project_id=sec["project_id"],
-            section_name=sec["section_name"],
-            section_type=sec["section_type"],
-            content=sec["content"],
-            is_star_item=sec["is_star_item"],
-            source_file=sec["source_file"],
-        )
-        db.add(section)
-
-    db.commit()
 
 
 @router.get("/{project_id}/sections", response_model=list[ParsingSectionSummary])
