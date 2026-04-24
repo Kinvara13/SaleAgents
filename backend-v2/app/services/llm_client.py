@@ -699,6 +699,83 @@ class LLMProposalClient(_BaseLLMClient):
             return int(max_score * 0.8)
 
 
+class LLMScoringClient(_BaseLLMClient):
+    """LLM client for semantic document scoring."""
+
+    def score_document(
+        self,
+        *,
+        doc_name: str,
+        score_point: str,
+        rule_description: str,
+        content: str,
+        routed_assets: list[str],
+    ) -> dict[str, Any]:
+        """
+        Ask LLM to evaluate document content against scoring rules.
+        Returns dict with keys: semantic_quality (0-1), asset_coverage (0-1), reasoning (str), suggestions (list[str]).
+        """
+        if not self.is_llm_ready:
+            return {
+                "semantic_quality": 0.0,
+                "asset_coverage": 0.0,
+                "reasoning": "LLM 未配置，跳过语义评分",
+                "suggestions": [],
+            }
+
+        system_prompt = (
+            "你是资深招投标评标专家。请根据评分规则和素材覆盖情况，"
+            "对投标文件内容进行客观评估。评分必须严格基于规则描述，"
+            "不得编造或臆测。输出必须是 JSON 对象。"
+        )
+
+        user_prompt = (
+            f"文档名称:{doc_name}\n"
+            f"评分点:{score_point}\n"
+            f"评分规则:{rule_description}\n\n"
+            f"已匹配素材清单:{json.dumps(routed_assets, ensure_ascii=False)}\n\n"
+            f"文档内容（前8000字符）:{content[:8000]}\n\n"
+            "请评估以下内容并返回 JSON:\n"
+            "{\n"
+            '  "semantic_quality": 0.0~1.0,  // 内容是否满足评分规则要求\n'
+            '  "asset_coverage": 0.0~1.0,    // 素材是否在内容中被充分引用\n'
+            '  "reasoning": "评分理由...",    // 100字以内的评分理由\n'
+            '  "suggestions": ["建议1", "建议2"] // 改进建议列表\n'
+            "}"
+        )
+
+        try:
+            content = self._chat_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=2048,
+            )
+            content = (content or "").strip()
+            if not content:
+                return {
+                    "semantic_quality": 0.0,
+                    "asset_coverage": 0.0,
+                    "reasoning": "LLM 返回空内容",
+                    "suggestions": [],
+                }
+            payload = self._parse_json_payload(content)
+            return {
+                "semantic_quality": float(payload.get("semantic_quality", 0)),
+                "asset_coverage": float(payload.get("asset_coverage", 0)),
+                "reasoning": str(payload.get("reasoning", "")),
+                "suggestions": payload.get("suggestions", []) or [],
+            }
+        except Exception as exc:
+            logger.warning("LLM scoring failed: %s", exc)
+            return {
+                "semantic_quality": 0.0,
+                "asset_coverage": 0.0,
+                "reasoning": f"LLM 评分失败: {exc}",
+                "suggestions": [],
+            }
+
+
 class LLMPreEvaluationClient(_BaseLLMClient):
     """LLM client for pre-evaluation (tender document analysis)."""
 
@@ -821,4 +898,5 @@ llm_review_client = LLMReviewClient()
 llm_generation_client = LLMGenerationClient()
 llm_decision_client = LLMDecisionClient()
 llm_proposal_client = LLMProposalClient()
+llm_scoring_client = LLMScoringClient()
 llm_pre_evaluation_client = LLMPreEvaluationClient()
