@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.project import Project
 from app.schemas.proposal import (
     ProposalSectionSummary,
     ProposalSectionDetail,

@@ -318,6 +318,7 @@ class GenerationService:
                 job.completed_at = datetime.now(timezone.utc)
                 db.commit()
             except Exception as exc:  # noqa: BLE001
+                db.rollback()
                 job.status = "failed"
                 job.error_message = str(exc)[:4000]
                 job.completed_at = datetime.now(timezone.utc)
