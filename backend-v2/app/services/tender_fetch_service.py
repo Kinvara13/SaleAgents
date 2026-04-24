@@ -25,8 +25,8 @@ TENDER_SOURCES = [
 ]
 
 
-def _generate_mock_tenders(count: int = 3) -> list[dict[str, Any]]:
-    """生成模拟招标数据（用于演示）"""
+def _fallback_seed_tenders(count: int = 3) -> list[dict[str, Any]]:
+    """在未接入真实招标抓取源时，生成后备示例数据以保持系统可用性。"""
     industries = ["信息技术", "建筑工程", "物流服务", "咨询服务", "软件开发"]
     regions = ["北京", "上海", "广州", "深圳", "杭州"]
 
@@ -65,7 +65,7 @@ def fetch_tenders_from_source(
     # response = requests.get(source_url, timeout=30)
     # data = parse_tender_list(response.text)
 
-    raw_tenders = _generate_mock_tenders(count=random.randint(1, 3))
+    raw_tenders = _fallback_seed_tenders(count=random.randint(1, 3))
 
     new_count = 0
     updated_count = 0

@@ -570,7 +570,3 @@ def update_section(
 
 def simulate_parse(db: Session, project_id: str, filename: str) -> list[ParsingSectionSummary]:
     return parsing_service.simulate_parse(db, project_id, filename)
-
-
-def _mock_content(name: str) -> str:
-    return f"【{name}】\n\n此处为招标文件解析得到的 {name} 内容。\n\n在正式投标文件中，应根据招标文件要求及公司实际情况填写相应内容。\n\n（内容由 AI 解析生成，人工可在此处编辑修改）"
