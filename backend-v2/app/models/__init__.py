@@ -11,6 +11,7 @@ from app.models.business_document import BusinessDocument
 from app.models.technical_document import TechnicalDocument
 from app.models.workspace_panel import WorkspacePanel
 from app.models.proposal_plan import ProposalPlan
+from app.models.async_task import AsyncTask
 
 __all__ = [
     "Project",
@@ -29,4 +30,5 @@ __all__ = [
     "TechnicalDocument",
     "WorkspacePanel",
     "ProposalPlan",
+    "AsyncTask",
 ]

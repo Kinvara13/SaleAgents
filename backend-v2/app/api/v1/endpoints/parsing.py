@@ -6,7 +6,9 @@ import zipfile, tempfile, os, shutil
 
 from app.db.session import get_db
 from app.schemas.parsing import ParsingSectionSummary, ParsingSectionDetail, ParsingSectionUpdateRequest
+from app.schemas.task import TaskSubmitResponse
 from app.services.llm_parsing_client import llm_parsing_client
+from app.services.task_service import create_task, update_task_status
 from app.models.parsing_section import ParsingSection
 from app.models.project import Project
 from app.core.config import settings
@@ -169,14 +171,14 @@ def _handle_zip(project_id: str, zip_path: Path, db: Session) -> list[dict]:
     return all_sections
 
 
-@router.post("/{project_id}/upload")
+@router.post("/{project_id}/upload", response_model=TaskSubmitResponse)
 async def upload_and_parse(
     project_id: str,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-) -> dict:
-    """上传招标文件（支持ZIP包）并触发后台异步解析"""
+) -> TaskSubmitResponse:
+    """上传招标文件（支持ZIP包）并触发后台异步解析，返回任务ID"""
     filename = file.filename or "unknown"
     ext = Path(filename).suffix.lower()
 
@@ -195,6 +197,9 @@ async def upload_and_parse(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
+    # 创建异步任务记录
+    task = create_task(db, task_type="document_parsing", project_id=project_id)
+
     upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_documents"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -203,20 +208,26 @@ async def upload_and_parse(
         zip_path = upload_dir / filename
         with open(zip_path, "wb") as f:
             f.write(content)
-        background_tasks.add_task(_handle_zip_async, project_id, zip_path)
+        background_tasks.add_task(_handle_zip_async, project_id, zip_path, task.id)
     else:
         # Handle single file
         file_path = upload_dir / filename
         with open(file_path, "wb") as f:
             f.write(content)
-        background_tasks.add_task(_parse_single_file_async, project_id, file_path, filename)
+        background_tasks.add_task(_parse_single_file_async, project_id, file_path, filename, task.id)
 
-    return {"status": "processing", "message": "文件已接收，后台解析任务已启动"}
+    return TaskSubmitResponse(
+        task_id=task.id,
+        status="processing",
+        message="文件已接收，后台解析任务已启动",
+    )
 
-def _handle_zip_async(project_id: str, zip_path: Path):
+def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
+        update_task_status(db, task_id, "processing")
+        
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
@@ -237,6 +248,8 @@ def _handle_zip_async(project_id: str, zip_path: Path):
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
             db.commit()
+        
+        update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
     except Exception as e:
         import logging
         logging.error(f"Zip parsing failed for project {project_id}: {e}")
@@ -248,13 +261,16 @@ def _handle_zip_async(project_id: str, zip_path: Path):
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "failed"
             db.commit()
+        update_task_status(db, task_id, "failed", error_message=str(e))
     finally:
         db.close()
 
-def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
+def _parse_single_file_async(project_id: str, file_path: Path, filename: str, task_id: str):
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
+        update_task_status(db, task_id, "processing")
+        
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
             project.status = "解析中"
@@ -274,6 +290,8 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
             db.commit()
+        
+        update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
     except Exception as e:
         import logging
         logging.error(f"Single file parsing failed for project {project_id}: {e}")
@@ -285,6 +303,7 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str):
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "failed"
             db.commit()
+        update_task_status(db, task_id, "failed", error_message=str(e))
     finally:
         db.close()
 

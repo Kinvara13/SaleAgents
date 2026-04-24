@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import projects, parsing, proposal_editor, chat, users, settings, auth, tenders, business_document, technical_document, proposal_plan, technical_case, pricing, review, pre_evaluation, health
+from app.api.v1.endpoints import projects, parsing, proposal_editor, chat, users, settings, auth, tenders, business_document, technical_document, proposal_plan, technical_case, pricing, review, pre_evaluation, health, tasks
 
 api_router = APIRouter()
 
@@ -21,3 +21,4 @@ api_router.include_router(proposal_plan.router, prefix="/projects", tags=["propo
 api_router.include_router(pricing.router, prefix="/pricing", tags=["pricing"])
 api_router.include_router(review.router, prefix="/review", tags=["review"])
 api_router.include_router(pre_evaluation.router, prefix="/pre-evaluation", tags=["pre-evaluation"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])

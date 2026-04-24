@@ -11,19 +11,21 @@ from app.schemas.proposal import (
     ProposalGenerationRequest,
     SCORING_RULES,
 )
+from app.schemas.task import TaskSubmitResponse
 from app.services import proposal_service
+from app.services.task_service import create_task, update_task_status
 
 router = APIRouter()
 
 
-@router.post("/{project_id}/generate")
+@router.post("/{project_id}/generate", response_model=TaskSubmitResponse)
 def generate_proposal(
     project_id: str,
     background_tasks: BackgroundTasks,
     payload: ProposalGenerationRequest | None = None,
     db: Session = Depends(get_db),
-) -> dict:
-    """触发异步生成任务"""
+) -> TaskSubmitResponse:
+    """触发异步生成任务，返回任务ID"""
     if payload is None:
         payload = ProposalGenerationRequest()
     
@@ -36,8 +38,55 @@ def generate_proposal(
             project.node_status = {"generation": "processing"}
         db.commit()
     
-    background_tasks.add_task(proposal_service.generate_proposal_async, project_id, payload)
-    return {"status": "processing", "message": "生成任务已在后台启动"}
+    # 创建异步任务记录
+    task = create_task(db, task_type="proposal_generation", project_id=project_id)
+    
+    background_tasks.add_task(_generate_proposal_with_task, project_id, payload, task.id)
+    return TaskSubmitResponse(
+        task_id=task.id,
+        status="processing",
+        message="生成任务已在后台启动",
+    )
+
+
+def _generate_proposal_with_task(project_id: str, payload: ProposalGenerationRequest, task_id: str) -> None:
+    """带任务状态更新的异步生成包装器"""
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        update_task_status(db, task_id, "processing")
+        
+        result = proposal_service.generate_proposal(db, project_id, payload)
+        
+        # 更新项目状态
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            if isinstance(project.node_status, dict):
+                project.node_status["generation"] = "completed"
+            else:
+                project.node_status = {"generation": "completed"}
+            db.commit()
+        
+        update_task_status(
+            db, task_id, "completed",
+            result={"section_count": len(result)}
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Proposal generation failed for project {project_id}: {e}")
+        db.rollback()
+        
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            if isinstance(project.node_status, dict):
+                project.node_status["generation"] = "failed"
+            else:
+                project.node_status = {"generation": "failed"}
+            db.commit()
+        
+        update_task_status(db, task_id, "failed", error_message=str(e))
+    finally:
+        db.close()
 
 
 @router.get("/{project_id}/sections", response_model=list[ProposalSectionSummary])

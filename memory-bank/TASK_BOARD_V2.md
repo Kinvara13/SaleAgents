@@ -30,8 +30,8 @@
 
 | task_id | 模块 | 问题类型 | 目标结果 | owner | status | depends_on | 验收标准 | 记录文件 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| FE-006 | 前端 | Bug修复 | 全局排查并修复 Axios/Fetch 语法混用问题 | Frontend Agent | todo | QA-002 | 前端代码中不存在 `res.ok` 或 `res.json()` 等针对 Axios 响应的错误调用 | `memory-bank/agent-worklogs/frontend-agent.md` |
-| BE-006 | 后端 | 工程化 | 引入 Alembic 进行数据库版本迁移管理 | Backend Agent | todo | QA-001 | 可通过 `alembic upgrade head` 生成与代码一致的库表结构，消除 schema 漂移 | `memory-bank/agent-worklogs/backend-agent.md` |
-| BE-007 | 后端 | 异步调度 | 引入 BackgroundTasks/Celery 改造长耗时解析与生成接口 | Backend Agent | todo | 无 | 耗时任务转为异步，前端不会遇到 504 Timeout，并能获取状态 | `memory-bank/agent-worklogs/backend-agent.md` |
+| FE-006 | 前端 | Bug修复 | 全局排查并修复 Axios/Fetch 语法混用问题 | Frontend Agent | done | QA-002 | 前端代码中不存在 `res.ok` 或 `res.json()` 等针对 Axios 响应的错误调用 | `memory-bank/agent-worklogs/frontend-agent.md` |
+| BE-006 | 后端 | 工程化 | 引入 Alembic 进行数据库版本迁移管理 | Backend Agent | in_progress | QA-001 | 可通过 `alembic upgrade head` 生成与代码一致的库表结构，消除 schema 漂移 | `memory-bank/agent-worklogs/backend-agent.md` |
+| BE-007 | 后端 | 异步调度 | 引入 BackgroundTasks/Celery 改造长耗时解析与生成接口 | Backend Agent | in_progress | 无 | 耗时任务转为异步，前端不会遇到 504 Timeout，并能获取状态 | `memory-bank/agent-worklogs/backend-agent.md` |
 | BE-008 | 后端 | LLM接入 | 重构 proposal_service.py，接入真实 LLM 替代硬编码模板 | Backend Agent | todo | BE-007 | 能根据上下文真实生成不同内容的文档，并根据标书给出语义化预打分 | `memory-bank/agent-worklogs/backend-agent.md` |
 | BE-009 | 后端 | 文本处理 | 优化标书解析处理，引入分块与摘要策略代替硬截断 | Backend Agent | todo | BE-007 | 支持超长 PDF 解析，末尾的技术要求或合同条款不会被丢弃 | `memory-bank/agent-worklogs/backend-agent.md` |
