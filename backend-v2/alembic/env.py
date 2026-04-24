@@ -54,6 +54,7 @@ from app.models.project_parse_section import ProjectParseSection
 from app.models.rule_statistics import RuleStatistics
 from app.models.knowledge_asset_workflow import KnowledgeAssetWorkflowRecord
 from app.models.async_task import AsyncTask
+from app.models.tender_fetch_log import TenderFetchLog
 
 # add your model's MetaData object here
 # for 'autogenerate' support
