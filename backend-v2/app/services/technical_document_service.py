@@ -570,8 +570,13 @@ def generate_technical_document(
         routed_asset_payloads.append(f"{ma.asset_title}｜{ma.asset_type}｜{ma.snippet}")
 
     from app.services.technical_case_service import search_technical_cases
-    # 基于 doc_name 简单匹配技术案例，如遇到 "项目实力"、"金额" 等关键词，进行特定查询
-    cases = search_technical_cases(db, project_id, keyword=doc.doc_name)
+    cases = search_technical_cases(
+        db,
+        project_id=project_id,
+        doc_type=doc.doc_type,
+        keyword=doc.doc_name,
+        limit=5,
+    )
     case_payloads = [
         f"案例名称：{case.title}｜合同：{case.contract_name}｜摘要：{case.summary}"
         for case in cases[:3]

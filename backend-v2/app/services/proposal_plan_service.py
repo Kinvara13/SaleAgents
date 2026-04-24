@@ -446,7 +446,13 @@ def generate_proposal_plan(
         routed_asset_payloads.append(f"{ma.asset_title}｜{ma.asset_type}｜{ma.snippet}")
 
     from app.services.technical_case_service import search_technical_cases
-    cases = search_technical_cases(db, project_id, keyword=doc.doc_name)
+    cases = search_technical_cases(
+        db,
+        project_id=project_id,
+        doc_type=doc.doc_type,
+        keyword=doc.doc_name,
+        limit=5,
+    )
     case_payloads = [
         f"案例名称：{case.title}｜合同：{case.contract_name}｜摘要：{case.summary}"
         for case in cases[:3]
