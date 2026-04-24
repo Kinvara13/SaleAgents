@@ -60,3 +60,40 @@ export async function generateTechnicalDocument(
   )
   return res.data
 }
+
+export interface DocumentExportResult {
+  download_url: string
+  filename: string
+  format: string
+}
+
+export async function exportTechnicalDocument(
+  projectId: string,
+  docId: string,
+  fmt?: string
+): Promise<DocumentExportResult> {
+  const res = await api.post<DocumentExportResult>(
+    `/projects/${projectId}/technical-documents/${docId}/export`,
+    null,
+    { params: fmt ? { fmt } : undefined }
+  )
+  return res.data
+}
+
+export interface DocumentScoreResult {
+  score: number
+  max_score: number
+  is_scored: boolean
+  breakdown: Record<string, unknown>
+  message?: string
+}
+
+export async function scoreTechnicalDocument(
+  projectId: string,
+  docId: string
+): Promise<DocumentScoreResult> {
+  const res = await api.get<DocumentScoreResult>(
+    `/projects/${projectId}/technical-documents/${docId}/score`
+  )
+  return res.data
+}

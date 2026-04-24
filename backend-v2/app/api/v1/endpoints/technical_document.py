@@ -6,8 +6,12 @@ from app.schemas.technical_document import (
     TechnicalDocumentSummary,
     TechnicalDocumentDetail,
     TechnicalDocumentUpdateRequest,
+    DocumentExportResponse,
+    DocumentScoreResponse,
 )
 from app.services import technical_document_service
+from app.services.document_export_service import export_document
+from app.services.scoring_service import calculate_score
 
 router = APIRouter()
 
@@ -50,3 +54,29 @@ def generate_technical_document(
 ) -> TechnicalDocumentDetail:
     """AI自动生成并填充技术文档内容"""
     return technical_document_service.generate_technical_document(db, project_id, doc_id)
+
+
+@router.post("/{project_id}/technical-documents/{doc_id}/export", response_model=DocumentExportResponse)
+def export_technical_document(
+    project_id: str,
+    doc_id: str,
+    fmt: str | None = None,
+    db: Session = Depends(get_db),
+) -> DocumentExportResponse:
+    """导出技术文档为 Word/Excel"""
+    result = export_document(db, project_id, doc_id, doc_kind="technical", fmt=fmt)
+    return DocumentExportResponse(
+        download_url=result["download_url"],
+        filename=result["filename"],
+        format=result["format"],
+    )
+
+
+@router.get("/{project_id}/technical-documents/{doc_id}/score", response_model=DocumentScoreResponse)
+def score_technical_document(
+    project_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+) -> DocumentScoreResponse:
+    """计算技术文档评分"""
+    return DocumentScoreResponse(**calculate_score(db, project_id, doc_id, doc_kind="technical"))

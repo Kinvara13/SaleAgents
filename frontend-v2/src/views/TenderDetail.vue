@@ -230,6 +230,20 @@
                 >
                   {{ docStatusLabel(doc.status) }}
                 </span>
+                <button
+                  class="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                  :disabled="exportingDocId === doc.id"
+                  @click.stop="openExportModal(doc, 'business')"
+                >
+                  {{ exportingDocId === doc.id ? '导出中...' : '导出' }}
+                </button>
+                <button
+                  class="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                  :disabled="scoringDocId === doc.id"
+                  @click.stop="handleScoreBusinessDoc(doc)"
+                >
+                  {{ scoringDocId === doc.id ? '评分中...' : '评分' }}
+                </button>
               </div>
             </div>
 
@@ -503,6 +517,20 @@
                 >
                   {{ docStatusLabel(doc.status) }}
                 </span>
+                <button
+                  class="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                  :disabled="exportingTechDocId === doc.id"
+                  @click.stop="openExportModal(doc, 'technical')"
+                >
+                  {{ exportingTechDocId === doc.id ? '导出中...' : '导出' }}
+                </button>
+                <button
+                  class="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                  :disabled="scoringTechDocId === doc.id"
+                  @click.stop="handleScoreTechDoc(doc)"
+                >
+                  {{ scoringTechDocId === doc.id ? '评分中...' : '评分' }}
+                </button>
               </div>
             </div>
 
@@ -823,6 +851,47 @@
         </div>
       </div>
     </div>
+
+    <!-- 导出格式选择 Modal -->
+    <div v-if="showExportModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="closeExportModal">
+      <div class="bg-white rounded-xl p-6 w-80">
+        <h3 class="text-base font-medium text-gray-800 mb-1">导出文档</h3>
+        <p v-if="exportDocInfo" class="text-xs text-gray-400 mb-4">{{ exportDocInfo.docName }}</p>
+        <div class="space-y-2">
+          <button class="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-all" @click="doExport('word')">Word (.docx)</button>
+          <button class="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-all" @click="doExport('excel')">Excel (.xlsx)</button>
+          <button class="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-all" @click="doExport('pdf')">PDF (.pdf)</button>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button class="px-4 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all" @click="closeExportModal">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 评分结果 Modal -->
+    <div v-if="showScoreModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="closeScoreModal">
+      <div class="bg-white rounded-xl p-6 w-[420px] max-h-[70vh] overflow-auto">
+        <h3 class="text-base font-medium text-gray-800 mb-4">📊 文档评分结果</h3>
+        <div v-if="scoreResult" class="space-y-3">
+          <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+            <span class="text-sm text-gray-600">完整度分数</span>
+            <span class="text-lg font-bold text-blue-600">{{ scoreResult.score }} / {{ scoreResult.max_score }}</span>
+          </div>
+          <div v-if="scoreResult.message" class="text-xs text-gray-500">{{ scoreResult.message }}</div>
+          <div v-if="scoreResult.breakdown && Object.keys(scoreResult.breakdown).length > 0">
+            <div class="text-xs font-medium text-gray-500 mb-2">详细评分项</div>
+            <div v-for="(value, key) in scoreResult.breakdown" :key="key" class="flex items-center justify-between py-1 border-b border-gray-50 text-xs">
+              <span class="text-gray-600">{{ key }}</span>
+              <span class="text-gray-800 font-medium">{{ typeof value === 'object' ? JSON.stringify(value) : String(value) }}</span>
+            </div>
+          </div>
+          <div v-else class="text-xs text-gray-400">暂无详细评分项</div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button class="px-4 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all" @click="closeScoreModal">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -836,12 +905,18 @@ import {
   getBusinessDocumentDetail,
   updateBusinessDocument,
   generateBusinessDocument,
+  exportBusinessDocument,
+  scoreBusinessDocument,
+  type DocumentExportResult,
+  type DocumentScoreResult,
 } from '../services/businessDocument'
 import {
   listTechnicalDocuments,
   getTechnicalDocumentDetail,
   updateTechnicalDocument,
   generateTechnicalDocument,
+  exportTechnicalDocument,
+  scoreTechnicalDocument,
 } from '../services/technicalDocument'
 import {
   listProposalPlans,
@@ -888,6 +963,8 @@ const currentDoc = ref<BusinessDocumentDetail | null>(null)
 const editDocContent = ref('')
 const savingDoc = ref(false)
 const generatingDocId = ref<string | null>(null)
+const exportingDocId = ref<string | null>(null)
+const scoringDocId = ref<string | null>(null)
 
 // Technical documents
 const techDocs = ref<TechnicalDocumentSummary[]>([])
@@ -898,6 +975,16 @@ const currentTechDoc = ref<TechnicalDocumentDetail | null>(null)
 const editTechDocContent = ref('')
 const savingTechDoc = ref(false)
 const generatingTechDocId = ref<string | null>(null)
+const exportingTechDocId = ref<string | null>(null)
+const scoringTechDocId = ref<string | null>(null)
+
+// Score modal
+const showScoreModal = ref(false)
+const scoreResult = ref<DocumentScoreResult | null>(null)
+
+// Export modal
+const showExportModal = ref(false)
+const exportDocInfo = ref<{ type: 'business' | 'technical'; docId: string; docName: string } | null>(null)
 
 const businessSections = computed(() => sections.value.filter(s => s.section_type === '商务'))
 const techSections = computed(() => sections.value.filter(s => s.section_type === '技术'))
@@ -1289,6 +1376,92 @@ async function generateTechDoc(doc: TechnicalDocumentSummary) {
   } finally {
     generatingTechDocId.value = null
   }
+}
+
+// ---- Export / Score handlers ----
+
+function openExportModal(doc: BusinessDocumentSummary | TechnicalDocumentSummary, type: 'business' | 'technical') {
+  exportDocInfo.value = { type, docId: doc.id, docName: doc.doc_name }
+  showExportModal.value = true
+}
+
+function closeExportModal() {
+  showExportModal.value = false
+  exportDocInfo.value = null
+}
+
+function triggerDownload(url: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || 'download'
+  a.target = '_blank'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+async function doExport(fmt: string) {
+  if (!exportDocInfo.value || !pid.value) return
+  const { type, docId } = exportDocInfo.value
+  if (type === 'business') {
+    exportingDocId.value = docId
+    try {
+      const result = await exportBusinessDocument(pid.value, docId, fmt)
+      triggerDownload(result.download_url, result.filename)
+    } catch (e) {
+      console.error('Export business doc failed:', e)
+      alert('导出失败，请重试')
+    } finally {
+      exportingDocId.value = null
+    }
+  } else {
+    exportingTechDocId.value = docId
+    try {
+      const result = await exportTechnicalDocument(pid.value, docId, fmt)
+      triggerDownload(result.download_url, result.filename)
+    } catch (e) {
+      console.error('Export tech doc failed:', e)
+      alert('导出失败，请重试')
+    } finally {
+      exportingTechDocId.value = null
+    }
+  }
+  closeExportModal()
+}
+
+async function handleScoreBusinessDoc(doc: BusinessDocumentSummary) {
+  if (!pid.value) return
+  scoringDocId.value = doc.id
+  try {
+    const result = await scoreBusinessDocument(pid.value, doc.id)
+    scoreResult.value = result
+    showScoreModal.value = true
+  } catch (e) {
+    console.error('Score business doc failed:', e)
+    alert('评分失败，请重试')
+  } finally {
+    scoringDocId.value = null
+  }
+}
+
+async function handleScoreTechDoc(doc: TechnicalDocumentSummary) {
+  if (!pid.value) return
+  scoringTechDocId.value = doc.id
+  try {
+    const result = await scoreTechnicalDocument(pid.value, doc.id)
+    scoreResult.value = result
+    showScoreModal.value = true
+  } catch (e) {
+    console.error('Score tech doc failed:', e)
+    alert('评分失败，请重试')
+  } finally {
+    scoringTechDocId.value = null
+  }
+}
+
+function closeScoreModal() {
+  showScoreModal.value = false
+  scoreResult.value = null
 }
 
 onMounted(async () => {

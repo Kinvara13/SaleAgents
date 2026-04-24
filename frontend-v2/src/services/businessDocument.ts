@@ -60,3 +60,40 @@ export async function generateBusinessDocument(
   )
   return res.data
 }
+
+export interface DocumentExportResult {
+  download_url: string
+  filename: string
+  format: string
+}
+
+export async function exportBusinessDocument(
+  projectId: string,
+  docId: string,
+  fmt?: string
+): Promise<DocumentExportResult> {
+  const res = await api.post<DocumentExportResult>(
+    `/projects/${projectId}/business-documents/${docId}/export`,
+    null,
+    { params: fmt ? { fmt } : undefined }
+  )
+  return res.data
+}
+
+export interface DocumentScoreResult {
+  score: number
+  max_score: number
+  is_scored: boolean
+  breakdown: Record<string, unknown>
+  message?: string
+}
+
+export async function scoreBusinessDocument(
+  projectId: string,
+  docId: string
+): Promise<DocumentScoreResult> {
+  const res = await api.get<DocumentScoreResult>(
+    `/projects/${projectId}/business-documents/${docId}/score`
+  )
+  return res.data
+}

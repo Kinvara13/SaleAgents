@@ -35,3 +35,17 @@ class BusinessDocumentDetail(BaseModel):
 class BusinessDocumentUpdateRequest(BaseModel):
     editable_content: str | None = Field(default=None)
     status: str | None = Field(default=None)
+
+
+class DocumentExportResponse(BaseModel):
+    download_url: str
+    filename: str
+    format: str
+
+
+class DocumentScoreResponse(BaseModel):
+    score: float
+    max_score: float
+    is_scored: bool
+    breakdown: dict
+    message: str | None = None

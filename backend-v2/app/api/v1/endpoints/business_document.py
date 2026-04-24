@@ -6,8 +6,12 @@ from app.schemas.business_document import (
     BusinessDocumentSummary,
     BusinessDocumentDetail,
     BusinessDocumentUpdateRequest,
+    DocumentExportResponse,
+    DocumentScoreResponse,
 )
 from app.services import business_document_service
+from app.services.document_export_service import export_document
+from app.services.scoring_service import calculate_score
 
 router = APIRouter()
 
@@ -50,3 +54,29 @@ def generate_business_document(
 ) -> BusinessDocumentDetail:
     """AI自动生成并填充商务文档内容"""
     return business_document_service.generate_business_document(db, project_id, doc_id)
+
+
+@router.post("/{project_id}/business-documents/{doc_id}/export", response_model=DocumentExportResponse)
+def export_business_document(
+    project_id: str,
+    doc_id: str,
+    fmt: str | None = None,
+    db: Session = Depends(get_db),
+) -> DocumentExportResponse:
+    """导出商务文档为 Word/Excel"""
+    result = export_document(db, project_id, doc_id, doc_kind="business", fmt=fmt)
+    return DocumentExportResponse(
+        download_url=result["download_url"],
+        filename=result["filename"],
+        format=result["format"],
+    )
+
+
+@router.get("/{project_id}/business-documents/{doc_id}/score", response_model=DocumentScoreResponse)
+def score_business_document(
+    project_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+) -> DocumentScoreResponse:
+    """计算商务文档评分"""
+    return DocumentScoreResponse(**calculate_score(db, project_id, doc_id, doc_kind="business"))

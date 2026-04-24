@@ -24,3 +24,4 @@ backend/uv.lock
 
 backend/app/llm_providers.json
 backend/storage/
+backend-v2/exports/
