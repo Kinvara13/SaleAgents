@@ -12,6 +12,7 @@ from app.models.technical_document import TechnicalDocument
 from app.models.workspace_panel import WorkspacePanel
 from app.models.proposal_plan import ProposalPlan
 from app.models.async_task import AsyncTask
+from app.models.document_score_history import DocumentScoreHistory
 
 __all__ = [
     "Project",
@@ -31,4 +32,5 @@ __all__ = [
     "WorkspacePanel",
     "ProposalPlan",
     "AsyncTask",
+    "DocumentScoreHistory",
 ]
