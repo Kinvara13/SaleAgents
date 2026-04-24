@@ -557,6 +557,18 @@ def generate_technical_document(
         for item in routed_assets
     ]
 
+    # Material library routing
+    material_assets = asset_routing_service.route_materials_for_document(
+        db,
+        doc_type=doc.doc_type,
+        doc_name=doc.doc_name,
+        rule_description=doc.rule_description,
+        project_summary=project_summary,
+        limit=3,
+    )
+    for ma in material_assets:
+        routed_asset_payloads.append(f"{ma.asset_title}｜{ma.asset_type}｜{ma.snippet}")
+
     from app.services.technical_case_service import search_technical_cases
     # 基于 doc_name 简单匹配技术案例，如遇到 "项目实力"、"金额" 等关键词，进行特定查询
     cases = search_technical_cases(db, project_id, keyword=doc.doc_name)

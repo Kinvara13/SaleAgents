@@ -155,4 +155,99 @@ class AssetRoutingService:
         ]
 
 
+    def route_materials_for_document(
+        self,
+        db: Session,
+        *,
+        doc_type: str,
+        doc_name: str,
+        rule_description: str,
+        project_summary: str,
+        limit: int = 5,
+    ) -> list[RoutedAsset]:
+        """
+        Match Materials from the material library based on doc_type and rule_description.
+        Returns list of RoutedAsset for injection into document generation.
+        """
+        from app.models.settings import Material
+
+        # Determine target categories from doc_type
+        category_map: dict[str, list[str]] = {
+            "deviation": ["certificate", "other"],
+            "commitment": ["certificate", "other"],
+            "authorization": ["certificate"],
+            "cmmi": ["cmmi", "certificate"],
+            "soft_copy": ["soft_copy", "certificate"],
+            "project_experience": ["project_experience"],
+            "personnel_capability": ["personnel_capability"],
+            "maintenance_period": ["certificate", "other"],
+            "project_manager": ["personnel_capability"],
+            "staff_capability": ["personnel_capability"],
+            "hardware_resource": ["certificate", "other"],
+        }
+        target_categories = category_map.get(doc_type, [])
+        if not target_categories:
+            target_categories = ["other"]
+
+        query = db.query(Material).filter(
+            Material.is_active == True,
+            Material.category.in_(target_categories),
+        )
+
+        # Keyword search from rule_description
+        keywords: list[str] = []
+        if rule_description:
+            for line in rule_description.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                cleaned = re.sub(r"^[\u2460-\u247f\d]+[\.\)\uff09\s]+", "", line)
+                cleaned = re.split(r"[\uff0c,\u3002\uff1b;]", cleaned)[0]
+                if 4 <= len(cleaned) <= 30:
+                    keywords.append(cleaned)
+
+        materials = query.all()
+        matches: list[RoutedAsset] = []
+
+        for m in materials:
+            score = 0.0
+            reasons: list[str] = []
+
+            # Category match
+            if m.category in target_categories:
+                score += 2.0
+                reasons.append(f"分类匹配: {m.category}")
+
+            # Keyword match against content/name/description
+            m_text = f"{m.name} {m.description} {m.content}"
+            for kw in keywords:
+                if kw in m_text:
+                    score += 1.0
+                    reasons.append(f"关键词匹配: {kw}")
+
+            # Project summary relevance
+            if project_summary and any(term in m_text for term in _extract_terms(project_summary)):
+                score += 0.5
+                reasons.append("项目相关度匹配")
+
+            if score <= 0:
+                continue
+
+            snippet = m.content[:220] if m.content else m.description[:220]
+            matches.append(
+                RoutedAsset(
+                    asset_id=m.id,
+                    asset_title=m.name,
+                    asset_type=m.category,
+                    chunk_title=m.name,
+                    snippet=snippet,
+                    reason="；".join(reasons)[:280],
+                    score=round(score, 2),
+                )
+            )
+
+        matches.sort(key=lambda item: item.score, reverse=True)
+        return matches[:limit]
+
+
 asset_routing_service = AssetRoutingService()

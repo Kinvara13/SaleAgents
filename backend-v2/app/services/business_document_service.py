@@ -597,6 +597,18 @@ def generate_business_document(
         for item in routed_assets
     ]
 
+    # Material library routing
+    material_assets = asset_routing_service.route_materials_for_document(
+        db,
+        doc_type=doc.doc_type,
+        doc_name=doc.doc_name,
+        rule_description=doc.rule_description,
+        project_summary=project_summary,
+        limit=3,
+    )
+    for ma in material_assets:
+        routed_asset_payloads.append(f"{ma.asset_title}｜{ma.asset_type}｜{ma.snippet}")
+
     from app.services.llm_client import llm_generation_client
     generated_content = llm_generation_client.generate_document_content(
         project_name=project.name,
