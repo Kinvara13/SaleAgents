@@ -1,6 +1,6 @@
 # SaleAgents v2 功能矩阵审计
 
-更新日期：2026-04-21  
+更新日期：2026-04-24  
 审计范围：`memory-bank/招投标智能体功能点拆分.xlsx` 行 `49-82`，排除 `demo制作`。  
 状态枚举：`已完成` / `部分完成` / `仅页面` / `仅接口` / `未开始` / `阻塞`
 
@@ -26,10 +26,10 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | F049 | 49 | 招标信息推送 | 定时刷新招标清单 | `TenderInfoList.vue` | `GET /tenders`; `tender_service.list_tenders` | 部分完成 | 招标信息列表页存在；`GET /api/v1/tenders` 2026-04-21 smoke pass | 缺少定时抓取、刷新任务、推送留痕与失败告警 | P1 | FE+BE+QA |
 | F050 | 50 | 招标信息详情页 | 展示标题、截止时间、链接等关键信息 | `TenderInfoDetail.vue` | `GET /tenders/{id}` | 部分完成 | 详情页与详情接口存在；路由已接入 | 未验证页面交互；网页抽取逻辑未见实现；字段质量依赖种子数据 | P1 | FE+BE |
-| F051 | 51 | 招标信息处理 | 投标/不投、上传标书、是否保证金、项目类型 | `TenderInfoDetail.vue` | `POST /tenders/{id}/decision`; `POST /tenders/{id}/upload` | 部分完成 | 决策与上传接口存在；上传会创建项目并绑定 `project_id` | 前端未覆盖保证金/项目类型；未补运行态决策和上传验证；进入解析链路不完整 | P0 | FE+BE+QA |
-| F052 | 52 | 标书制作 | 任务清单按账号区分；上传标书自动解析 | `BidList.vue`; `TenderDetail.vue` | `GET /projects?mine=true`; `POST /parsing/{project_id}/upload` | 部分完成 | 项目列表支持 `mine`；解析上传接口存在 | 任务清单仅停留在项目列表；上传解析未做端到端验收；工作台未闭环 | P0 | FE+BE+QA |
-| F053 | 53 | 投标项目清单 | 重点信息、确认、文件清单、节点工作台 | `BidList.vue` | `/projects` CRUD; `/projects/{id}/confirm` | 部分完成 | 项目 CRUD 2026-04-21 smoke pass；列表页可创建/更新/删除项目 | 页面未展示完整重点字段、解析文件清单、节点工作台、时间倒排和任务派发 | P0 | FE+BE |
-| F054 | 54 | 商务部分总览 | 商务文件清单、规则、打分点 | `TenderDetail.vue` | `GET /projects/{id}/business-documents` | 部分完成 | `TenderDetail.vue` 已接商务清单；列表 smoke pass | 清单仍为模板化数据；未绑定真实解析结果与评分来源 | P0 | FE+BE |
+|| F051 | 51 | 招标信息处理 | 投标/不投、上传标书、是否保证金、项目类型 | `TenderInfoDetail.vue` | `POST /tenders/{id}/decision`; `POST /tenders/{id}/upload` | 部分完成 | 决策与上传接口存在；上传会创建项目并绑定 `project_id`；QA-002 走查：保证金/项目类型填写正常 | 前端已覆盖保证金/项目类型（QA-002）；上传后自动触发解析并更新 `parse_status`（BE-010）；但缺少真实样本上传解析的端到端验收 | P0 | FE+BE+QA |
+|| F052 | 52 | 标书制作 | 任务清单按账号区分；上传标书自动解析 | `BidList.vue`; `TenderDetail.vue` | `GET /projects?mine=true`; `POST /parsing/{project_id}/upload` | 部分完成 | 项目列表支持 `mine`；上传解析接口存在；BE-010 实现了上传后自动触发解析并更新 `parse_status` | 任务清单仅停留在项目列表；缺少真实样本的上传解析端到端验收；工作台未完全闭环（缺少人工确认节点验证） | P0 | FE+BE+QA |
+|| F053 | 53 | 投标项目清单 | 重点信息、确认、文件清单、节点工作台 | `BidList.vue` | `/projects` CRUD; `/projects/{id}/confirm` | 部分完成 | 项目 CRUD 2026-04-21 smoke pass；列表页可创建/更新/删除项目；BE-010 实现了真实数据驱动；FE-007 增加了解析状态/节点工作台列；QA-002 走查：列表展示最新项目 | 时间倒排待验证；任务派发未验证；缺少真实样本的文件清单和人工确认节点走查 | P0 | FE+BE |
+|| F054 | 54 | 商务部分总览 | 商务文件清单、规则、打分点 | `TenderDetail.vue` | `GET /projects/{id}/business-documents` | 部分完成 | `TenderDetail.vue` 已接商务清单；列表 smoke pass；BE-011 实现了真实参数填充（从 Project/Tender/ParsingSection 实时抽取）；QA-002 走查：商务区 AI 自动填充可用 | 页面级商务文档详情保存未验证；打分点来源与人工修改后重算未闭环；缺少真实样本的端到端验收 | P0 | FE+BE |
 | F055 | 55 | 商务偏离表 | 原文预览、识别填写、人工修改 | `TenderDetail.vue` 商务区 | `GET/PATCH /projects/{id}/business-documents/{doc_id}` | 部分完成 | 文档详情/更新接口存在；商务区支持编辑态 | 未验证具体文档详情和保存；识别填写规则未见专门实现 | P1 | FE+BE |
 | F056 | 56 | 应答承诺函 | 原文预览、识别填写、人工修改 | 同上 | 同上 | 部分完成 | 通用商务文档模型覆盖该模板 | 缺少模板专属字段识别与验收样例 | P1 | FE+BE |
 | F057 | 57 | 身份证明/授权委托书 | 原文预览、识别填写、人工修改 | 同上 | 同上 | 部分完成 | 商务模板清单含该文档类型 | 未验证授权信息自动回填与预览闭环 | P1 | FE+BE |
@@ -57,7 +57,7 @@
 | F079 | 79 | 硬件资源占用情况 | 最高得分配置、预览、二次计算 | 同上 | 同上 | 部分完成 | 同上 | 缺少硬件资源计算与重算闭环 | P0 | FE+BE |
 | F080 | 80 | 报价策略 | 填写报价表并计算得分 | `PricingStrategy.vue` | `POST /pricing/calculate`; `pricing_service` | 已完成 | 报价页接 `pricing.ts`；`POST /api/v1/pricing/calculate` 2026-04-21 smoke pass | 仍需页面级回归，但当前无关键阻塞 | P1 | FE+QA |
 | F081 | 81 | 技术案例 | 检索技术案例并填充证明材料 | `TenderDetail.vue` 技术案例区 | `GET/POST/PATCH/DELETE /projects/{id}/technical-cases`; `search` | 部分完成 | 技术案例列表和 CRUD/search 接口存在；列表 smoke pass | 自动从素材库检索并生成文档未闭环；列表当前为空 | P0 | FE+BE |
-| F082 | 82 | 技术建议书打分 | 生成结果预打分、人工修改后二次打分 | `ProposalEditor.vue` | `POST /proposal-editor/{id}/generate|score|rescore|confirm` | 部分完成 | `generate`、`score` 2026-04-21 smoke pass | `ProposalEditor.vue` 把 axios 当 fetch 用，`.ok/.json()` 和字符串模板错误会阻断前端评分闭环 | P0 | FE+BE |
+|| F082 | 82 | 技术建议书打分 | 生成结果预打分、人工修改后二次打分 | `ProposalEditor.vue` | `POST /proposal-editor/{id}/generate|score|rescore|confirm` | 部分完成 | `generate`、`score` 2026-04-21 smoke pass；FE-001 已修复 `ProposalEditor.vue` 中 axios/fetch 混用和动态路径问题 | 页面级生成、评分、重评分、确认的端到端验收尚未完成；缺少真实样本的人工修改后二次打分验证 | P0 | FE+BE |
 
 ## 支撑能力审计（不计入 34 条）
 
@@ -67,5 +67,5 @@
 | 聊天能力 | 部分完成 | `DELETE /chat/{project_id}/history` smoke pass，修正旧报告“405”结论 | 页面级聊天交互未回归；消息流式发送未重测 |
 | 用户管理 | 部分完成 | `/users` 创建用户 smoke pass，修正旧报告“bcrypt 500”结论 | `UserManagement.vue` 使用 axios 却按 fetch 处理，且动态路径写成普通字符串 |
 | 角色管理 | 部分完成 | `/users/roles/list` smoke pass | `RoleManagement.vue` 同样把 axios 当 fetch 使用 |
-| 系统设置 | 部分完成 | `/settings/rules` POST smoke pass | `/settings/ai-config` 与 `/settings/ai-configs` 均 500；数据库缺 `ai_configs.name` 列；前端设置页受阻 |
-| 健康检查 | 未开始 | `health.py` 定义了 `/health` | 当前 `app/api/router.py` 未注册 `health.router`，`GET /api/v1/health` 404 |
+|| 系统设置 | 部分完成 | `/settings/rules` POST smoke pass；`/settings/ai-config` 2026-04-21 修复 schema 漂移后 200 | 未补登录失效和刷新 token 回归；AI 配置页面走查尚未完全覆盖所有错误态 |
+|| 健康检查 | 已完成 | `GET /api/v1/health` 2026-04-23 smoke pass，返回 200；`health.py` 已注册到 `router.py` | 无 |

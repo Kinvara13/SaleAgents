@@ -1,6 +1,6 @@
 # SaleAgents v2 任务看板
 
-更新日期：2026-04-21  
+更新日期：2026-04-24  
 说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `in_progress` / `blocked` / `review` / `done`
 
 | task_id | 来源功能点 | 问题类型 | 目标结果 | owner | status | depends_on | 验收标准 | 记录文件 |
@@ -24,7 +24,7 @@
 || QA-004 | 全局 | 测试 | 后端烟雾测试：导入检查 + health 端点验证 | QA Agent | done | BE-010,BE-011 | `python -c "from app.main import app"` 通过，`/api/v1/health` 返回 200 | `memory-bank/agent-worklogs/qa-agent.md` |
 | QA-001 | 全局 | 测试 | 重建 Python 3.11 基线下的 API smoke 套件，覆盖当前真实契约 | QA Agent | done | BE-001,BE-002 | 新 smoke 用例可复现本次报告中的关键结论并持续回归 | `memory-bank/agent-worklogs/qa-agent.md` |
 | QA-002 | F049-F082 + 支撑能力 | 测试 | 建立页面人工走查清单，补页面级验证记录 | QA Agent | done | FE-001,FE-002,FE-003,FE-004,FE-005 | 所有关键页面至少有 1 条页面走查记录和结果 | `memory-bank/agent-worklogs/qa-agent.md` |
-| QA-003 | 全局 | 测试 | 评估并选型是否引入浏览器自动化验证 v2 页面 | QA Agent | done | QA-002 | 给出是否引入浏览器自动化的决策和最小落地方案 | `memory-bank/agent-worklogs/qa-agent.md` |
+|| QA-003 | 全局 | 测试 | 评估并选型是否引入浏览器自动化验证 v2 页面 | QA Agent | done | QA-002 | 给出是否引入浏览器自动化的决策和最小落地方案 | `memory-bank/agent-worklogs/qa-agent.md` |
 
 ## 阶段二：LLM 链路打通与工程化改造 (Phase 2)
 
