@@ -45,16 +45,40 @@
           class="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed"
           :class="msg.role === 'user'
             ? 'bg-primary text-white rounded-br-sm'
-            : 'bg-gray-100 text-gray-800 rounded-bl-sm'"
+            : msg.status === 'error'
+              ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-sm'
+              : 'bg-gray-100 text-gray-800 rounded-bl-sm'"
           style="font-family: system-ui, sans-serif;"
         >
-          <span v-if="msg.role === 'assistant' && msg.status === 'streaming'" class="streaming-dots">...</span>
-          <template v-else>{{ msg.content }}</template>
+          <template v-if="msg.role === 'assistant' && msg.status === 'streaming'">
+            <span class="streaming-dots">...</span>
+          </template>
+          <template v-else-if="msg.status === 'error'">
+            <div class="flex items-center flex-wrap gap-2">
+              <span>⚠️ {{ msg.content }}</span>
+              <button
+                class="text-xs underline hover:text-red-800 transition-colors"
+                @click="retryLastMessage"
+              >
+                重试
+              </button>
+            </div>
+          </template>
+          <template v-else-if="msg.role === 'user'">
+            {{ msg.content }}
+            <span
+              v-if="msg.status === 'waiting'"
+              class="ml-1 inline-block w-1.5 h-1.5 bg-white/70 rounded-full animate-pulse"
+            />
+          </template>
+          <template v-else>
+            {{ msg.content }}
+          </template>
         </div>
       </div>
 
       <!-- Typing indicator -->
-      <div v-if="isStreaming" class="flex justify-start">
+      <div v-if="state === 'waiting'" class="flex justify-start">
         <div class="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2.5">
           <div class="flex space-x-1">
             <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
@@ -70,7 +94,7 @@
       <textarea
         ref="inputEl"
         v-model="inputText"
-        @keydown.enter.exact.prevent="sendMessage"
+        @keydown.enter.exact.prevent="sendMessage()"
         @keydown.enter.shift="inputText += '\n'"
         :disabled="isStreaming"
         placeholder="输入问题，按 Enter 发送..."
@@ -79,7 +103,7 @@
         style="font-family: system-ui, sans-serif;"
       ></textarea>
       <button
-        @click="sendMessage"
+        @click="sendMessage()"
         :disabled="!inputText.trim() || isStreaming"
         class="mb-0.5 px-3 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
       >
@@ -90,7 +114,7 @@
     <!-- State indicator -->
     <div class="flex-shrink-0 flex items-center justify-between mt-1.5 text-xs text-gray-400">
       <span>{{ stateLabel }}</span>
-      <span v-if="isStreaming" class="text-primary">流式输出中...</span>
+      <span v-if="state === 'waiting' || state === 'streaming'" class="text-primary">AI 正在输入...</span>
     </div>
   </div>
 </template>
@@ -103,7 +127,7 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
-  status?: 'idle' | 'waiting' | 'streaming' | 'confirmed' | 'done'
+  status?: 'idle' | 'waiting' | 'streaming' | 'confirmed' | 'done' | 'error'
   created_at?: string
 }
 
@@ -135,18 +159,27 @@ const stateLabel = computed(() => {
   }
 })
 
-async function sendMessage() {
-  const text = inputText.value.trim()
+async function sendMessage(forcedText?: string) {
+  const text = (forcedText !== undefined ? forcedText : inputText.value).trim().slice(0, 2000)
   if (!text || isStreaming.value) return
 
-  const userMsg: ChatMessage = {
-    id: `temp_${Date.now()}`,
-    role: 'user',
-    content: text,
-    status: 'idle',
+  let userMsg: ChatMessage
+  if (forcedText === undefined) {
+    userMsg = {
+      id: `temp_${Date.now()}`,
+      role: 'user',
+      content: text,
+      status: 'waiting',
+    }
+    messages.value.push(userMsg)
+    inputText.value = ''
+  } else {
+    const lastUserIndex = messages.value.map(m => m.role).lastIndexOf('user')
+    if (lastUserIndex === -1) return
+    userMsg = messages.value[lastUserIndex]
+    userMsg.status = 'waiting'
   }
-  messages.value.push(userMsg)
-  inputText.value = ''
+
   state.value = 'waiting'
   isStreaming.value = true
   currentStreamText.value = ''
@@ -154,24 +187,21 @@ async function sendMessage() {
   await scrollToBottom()
 
   try {
-    const res = await api.post(
-      `/chat/${props.projectId}/message`,
-      { content: text },
-      {
-        adapter: 'fetch',
-        responseType: 'stream',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-      }
-    )
+    const token = localStorage.getItem('sa_token')
+    const baseUrl = import.meta.env.VITE_API_BASE || ''
+    const res = await fetch(`${baseUrl}/api/v1/chat/${props.projectId}/message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ content: text }),
+    })
 
-    if (res.status !== 200) throw new Error('发送失败')
+    if (!res.ok) throw new Error('发送失败')
 
-    const stream = res.data as ReadableStream<Uint8Array>
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
+    const reader = res.body?.getReader()
+    if (!reader) throw new Error('无法读取流')
 
     const assistantMsg: ChatMessage = {
       id: `temp_${Date.now()}_a`,
@@ -180,33 +210,37 @@ async function sendMessage() {
       status: 'streaming',
     }
     messages.value.push(assistantMsg)
+    userMsg.status = 'confirmed'
     state.value = 'streaming'
 
-    if (reader) {
-      let buffer = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          const data = line.replace(/^data: /, '').trim()
-          if (data && data !== '[DONE]') {
-            assistantMsg.content += data
-            await nextTick()
-            await scrollToBottom()
-          }
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        const data = line.replace(/^data: /, '').trim()
+        if (data && data !== '[DONE]') {
+          assistantMsg.content += data
+          await nextTick()
+          await scrollToBottom()
         }
       }
-      assistantMsg.content = assistantMsg.content.trim()
-      assistantMsg.status = 'confirmed'
-      state.value = 'confirmed'
     }
+    assistantMsg.content = assistantMsg.content.trim()
+    assistantMsg.status = 'confirmed'
+    state.value = 'confirmed'
   } catch (e) {
     console.error('Chat error:', e)
-    // Remove the last user msg on error
-    messages.value.pop()
+    messages.value.push({
+      id: `temp_${Date.now()}_error`,
+      role: 'assistant',
+      content: '发送失败，请检查网络连接后重试',
+      status: 'error',
+    })
     state.value = 'idle'
   } finally {
     isStreaming.value = false
@@ -214,6 +248,14 @@ async function sendMessage() {
     await scrollToBottom()
     inputEl.value?.focus()
   }
+}
+
+function retryLastMessage() {
+  const lastUserIndex = messages.value.map(m => m.role).lastIndexOf('user')
+  if (lastUserIndex === -1) return
+  const userMsg = messages.value[lastUserIndex]
+  messages.value = messages.value.slice(0, lastUserIndex + 1)
+  sendMessage(userMsg.content)
 }
 
 async function scrollToBottom() {
@@ -241,8 +283,8 @@ function clearHistory() {
   state.value = 'idle'
 }
 
-onMounted(() => {
-  loadHistory()
+onMounted(async () => {
+  await loadHistory()
   inputEl.value?.focus()
 })
 </script>

@@ -220,6 +220,13 @@
                   <span class="text-sm font-medium text-gray-800">{{ doc.doc_name }}</span>
                   <span v-if="doc.is_star_item" class="px-1.5 py-0.5 bg-warning/10 text-warning text-xs rounded">⭐</span>
                   <span v-if="doc.has_fillable_fields" class="px-1.5 py-0.5 bg-green-50 text-green-600 text-xs rounded">可编辑</span>
+                  <span
+                    v-if="scoreHistory[doc.id]"
+                    class="px-1.5 py-0.5 text-xs rounded font-medium"
+                    :class="getScoreBadgeClass(scoreHistory[doc.id].score, scoreHistory[doc.id].max_score)"
+                  >
+                    {{ scoreHistory[doc.id].score }}/{{ scoreHistory[doc.id].max_score }} 分
+                  </span>
                 </div>
               </div>
               <div class="flex items-center space-x-3">
@@ -331,6 +338,26 @@
                       <pre class="text-sm text-gray-700 bg-white rounded p-3 whitespace-pre-wrap leading-relaxed min-h-[80px] border border-gray-200">{{ currentDoc.editable_content || currentDoc.original_content }}</pre>
                     </div>
                   </div>
+                </div>
+
+                <!-- 重新打分按钮和保存后提示 -->
+                <div class="mt-4 flex items-center justify-between">
+                  <div
+                    v-if="saveScoreToast && saveScoreToast.docId === doc.id"
+                    class="px-3 py-2 rounded-lg text-xs"
+                    :class="saveScoreToast.change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                  >
+                    分数更新：{{ saveScoreToast.newScore }}/{{ saveScoreToast.maxScore }} 分
+                    <span class="font-medium">{{ saveScoreToast.change >= 0 ? '+' : '' }}{{ saveScoreToast.change }} 分</span>
+                  </div>
+                  <div v-else></div>
+                  <button
+                    class="px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                    :disabled="scoringDocId === doc.id"
+                    @click="handleScoreBusinessDoc(doc)"
+                  >
+                    {{ scoringDocId === doc.id ? '评分中...' : '重新打分' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -507,6 +534,13 @@
                   <span class="text-sm font-medium text-gray-800">{{ doc.doc_name }}</span>
                   <span v-if="doc.is_star_item" class="px-1.5 py-0.5 bg-warning/10 text-warning text-xs rounded">⭐</span>
                   <span v-if="doc.has_fillable_fields" class="px-1.5 py-0.5 bg-green-50 text-green-600 text-xs rounded">可编辑</span>
+                  <span
+                    v-if="scoreHistory[doc.id]"
+                    class="px-1.5 py-0.5 text-xs rounded font-medium"
+                    :class="getScoreBadgeClass(scoreHistory[doc.id].score, scoreHistory[doc.id].max_score)"
+                  >
+                    {{ scoreHistory[doc.id].score }}/{{ scoreHistory[doc.id].max_score }} 分
+                  </span>
                 </div>
               </div>
               <div class="flex items-center space-x-3">
@@ -618,6 +652,26 @@
                       <pre class="text-sm text-gray-700 bg-white rounded p-3 whitespace-pre-wrap leading-relaxed min-h-[80px] border border-gray-200">{{ currentTechDoc.editable_content || currentTechDoc.original_content }}</pre>
                     </div>
                   </div>
+                </div>
+
+                <!-- 重新打分按钮和保存后提示 -->
+                <div class="mt-4 flex items-center justify-between">
+                  <div
+                    v-if="saveScoreToast && saveScoreToast.docId === doc.id"
+                    class="px-3 py-2 rounded-lg text-xs"
+                    :class="saveScoreToast.change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                  >
+                    分数更新：{{ saveScoreToast.newScore }}/{{ saveScoreToast.maxScore }} 分
+                    <span class="font-medium">{{ saveScoreToast.change >= 0 ? '+' : '' }}{{ saveScoreToast.change }} 分</span>
+                  </div>
+                  <div v-else></div>
+                  <button
+                    class="px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition-all"
+                    :disabled="scoringTechDocId === doc.id"
+                    @click="handleScoreTechDoc(doc)"
+                  >
+                    {{ scoringTechDocId === doc.id ? '评分中...' : '重新打分' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -877,6 +931,18 @@
             <span class="text-sm text-gray-600">完整度分数</span>
             <span class="text-lg font-bold text-blue-600">{{ scoreResult.score }} / {{ scoreResult.max_score }}</span>
           </div>
+          <div v-if="scoredDocId && scoreHistory[scoredDocId]" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <span class="text-sm text-gray-600">上次得分</span>
+            <div class="text-sm">
+              <span class="font-medium text-gray-700">{{ scoreHistory[scoredDocId].score }} / {{ scoreHistory[scoredDocId].max_score }}</span>
+              <span
+                class="ml-2 font-bold"
+                :class="scoreResult.score - scoreHistory[scoredDocId].score >= 0 ? 'text-green-600' : 'text-red-600'"
+              >
+                {{ scoreResult.score - scoreHistory[scoredDocId].score >= 0 ? '↑' : '↓' }}{{ Math.abs(scoreResult.score - scoreHistory[scoredDocId].score) }}
+              </span>
+            </div>
+          </div>
           <div v-if="scoreResult.message" class="text-xs text-gray-500">{{ scoreResult.message }}</div>
           <div v-if="scoreResult.breakdown && Object.keys(scoreResult.breakdown).length > 0">
             <div class="text-xs font-medium text-gray-500 mb-2">详细评分项</div>
@@ -982,6 +1048,13 @@ const scoringTechDocId = ref<string | null>(null)
 const showScoreModal = ref(false)
 const scoreResult = ref<DocumentScoreResult | null>(null)
 
+// Score history
+const scoreHistory = ref<Record<string, { score: number; max_score: number; timestamp: number }>>({})
+const scoredDocId = ref<string | null>(null)
+
+// Save auto-recalc toast
+const saveScoreToast = ref<{ docId: string; change: number; newScore: number; maxScore: number } | null>(null)
+
 // Export modal
 const showExportModal = ref(false)
 const exportDocInfo = ref<{ type: 'business' | 'technical'; docId: string; docName: string } | null>(null)
@@ -1070,6 +1143,22 @@ function docStatusLabel(status: string) {
   }
 }
 
+function getScoreBadgeClass(score: number, maxScore: number) {
+  const ratio = maxScore > 0 ? score / maxScore : 0
+  if (ratio >= 0.8) return 'bg-green-100 text-green-700'
+  if (ratio >= 0.6) return 'bg-blue-100 text-blue-700'
+  return 'bg-red-100 text-red-700'
+}
+
+function showSaveScoreToast(docId: string, oldScore: number, newScore: number, maxScore: number) {
+  saveScoreToast.value = { docId, change: newScore - oldScore, newScore, maxScore }
+  setTimeout(() => {
+    if (saveScoreToast.value?.docId === docId) {
+      saveScoreToast.value = null
+    }
+  }, 3000)
+}
+
 function parseReturnFileList(jsonStr: string) {
   try {
     return JSON.parse(jsonStr || '[]')
@@ -1149,9 +1238,9 @@ async function toggleProposalPlan(doc: ProposalPlanSummary) {
   }
 }
 
-function startEditProposalPlan(doc: ProposalPlanDetail) {
+function startEditProposalPlan(doc: { id: string; editable_content?: string; original_content?: string }) {
   editingProposalPlanId.value = doc.id
-  editProposalPlanContent.value = doc.editable_content || doc.original_content
+  editProposalPlanContent.value = doc.editable_content || doc.original_content || ''
 }
 
 function cancelEditProposalPlan() {
@@ -1264,9 +1353,9 @@ async function toggleDoc(doc: BusinessDocumentSummary) {
   }
 }
 
-function startEditDoc(doc: BusinessDocumentDetail) {
+function startEditDoc(doc: { id: string; editable_content?: string; original_content?: string }) {
   editingDocId.value = doc.id
-  editDocContent.value = doc.editable_content || doc.original_content
+  editDocContent.value = doc.editable_content || doc.original_content || ''
 }
 
 function cancelEditDoc() {
@@ -1287,6 +1376,22 @@ async function saveDoc(doc: BusinessDocumentSummary) {
       businessDocs.value[idx] = { ...businessDocs.value[idx], status: updated.status }
     }
     editingDocId.value = null
+
+    // Auto-recalc if previously scored
+    const previous = scoreHistory.value[doc.id]
+    if (previous && pid.value) {
+      try {
+        const result = await scoreBusinessDocument(pid.value, doc.id)
+        scoreHistory.value[doc.id] = {
+          score: result.score,
+          max_score: result.max_score,
+          timestamp: Date.now(),
+        }
+        showSaveScoreToast(doc.id, previous.score, result.score, result.max_score)
+      } catch (e) {
+        console.error('Auto-recalc business doc score failed:', e)
+      }
+    }
   } catch (e) {
     console.error('Save doc failed:', e)
   } finally {
@@ -1331,9 +1436,9 @@ async function toggleTechDoc(doc: TechnicalDocumentSummary) {
   }
 }
 
-function startEditTechDoc(doc: TechnicalDocumentDetail) {
+function startEditTechDoc(doc: { id: string; editable_content?: string; original_content?: string }) {
   editingTechDocId.value = doc.id
-  editTechDocContent.value = doc.editable_content || doc.original_content
+  editTechDocContent.value = doc.editable_content || doc.original_content || ''
 }
 
 function cancelEditTechDoc() {
@@ -1354,6 +1459,22 @@ async function saveTechDoc(doc: TechnicalDocumentSummary) {
       techDocs.value[idx] = { ...techDocs.value[idx], status: updated.status }
     }
     editingTechDocId.value = null
+
+    // Auto-recalc if previously scored
+    const previous = scoreHistory.value[doc.id]
+    if (previous && pid.value) {
+      try {
+        const result = await scoreTechnicalDocument(pid.value, doc.id)
+        scoreHistory.value[doc.id] = {
+          score: result.score,
+          max_score: result.max_score,
+          timestamp: Date.now(),
+        }
+        showSaveScoreToast(doc.id, previous.score, result.score, result.max_score)
+      } catch (e) {
+        console.error('Auto-recalc tech doc score failed:', e)
+      }
+    }
   } catch (e) {
     console.error('Save tech doc failed:', e)
   } finally {
@@ -1432,10 +1553,16 @@ async function doExport(fmt: string) {
 async function handleScoreBusinessDoc(doc: BusinessDocumentSummary) {
   if (!pid.value) return
   scoringDocId.value = doc.id
+  scoredDocId.value = doc.id
   try {
     const result = await scoreBusinessDocument(pid.value, doc.id)
     scoreResult.value = result
     showScoreModal.value = true
+    scoreHistory.value[doc.id] = {
+      score: result.score,
+      max_score: result.max_score,
+      timestamp: Date.now(),
+    }
   } catch (e) {
     console.error('Score business doc failed:', e)
     alert('评分失败，请重试')
@@ -1447,10 +1574,16 @@ async function handleScoreBusinessDoc(doc: BusinessDocumentSummary) {
 async function handleScoreTechDoc(doc: TechnicalDocumentSummary) {
   if (!pid.value) return
   scoringTechDocId.value = doc.id
+  scoredDocId.value = doc.id
   try {
     const result = await scoreTechnicalDocument(pid.value, doc.id)
     scoreResult.value = result
     showScoreModal.value = true
+    scoreHistory.value[doc.id] = {
+      score: result.score,
+      max_score: result.max_score,
+      timestamp: Date.now(),
+    }
   } catch (e) {
     console.error('Score tech doc failed:', e)
     alert('评分失败，请重试')
@@ -1462,6 +1595,7 @@ async function handleScoreTechDoc(doc: TechnicalDocumentSummary) {
 function closeScoreModal() {
   showScoreModal.value = false
   scoreResult.value = null
+  scoredDocId.value = null
 }
 
 onMounted(async () => {
@@ -1496,7 +1630,7 @@ async function toggleCase(item: TechnicalCaseSummary) {
   }
 }
 
-function startEditCase(item: TechnicalCaseDetail) {
+function startEditCase(item: TechnicalCaseSummary & Partial<Pick<TechnicalCaseDetail, 'contract_overview' | 'key_highlights' | 'source'>>) {
   editingCaseId.value = item.id
   editCaseForm.value = {
     title: item.title,
@@ -1507,11 +1641,11 @@ function startEditCase(item: TechnicalCaseDetail) {
     contract_name: item.contract_name,
     contract_amount: item.contract_amount,
     client_name: item.client_name,
-    contract_overview: item.contract_overview,
-    key_highlights: item.key_highlights,
-    source: item.source,
+    contract_overview: item.contract_overview || '',
+    key_highlights: item.key_highlights || '',
+    source: item.source || '',
   }
-  expandedCaseId.value = item.id // expand to show editor
+  expandedCaseId.value = item.id
 }
 
 async function saveCase() {

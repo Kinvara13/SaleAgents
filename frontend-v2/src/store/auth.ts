@@ -1,5 +1,5 @@
 import { reactive, readonly } from 'vue'
-import { login as loginApi, getMe, logout as logoutApi, type UserInfo } from '../services/auth'
+import { login as loginApi, getMe, logout as logoutApi, refreshToken as refreshTokenApi, type UserInfo } from '../services/auth'
 
 interface AuthState {
   user: UserInfo | null
@@ -29,8 +29,21 @@ export async function loadUser(): Promise<void> {
     state.user = user
     state.isLoggedIn = true
   } catch (e) {
+    const refreshToken = localStorage.getItem('sa_refresh_token')
+    if (refreshToken) {
+      try {
+        await refreshTokenApi(refreshToken)
+        const user = await getMe()
+        state.user = user
+        state.isLoggedIn = true
+        return
+      } catch {
+        // refresh 也失败，清除状态
+      }
+    }
     state.user = null
     state.isLoggedIn = false
+    logoutApi()
   }
 }
 
