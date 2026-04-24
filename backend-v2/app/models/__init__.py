@@ -13,6 +13,7 @@ from app.models.workspace_panel import WorkspacePanel
 from app.models.proposal_plan import ProposalPlan
 from app.models.async_task import AsyncTask
 from app.models.document_score_history import DocumentScoreHistory
+from app.models.tender_fetch_log import TenderFetchLog
 
 __all__ = [
     "Project",
@@ -33,4 +34,5 @@ __all__ = [
     "ProposalPlan",
     "AsyncTask",
     "DocumentScoreHistory",
+    "TenderFetchLog",
 ]
