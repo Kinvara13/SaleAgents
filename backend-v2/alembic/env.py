@@ -41,6 +41,18 @@ from app.models.review_job import ReviewJob
 from app.models.review_clause import ReviewClauseRecord
 from app.models.review_issue import ReviewIssueRecord
 from app.models.review_feedback import ReviewFeedbackRecord
+from app.models.decision_job import ProjectDecisionJobRecord
+from app.models.generation_job import GenerationJob
+from app.models.generation_section import GenerationSectionRecord
+from app.models.generation_section_asset_ref import GenerationSectionAssetRef
+from app.models.knowledge_asset_index_job import KnowledgeAssetIndexJobRecord
+from app.models.project_asset_preference import ProjectAssetPreferenceRecord
+from app.models.project_document import ProjectDocument
+from app.models.project_document_version import ProjectDocumentVersion
+from app.models.project_extracted_field import ProjectExtractedField
+from app.models.project_parse_section import ProjectParseSection
+from app.models.rule_statistics import RuleStatistics
+from app.models.knowledge_asset_workflow import KnowledgeAssetWorkflowRecord
 
 # add your model's MetaData object here
 # for 'autogenerate' support

@@ -67,10 +67,10 @@ def post_tender_decision(
 @router.post("/{tender_id}/upload", response_model=TenderSummary)
 def upload_bid_document(
     tender_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     margin: str = Form(""),
     project_type: str = Form(""),
-    background_tasks: BackgroundTasks = None,
     current_user: UserInfoResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TenderSummary:

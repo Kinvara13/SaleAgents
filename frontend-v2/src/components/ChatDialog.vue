@@ -154,24 +154,23 @@ async function sendMessage() {
   await scrollToBottom()
 
   try {
-    const token = localStorage.getItem('sa_token')
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const res = await fetch(
-      `${api.defaults.baseURL}/chat/${props.projectId}/message`,
+    const res = await api.post(
+      `/chat/${props.projectId}/message`,
+      { content: text },
       {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ content: text }),
+        adapter: 'fetch',
+        responseType: 'stream',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
       }
     )
 
-    if (!res.ok) throw new Error('发送失败')
+    if (res.status !== 200) throw new Error('发送失败')
 
-    const reader = res.body?.getReader()
+    const stream = res.data as ReadableStream<Uint8Array>
+    const reader = stream.getReader()
     const decoder = new TextDecoder()
 
     const assistantMsg: ChatMessage = {
