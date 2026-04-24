@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.scheduler_config import init_scheduler, get_scheduler
 from app.db.base import Base
 from app.db.session import engine
 from app.models import *  # noqa: F401, F403
@@ -26,12 +27,51 @@ def _seed_tenders():
         db.close()
 
 
+def _schedule_fetch_jobs():
+    """注册定时抓取任务"""
+    from apscheduler.triggers.interval import IntervalTrigger
+    from app.services.tender_fetch_service import run_fetch_task
+    from app.db.session import SessionLocal
+    import logging
+
+    logger = logging.getLogger(__name__)
+    sched = get_scheduler()
+
+    def _fetch_job():
+        db = SessionLocal()
+        try:
+            run_fetch_task(db)
+        except Exception:
+            logger.exception("定时抓取任务异常")
+        finally:
+            db.close()
+
+    # 每 30 分钟执行一次（可配置）
+    sched.add_job(
+        _fetch_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="tender_fetch_job",
+        name="招标信息定时抓取",
+        replace_existing=True,
+    )
+    logger.info("已注册招标抓取定时任务，执行间隔: 30 分钟")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
     # Seed tender data
     _seed_tenders()
+
+    # 启动定时任务调度器
+    sched = init_scheduler()
+    _schedule_fetch_jobs()
+    sched.start()
+
     yield
+
+    # 应用关闭时停止调度器
+    sched.shutdown(wait=False)
 
 
 def create_app() -> FastAPI:
