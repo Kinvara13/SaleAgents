@@ -36,6 +36,19 @@
 - `app/services/llm_parsing_client.py`: 66 行新增
 - `app/api/v1/endpoints/parsing.py`: 简化 218 行
 
+### 2026-04-24 (BE-017)
+
+**BE-017: 招标信息真实 HTTP 抓取**
+- 重写 `tender_fetch_service.py`，替换原有 `_fallback_seed_tenders` 模拟实现为真实 HTTP 抓取链路
+- 新增 `_fetch_with_retry`：基于 `httpx`，支持指数退避重试（3 次）、合理 User-Agent、超时设置、编码指定
+- 新增 `_parse_ccgp_tenders`：使用 `BeautifulSoup` 解析中国政府采购网 search.ccgp.gov.cn 搜索结果页，提取标题、source_url、publish_date 等
+- 新增 `_parse_zbytb_tenders`：解析中国招标信息网 zbytb.com 列表页
+- 修改 `fetch_tenders_from_source`：优先尝试 `_fetch_real_tenders`，失败时自动降级到 `_fallback_seed_tenders`，保留降级策略
+- 不修改 `run_fetch_task` 外层调度逻辑
+- 更新 `requirements.txt` 和 `pyproject.toml`：新增 `httpx`、`beautifulsoup4`
+- `python -m py_compile` 通过
+- `检收标准`: 至少接入 1 个真实招标源；保留 fallback 降级策略；含重试与错误处理
+
 ### 2026-04-21
 
 - 认领并开始处理任务 `BE-001`: 在 `backend-v2/app/api/router.py` 注册健康检查路由并补 smoke 用例。

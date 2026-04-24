@@ -160,14 +160,20 @@
 当前结论：
 
 - `rules` 创建已通过
-- `ai-config` 与 `ai-configs` 目前都被数据库 schema 漂移阻塞
+- `ai-config` 与 `ai-configs` 数据库 schema 已补齐（`name` 列已添加），端点逻辑已接入 `settings_service`，运行态待回归验证
 
-## 3. 已知契约漂移
+## 3. 已解决的契约漂移
 
-- `health.py` 定义了 `/health`，但未在 `app/api/router.py` 注册；当前不能把健康检查当可用契约
-- 前端 `ProposalEditor.vue`、`UserManagement.vue`、`RoleManagement.vue` 对 axios 的使用不符合当前接口调用方式
+- ~~`health.py` 定义了 `/health`，但未在 `app/api/router.py` 注册~~ → 已在 `router.py` 注册，`GET /api/v1/health` 运行态通过
+- ~~前端 `ProposalEditor.vue`、`UserManagement.vue`、`RoleManagement.vue` 对 axios 的使用不符合当前接口调用方式~~ → FE-001/FE-002 已修复
 
-## 4. 契约变更流程
+## 4. 待补运行态验证
+
+- `/api/v1/settings/ai-config*` 全组接口
+- `/api/v1/tenders/{tender_id}/decision` 与 `/api/v1/tenders/{tender_id}/upload`
+- `/api/v1/parsing/{project_id}/upload` 真实样本上传与章节详情
+
+## 5. 契约变更流程
 
 1. 先修改本文件
 2. 再修改后端代码

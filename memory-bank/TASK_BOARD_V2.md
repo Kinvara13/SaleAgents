@@ -49,4 +49,6 @@
 || FE-009 | 支撑能力-登录 | 前端 | 登录鉴权 token 刷新：access_token 过期自动静默刷新 | Frontend Agent | **done** | FE-003 | token 过期后前端自动调用 refresh 接口，用户无感知 | `memory-bank/agent-worklogs/frontend-agent.md` |
 || FE-010 | 支撑能力-聊天 | 前端 | 聊天页面级回归：流式消息、上下文保持、错误态 | Frontend Agent | **done** | BE-008 | ChatDialog.vue 能正常收发消息、展示流式输出、错误时给出重试按钮 | `memory-bank/agent-worklogs/frontend-agent.md` |
 | BE-016 | 全局 | 后端 | 清理遗留 mock/死代码：chat_service.py _generate_response 等 | Backend Agent | **done** | BE-008 | `_generate_response` 硬编码函数被移除；`_mock_stream` 重命名为 `_stream_tokens` | `memory-bank/agent-worklogs/backend-agent.md` |
-| QA-005 | 全局 | 测试 | 阶段三回归测试：覆盖 BE-012~BE-016、FE-008~FE-010 | QA Agent | todo | E2E-001 | 所有 P0 任务完成后进行回归，输出测试报告 | `memory-bank/agent-worklogs/qa-agent.md` |
+|| QA-005 | 全局 | 测试 | 阶段三回归测试：覆盖 BE-012~BE-016、FE-008~FE-010 | QA Agent | todo | E2E-001 | 所有 P0 任务完成后进行回归，输出测试报告 | `memory-bank/agent-worklogs/qa-agent.md` |
+|| BE-017 | F049 | 后端 | 实现 tender_fetch_service.py 真实 HTTP 招标信息抓取，替换 `_fallback_seed_tenders` mock 实现 | Backend Agent | **done** | BE-012 | 至少接入 1 个真实招标源（如中国政府采购网）；保留 fallback 降级策略；含重试与错误处理；`py_compile` 通过 | `memory-bank/agent-worklogs/backend-agent.md` |
+|| SPEC-003 | 全局 | 规范 | 根据 BE-017 实现结果，同步更新 `api-contract-spec.md` 招标信息接口当前结论与待补验证清单 | Spec Agent | todo | BE-017 | `api-contract-spec.md` 招标信息部分与代码事实一致，无过时描述 | `memory-bank/agent-worklogs/spec-agent.md` |

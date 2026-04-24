@@ -85,3 +85,13 @@
 - 更新 `FEATURE_MATRIX_V2.md`：刷新日期为 2026-04-24；健康检查状态从"未开始"→"已完成"；系统设置-AI配置更新为 schema 漂移已修复；F051/F052/F053/F054/F082 的差距和证据按 BE-010/BE-011/FE-001/FE-007/QA-002 实际进展更新。
 - 更新 `TEST_REPORT_V2.md`：新增 "7. 2026-04-23 运行态验证"章节，记录修正的失败阻塞项、页面级走查结果、新增后端能力验收。
 - 更新 `TEST_PLAN_V2.md`：支撑能力测试计划中健康检查和 AI 配置状态从"失败"更新为"200 已通过"。
+
+## 2026-04-24 BE-017 招标信息真实 HTTP 抓取
+
+- **BE-017**: 实现 `tender_fetch_service.py` 真实 HTTP 招标信息抓取，替换 `_fallback_seed_tenders` mock 实现
+  - 新增 `_fetch_with_retry`：基于 `httpx`的 HTTP GET 工具，支持指数退避重试（3 次）、自定义 User-Agent、超时设置和编码指定。
+  - 新增 `_parse_ccgp_tenders`：解析中国政府采购网（search.ccgp.gov.cn）搜索结果 HTML，提取标题、链接、发布日期等字段。
+  - 新增 `_parse_zbytb_tenders`：解析中国招标信息网（zbytb.com）列表页 HTML。
+  - 修改 `fetch_tenders_from_source`：优先尝试真实抓取，失败时自动降级到 `_fallback_seed_tenders`，保留 fallback 降级策略。
+  - 依赖更新：`requirements.txt` 和 `pyproject.toml` 新增 `httpx`、`beautifulsoup4`。
+  - 语法验证：`python -m py_compile` 通过。
