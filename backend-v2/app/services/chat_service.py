@@ -38,6 +38,24 @@ def _stream_tokens(response_text: str):
     yield "data: [DONE]"
 
 
+def send_general_message(
+    db: Session,
+    message: str,
+) -> tuple[str, list[str]]:
+    """Send a general message (no project) and return (message_id, streamed_tokens)."""
+    system_content = (
+        "你是标书助手AI，帮助用户处理招投标相关工作。"
+        "请以专业、严谨的态度回复，内容准确、可操作。"
+    )
+    user_prompt = f"用户当前问题：{message}"
+
+    response_text = _generate_llm_response(system_content, user_prompt)
+    if not response_text:
+        response_text = "抱歉，当前 AI 服务未配置或暂时不可用。请检查系统设置中的 AI 配置，或稍后重试。"
+
+    return f"msg_{uuid4().hex[:12]}", list(_stream_tokens(response_text))
+
+
 def send_message(
     db: Session,
     project_id: str,

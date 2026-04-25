@@ -1,26 +1,23 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- Header -->
-    <div class="flex-shrink-0 flex items-center justify-between mb-3">
+    <div v-if="showHeader" class="flex-shrink-0 flex items-center justify-between mb-3">
       <div class="flex items-center space-x-2">
-        <span class="text-lg">💬</span>
-        <span class="font-medium text-gray-700 text-sm">AI 助手</span>
+        <slot name="header-icon">
+          <span class="text-lg">💬</span>
+        </slot>
+        <span class="font-medium text-gray-700 text-sm">{{ title }}</span>
         <span v-if="projectId" class="text-xs text-gray-400">项目对话</span>
       </div>
       <div class="flex items-center space-x-2">
         <button
-          v-if="messages.length > 0"
+          v-if="messages.length > 0 && showClear"
           class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           @click="clearMessages"
         >
           清空记录
         </button>
-        <button
-          class="text-gray-400 hover:text-gray-500 transition-colors text-xs"
-          @click="$emit('close')"
-        >
-          ✕
-        </button>
+        <slot name="header-extra" />
       </div>
     </div>
 
@@ -29,8 +26,8 @@
       <!-- Empty state -->
       <div v-if="messages.length === 0" class="flex items-center justify-center h-full">
         <div class="text-center text-gray-400">
-          <div class="text-3xl mb-2">🤖</div>
-          <p class="text-sm">发送消息开始对话</p>
+          <div class="text-3xl mb-2">{{ emptyIcon }}</div>
+          <p class="text-sm">{{ emptyText }}</p>
         </div>
       </div>
 
@@ -91,14 +88,15 @@
 
     <!-- Input area -->
     <div class="flex-shrink-0 flex items-end space-x-2">
+      <slot name="input-prefix" />
       <textarea
         ref="inputEl"
         v-model="inputText"
         @keydown.enter.exact.prevent="handleSend"
         @keydown.enter.shift="inputText += '\n'"
         :disabled="isLoading"
-        placeholder="输入问题，按 Enter 发送..."
-        rows="2"
+        :placeholder="placeholder"
+        :rows="inputRows"
         class="flex-1 resize-none px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:bg-gray-50"
         style="font-family: system-ui, sans-serif;"
       ></textarea>
@@ -107,12 +105,12 @@
         :disabled="!inputText.trim() || isLoading"
         class="mb-0.5 px-3 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
       >
-        发送
+        {{ sendText }}
       </button>
     </div>
 
     <!-- State indicator -->
-    <div class="flex-shrink-0 flex items-center justify-between mt-1.5 text-xs text-gray-400">
+    <div v-if="showState" class="flex-shrink-0 flex items-center justify-between mt-1.5 text-xs text-gray-400">
       <span>{{ stateLabel }}</span>
       <span v-if="state === 'waiting' || state === 'streaming'" class="text-primary">AI 正在输入...</span>
     </div>
@@ -121,14 +119,39 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { useLLMChat } from '../composables/useLLMChat'
+import { useLLMChat, type UseLLMChatOptions } from '../composables/useLLMChat'
 
-const props = defineProps<{
-  projectId: string
-}>()
+interface Props extends UseLLMChatOptions {
+  title?: string
+  emptyText?: string
+  emptyIcon?: string
+  placeholder?: string
+  sendText?: string
+  showHeader?: boolean
+  showClear?: boolean
+  showState?: boolean
+  inputRows?: number
+  autoFocus?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  title: 'AI 助手',
+  emptyText: '发送消息开始对话',
+  emptyIcon: '🤖',
+  placeholder: '输入问题，按 Enter 发送...',
+  sendText: '发送',
+  showHeader: true,
+  showClear: true,
+  showState: true,
+  inputRows: 2,
+  autoFocus: true,
+  autoLoadHistory: true,
+})
 
 const emit = defineEmits<{
-  close: []
+  send: [text: string]
+  complete: [message: string]
+  error: [error: Error]
 }>()
 
 const messagesEl = ref<HTMLElement | null>(null)
@@ -144,20 +167,30 @@ const {
   sendMessage,
   retryLastMessage,
   clearMessages,
+  loadHistory,
   scrollToBottom,
 } = useLLMChat({
   projectId: props.projectId,
-  autoLoadHistory: true,
+  apiEndpoint: props.apiEndpoint,
+  headers: props.headers,
+  body: props.body,
+  autoLoadHistory: props.autoLoadHistory,
+  onError: (err) => {
+    emit('error', err)
+  },
+  onComplete: (msg) => {
+    emit('complete', msg.content)
+  },
 })
 
 async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isLoading.value) return
 
+  emit('send', text)
   inputText.value = ''
   await sendMessage(text)
   await scrollToBottom(messagesEl.value)
-  inputEl.value?.focus()
 }
 
 // 发送/流式输出时自动滚动
@@ -173,7 +206,18 @@ watch(isStreaming, async () => {
 })
 
 onMounted(() => {
-  inputEl.value?.focus()
+  if (props.autoFocus) {
+    inputEl.value?.focus()
+  }
+})
+
+// 暴露方法供父组件调用
+defineExpose({
+  messages,
+  sendMessage,
+  clearMessages,
+  loadHistory,
+  isLoading,
 })
 </script>
 

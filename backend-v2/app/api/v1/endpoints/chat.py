@@ -10,6 +10,30 @@ from app.services import chat_service
 router = APIRouter()
 
 
+@router.post("/message")
+def post_general_message(
+    payload: ChatMessageRequest,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Send a general message (no project context) and stream AI response (SSE)."""
+    _, tokens = chat_service.send_general_message(db, payload.content)
+
+    def stream():
+        for token in tokens:
+            if token.startswith("data: [DONE]"):
+                yield "data: [DONE]\n\n"
+                break
+            yield f"{token}\n\n"
+            import time
+            time.sleep(0.02)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/{project_id}/message")
 def post_message(
     project_id: str,

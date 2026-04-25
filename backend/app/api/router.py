@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, decision, documents, generation, health, llm_config, parsing, pricing, projects, proposal_editor, review, system, workspace
+from app.api.v1.endpoints import auth, chat, decision, documents, generation, health, llm_config, parsing, pricing, projects, proposal_editor, review, system, workspace
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
@@ -16,3 +16,4 @@ api_router.include_router(review.router, prefix="/review", tags=["review"])
 api_router.include_router(pricing.router, prefix="/pricing", tags=["pricing"])
 api_router.include_router(proposal_editor.router, prefix="/proposal-editor", tags=["proposal-editor"])
 api_router.include_router(llm_config.router, prefix="/llm-config", tags=["llm-config"])
+api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
