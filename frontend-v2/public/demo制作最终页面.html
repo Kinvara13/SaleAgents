@@ -198,6 +198,36 @@
         #sidebar.w-8 * {
             display: none !important;
         }
+        
+        /* 折叠内容样式 */
+        .collapse-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .collapse-content.active {
+            max-height: 800px;
+        }
+        
+        /* 确保DEMO要求模块至少展示2行 */
+        .collapse-content {
+            min-height: 0;
+        }
+        
+        /* 优化必演功能的折叠效果 */
+        #tab2 .collapse-content {
+            transition: max-height 0.5s ease;
+        }
+        
+        /* 优化TAB切换的视觉效果 */
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        
+        .tab-content {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
 <body class="bg-neutral-100 text-neutral-500 flex flex-col h-screen">
@@ -437,10 +467,8 @@
             
             <!-- 需求解析结果 -->
             <div id="main-content" class="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
-                <!-- 需求解析结果内容 -->
-                <div id="requirement-analysis" class="space-y-6">
                 <!-- 解析结果标题 -->
-                <div class="flex items-center justify-between">
+                <div id="requirement-analysis-header" class="flex items-center justify-between">
                     <h2 class="text-base font-semibold text-neutral-500">需求解析结果</h2>
                     <div class="flex items-center space-x-2">
                         <span class="text-xs text-neutral-500">编辑模式：</span>
@@ -451,6 +479,23 @@
                         <span class="text-xs text-primary" id="edit-mode-text">AI辅助</span>
                     </div>
                 </div>
+                
+                <!-- TAB切换 -->
+                <div id="requirement-analysis-tabs" class="bg-white rounded-2xl shadow-card border border-neutral-200 overflow-hidden">
+                    <!-- TAB标题 -->
+                    <div class="flex border-b border-neutral-200">
+                        <button id="tab1-btn" class="tab-btn active flex-1 py-3 px-4 text-sm font-medium text-primary border-b-2 border-primary" onclick="document.getElementById('tab1').style.display='block'; document.getElementById('tab2').style.display='none'; this.classList.add('active', 'text-primary', 'border-b-2', 'border-primary'); this.classList.remove('text-neutral-500'); document.getElementById('tab2-btn').classList.remove('active', 'text-primary', 'border-b-2', 'border-primary'); document.getElementById('tab2-btn').classList.add('text-neutral-500');">
+                            需求解析
+                        </button>
+                        <button id="tab2-btn" class="tab-btn flex-1 py-3 px-4 text-sm font-medium text-neutral-500 hover:text-primary" onclick="document.getElementById('tab2').style.display='block'; document.getElementById('tab1').style.display='none'; this.classList.add('active', 'text-primary', 'border-b-2', 'border-primary'); this.classList.remove('text-neutral-500'); document.getElementById('tab1-btn').classList.remove('active', 'text-primary', 'border-b-2', 'border-primary'); document.getElementById('tab1-btn').classList.add('text-neutral-500');">
+                            Demo要求
+                        </button>
+                    </div>
+                    
+                    <!-- TAB内容 -->
+                    <div class="p-5">
+                        <!-- 需求解析内容 -->
+                        <div id="tab1" class="tab-content active space-y-6">
                 
                 <!-- 演示内容清单 -->
                 <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:shadow-card-hover transition-shadow">
@@ -464,25 +509,18 @@
                             <thead>
                                 <tr class="bg-neutral-100">
                                     <th class="py-2 px-3 font-medium text-neutral-500">页面名称</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">页面类型</th>
                                     <th class="py-2 px-3 font-medium text-neutral-500">功能点</th>
                                     <th class="py-2 px-3 font-medium text-neutral-500">描述</th>
-                                    <th class="py-2 px-3 font-medium text-neutral-500">出处</th>
                                     <th class="py-2 px-3 font-medium text-neutral-500">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr class="border-b border-neutral-200">
                                     <td class="py-3 px-3 font-medium" rowspan="4">管理驾驶舱</td>
+                                    <td class="py-3 px-3" rowspan="4">新建</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">项目健康度总览</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">展示项目整体健康状态，包括进度、成本、质量等关键指标</td>
-                                    <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('3.1.1')">标书第3.1.1条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
                                     <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
@@ -493,14 +531,6 @@
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">成本控制概览</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">监控项目成本执行情况，包括预算与实际支出对比</td>
                                     <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('3.1.2')">标书第3.1.2条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
                                         </button>
@@ -509,14 +539,6 @@
                                 <tr class="border-b border-neutral-200">
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">供应商绩效总览</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">评估供应商的交付质量、及时性和成本控制</td>
-                                    <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('3.1.3')">标书第3.1.3条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
                                     <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
@@ -527,14 +549,6 @@
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">人员效能总览</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">分析项目团队的工作效率和资源利用情况</td>
                                     <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('3.1.4')">标书第3.1.4条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
                                         </button>
@@ -542,16 +556,9 @@
                                 </tr>
                                 <tr class="border-b border-neutral-200">
                                     <td class="py-3 px-3 font-medium" rowspan="3">数据可视化</td>
+                                    <td class="py-3 px-3" rowspan="3">已有</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">成本执行趋势</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">展示项目成本随时间的变化趋势</td>
-                                    <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('4.2.1')">标书第4.2.1条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
                                     <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
@@ -562,14 +569,6 @@
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">供应商绩效对比</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">对比不同供应商的绩效表现</td>
                                     <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('4.2.2')">标书第4.2.2条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
                                         </button>
@@ -579,14 +578,6 @@
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">项目健康度趋势</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">展示项目健康状态的变化趋势</td>
                                     <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('4.2.3')">标书第4.2.3条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
                                         </button>
@@ -594,16 +585,9 @@
                                 </tr>
                                 <tr>
                                     <td class="py-3 px-3 font-medium" rowspan="2">项目管理</td>
+                                    <td class="py-3 px-3" rowspan="2">新建</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">项目追踪卡片</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">展示各个项目的关键信息和状态</td>
-                                    <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('5.1.1')">标书第5.1.1条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
                                     <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
@@ -613,14 +597,6 @@
                                 <tr>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">预警信息流</td>
                                     <td class="py-3 px-3 editable-cell" contenteditable="false">实时展示项目预警信息和异常情况</td>
-                                    <td class="py-3 px-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-primary cursor-pointer" onclick="viewClause('5.1.2')">标书第5.1.2条</span>
-                                            <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
-                                                <i class="fa fa-file-text-o"></i>
-                                            </button>
-                                        </div>
-                                    </td>
                                     <td class="py-3 px-3">
                                         <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
                                             <i class="fa fa-pencil mr-1"></i> 修改
@@ -632,7 +608,151 @@
                     </div>
                 </div>
                 
-
+                <!-- 演示规划 -->
+                <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                    <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa fa-calendar-check-o text-primary"></i> 演示规划
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-neutral-100">
+                                    <th class="py-2 px-3 font-medium text-neutral-500">演示顺序</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">演示模块</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">核心演示点</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">时长</th>
+                                    <th class="py-2 px-3 font-medium text-neutral-500">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-neutral-200">
+                                    <td class="py-3 px-3">1</td>
+                                    <td class="py-3 px-3">管理驾驶舱</td>
+                                    <td class="py-3 px-3">项目健康度总览、成本控制概览</td>
+                                    <td class="py-3 px-3">2:30</td>
+                                    <td class="py-3 px-3">
+                                        <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
+                                            <i class="fa fa-pencil mr-1"></i> 修改
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-neutral-200">
+                                    <td class="py-3 px-3">2</td>
+                                    <td class="py-3 px-3">数据可视化</td>
+                                    <td class="py-3 px-3">成本执行趋势、供应商绩效对比</td>
+                                    <td class="py-3 px-3">1:45</td>
+                                    <td class="py-3 px-3">
+                                        <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
+                                            <i class="fa fa-pencil mr-1"></i> 修改
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-neutral-200">
+                                    <td class="py-3 px-3">3</td>
+                                    <td class="py-3 px-3">项目管理</td>
+                                    <td class="py-3 px-3">项目追踪卡片、预警信息流</td>
+                                    <td class="py-3 px-3">1:15</td>
+                                    <td class="py-3 px-3">
+                                        <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
+                                            <i class="fa fa-pencil mr-1"></i> 修改
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-3">4</td>
+                                    <td class="py-3 px-3">总结与问答</td>
+                                    <td class="py-3 px-3">项目成果总结、客户问题解答</td>
+                                    <td class="py-3 px-3">0:30</td>
+                                    <td class="py-3 px-3">
+                                        <button class="btn px-2 py-1 bg-neutral-100 rounded text-[10px]" onclick="openModifyDialog(this)">
+                                            <i class="fa fa-pencil mr-1"></i> 修改
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 方案附件 -->
+                <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:shadow-card-hover transition-shadow">
+                    <h3 class="text-sm font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa fa-paperclip text-primary"></i> 方案附件
+                    </h3>
+                    <div class="space-y-3">
+                        <!-- DEMO演示规划表 -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-neutral-50 border border-neutral-200 transition-colors">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mr-3">
+                                    <i class="fa fa-file-excel-o text-primary"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-xs font-medium text-neutral-500">DEMO演示规划表</h4>
+                                    <p class="text-[10px] text-neutral-400">1.2MB</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线预览">
+                                    <i class="fa fa-eye text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="下载">
+                                    <i class="fa fa-download text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 前端页面关联判断 -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-neutral-50 border border-neutral-200 transition-colors">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center mr-3">
+                                    <i class="fa fa-file-text-o text-success"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-xs font-medium text-neutral-500">前端页面关联判断</h4>
+                                    <p class="text-[10px] text-neutral-400">856KB</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线预览">
+                                    <i class="fa fa-eye text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="下载">
+                                    <i class="fa fa-download text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 页面方案文档 -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-neutral-50 border border-neutral-200 transition-colors">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center mr-3">
+                                    <i class="fa fa-file-word-o text-warning"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-xs font-medium text-neutral-500">页面方案文档</h4>
+                                    <p class="text-[10px] text-neutral-400">2.5MB</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线预览">
+                                    <i class="fa fa-eye text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="在线编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                                <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-neutral-200 text-neutral-400 transition-colors" title="下载">
+                                    <i class="fa fa-download text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- 提示建议 -->
                 <div class="bg-white rounded-2xl shadow-card p-5 border border-neutral-200 hover:border-primary transition-colors">
@@ -658,6 +778,96 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        
+                        <!-- Demo要求内容 -->
+                        <div id="tab2" class="tab-content space-y-4" style="display: none;">
+                            <!-- demo主题 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1">Demo主题</h4>
+                                <p class="text-xs text-neutral-500">AI+直播能力功能相关的软件平台开发案例</p>
+                            </div>
+                            
+                            <!-- 核心能力 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1">核心能力</h4>
+                                <p class="text-xs text-neutral-500">AI+直播能力</p>
+                            </div>
+                            
+                            <!-- 必演功能 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1 flex items-center justify-between cursor-pointer" onclick="toggleCollapse(this)">
+                                    <span>必演功能</span>
+                                    <i class="fa fa-angle-down text-xs text-neutral-400 transition-transform duration-300"></i>
+                                </h4>
+                                <div class="collapse-content mt-2">
+                                    <div class="space-y-3">
+                                        <div class="p-2 bg-white rounded border border-neutral-200">
+                                            <p class="text-xs font-medium">功能项 1. 直播中快速打断</p>
+                                            <p class="text-[10px] text-neutral-400 mt-1">在直播期间用户提问时，数字人2s 内快速响应提问内容。</p>
+                                        </div>
+                                        <div class="p-2 bg-white rounded border border-neutral-200">
+                                            <p class="text-xs font-medium">功能项 2. 复杂意图问答</p>
+                                            <p class="text-[10px] text-neutral-400 mt-1">直播中用户问多个产品相关问题，数字人能一次性全部明确回答。包含以下问题：</p>
+                                            <ul class="text-[10px] text-neutral-400 mt-1 ml-4 list-disc space-y-1">
+                                                <li>我上个月买的手机屏幕碎了，保修期多久？如何预约维修？费用大概多少？</li>
+                                                <li>哪里产的？支持退换货吗？可以包邮吗？现在下单有什么活动么？</li>
+                                            </ul>
+                                        </div>
+                                        <div class="p-2 bg-white rounded border border-neutral-200">
+                                            <p class="text-xs font-medium">功能项 3. 动作插入</p>
+                                            <p class="text-[10px] text-neutral-400 mt-1">在直播时间线上预设动作:开场双手挥手，双手下指手势，感谢作揖。开场时触发开场双手挥手；切换货品时双手下指；检测到用户夸主播，如主播好漂亮，主播好专业等，触发感谢作揖。</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 时长格式 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1">时长格式</h4>
+                                <p class="text-xs text-neutral-500">提供的 demo 视频应为不超过 5 分钟的 MP4 等通用格式文件，须配有同步语音及文字讲解。</p>
+                            </div>
+                            
+                            <!-- demo分值 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1">Demo分值</h4>
+                                <p class="text-xs text-neutral-500">功能项每满足一项得 2 分，本项满分 6 分。（每个功能项下的功能点需完全满足，否则该功能项不得分）。</p>
+                            </div>
+                            
+                            <!-- 验收要求 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1 flex items-center justify-between cursor-pointer" onclick="toggleCollapse(this)">
+                                    <span>验收要求</span>
+                                    <i class="fa fa-angle-down text-xs text-neutral-400 transition-transform duration-300"></i>
+                                </h4>
+                                <div class="collapse-content mt-2">
+                                    <p class="text-xs text-neutral-500">提供的视频须涵盖相关功能介绍，并以文字形式标注所演示的功能。若视频无法看出某功能点对应的内容，则该功能不得分。视频若为特殊格式视频，请一同上传相关视频格式启软件或播放器下载链接，若应答人上传的视频格式无法打开且未提供有效的视频格式开启软件或播放器下载链接，则视为未提供有效的展示视频。</p>
+                                </div>
+                            </div>
+                            
+                            <!-- 其他要求 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1 flex items-center justify-between cursor-pointer" onclick="toggleCollapse(this)">
+                                    <span>其他要求</span>
+                                    <i class="fa fa-angle-down text-xs text-neutral-400 transition-transform duration-300"></i>
+                                </h4>
+                                <div class="collapse-content mt-2">
+                                    <p class="text-xs text-neutral-500">需提供合同证明材料，提供应答人（作为被委托方）签署的合同关键页扫描件（包含合同封面、内容、签字盖章等或能体现前述内容的合同关键页）。未提供完整有效合同证明本项得 0 分。合同签约方：如为国内非自然人，签字盖章页能体现签约方公章或合同章视为有效；如为国内外自然人或国外非自然人须体现签字视为有效。特殊情况：如同一个合同签约方既有国内非自然人，又有国外非自然人（或国外自然人），如应答人为国内非自然人且合同上国内非自然人也仅有签字，请出具加盖公章的合同签约说明文件。</p>
+                                </div>
+                            </div>
+                            
+                            <!-- 出处 -->
+                            <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                                <h4 class="text-xs font-medium text-neutral-500 mb-1">出处</h4>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-primary cursor-pointer" onclick="viewClause('2.3.1')">标书第2.3.1条</span>
+                                    <button class="text-xs text-neutral-400 hover:text-primary" onclick="viewOriginal('标书原文.pdf')">
+                                        <i class="fa fa-file-text-o"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- AI工作过程 -->
@@ -1236,6 +1446,9 @@
                                 <button id="select-element-btn" class="px-3 py-1.5 rounded-lg bg-neutral-100 text-xs text-neutral-500 hover:bg-neutral-200 transition-colors btn">
                                     <i class="fa fa-mouse-pointer mr-1"></i> 选择元素
                                 </button>
+                                <button id="download-page-btn" class="px-3 py-1.5 rounded-lg bg-neutral-100 text-xs text-neutral-500 hover:bg-neutral-200 transition-colors btn">
+                                    <i class="fa fa-download mr-1"></i> 下载页面
+                                </button>
                             </div>
                         </div>
                         
@@ -1253,7 +1466,7 @@
                                 </div>
                                 <div class="p-0 bg-white">
                                     <!-- 嵌入驾驶舱页面 -->
-                                    <iframe src="驾驶舱.html" width="100%" height="800" frameborder="0" style="min-height: 800px;"></iframe>
+                                    <iframe src="./驾驶舱.html" width="100%" height="800" frameborder="0" style="min-height: 800px;" onload="console.log('驾驶舱页面加载完成')" onerror="console.log('驾驶舱页面加载失败')"></iframe>
                                 </div>
                             </div>
                         </div>
@@ -1587,7 +1800,7 @@
                     <p class="text-xs">我已基于这些打分项生成了功能优先级清单和时长分配方案，你可以在左侧工作区查看。</p>
                     <p class="text-xs mt-3">你可以：</p>
                     <div class="flex flex-wrap gap-2 mt-2">
-                        <button class="px-3 py-1.5 bg-primary/10 text-primary text-[10px] rounded-full hover:bg-primary/20 transition-colors btn">继续素材准备</button>
+                        <button class="px-3 py-1.5 bg-primary/10 text-primary text-[10px] rounded-full hover:bg-primary/20 transition-colors btn btn-prepare-continue">继续素材准备</button>
                         <button class="px-3 py-1.5 bg-neutral-100 text-neutral-500 text-[10px] rounded-full hover:bg-neutral-200 transition-colors btn">调整功能优先级</button>
                         <button class="px-3 py-1.5 bg-neutral-100 text-neutral-500 text-[10px] rounded-full hover:bg-neutral-200 transition-colors btn">跳过内容拆解步骤</button>
                     </div>
@@ -1659,13 +1872,15 @@
                 
                 if (isDemoButton) {
                     // 隐藏需求解析结果和前端页面预览
-                    const requirementAnalysis = document.getElementById('requirement-analysis');
+                    const header = document.getElementById('requirement-analysis-header');
+                    const tabs = document.getElementById('requirement-analysis-tabs');
                     const aiDemoWorkingProcess = document.getElementById('ai-demo-working-process');
                     const finalFrontendPage = document.getElementById('final-frontend-page');
                     const demoResultPage = document.getElementById('demo-result-page');
                     const aiWorkingProcess = document.getElementById('ai-working-process');
                     
-                    if (requirementAnalysis) requirementAnalysis.style.display = 'none';
+                    if (header) header.style.display = 'none';
+                    if (tabs) tabs.style.display = 'none';
                     if (finalFrontendPage) {
                         finalFrontendPage.style.display = 'none';
                         finalFrontendPage.classList.add('hidden');
@@ -1720,9 +1935,29 @@
                         }
                     }
                     
-                    const requirementAnalysis = document.getElementById('requirement-analysis');
+                    // 隐藏需求解析结果的内容
+                    const header = document.getElementById('requirement-analysis-header');
+                    const tabs = document.getElementById('requirement-analysis-tabs');
                     const aiWorkingProcess = document.getElementById('ai-working-process');
-                    if (requirementAnalysis) requirementAnalysis.style.display = 'none';
+                    const aiDemoWorkingProcess = document.getElementById('ai-demo-working-process');
+                    const demoResultPage = document.getElementById('demo-result-page');
+                    const finalFrontendPage = document.getElementById('final-frontend-page');
+                    
+                    if (header) header.style.display = 'none';
+                    if (tabs) tabs.style.display = 'none';
+                    if (aiDemoWorkingProcess) {
+                        aiDemoWorkingProcess.style.display = 'none';
+                        aiDemoWorkingProcess.classList.add('hidden');
+                    }
+                    if (demoResultPage) {
+                        demoResultPage.style.display = 'none';
+                        demoResultPage.classList.add('hidden');
+                    }
+                    if (finalFrontendPage) {
+                        finalFrontendPage.style.display = 'none';
+                        finalFrontendPage.classList.add('hidden');
+                    }
+                    
                     if (aiWorkingProcess) {
                         aiWorkingProcess.style.display = 'block';
                         aiWorkingProcess.classList.remove('hidden');
@@ -1966,8 +2201,28 @@
                         }
                     });
                 }
-                
-                // 标签页切换功能
+            
+            // 初始化下载按钮
+            function initDownloadButton() {
+                const downloadBtn = document.getElementById('download-page-btn');
+                if (downloadBtn) {
+                    downloadBtn.addEventListener('click', function() {
+                        downloadPage();
+                    });
+                }
+            }
+            
+            // 下载页面功能
+            function downloadPage() {
+                const link = document.createElement('a');
+                link.href = './驾驶舱.html';
+                link.download = '驾驶舱页面.html';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // 标签页切换功能
                 const schemeTabs = document.querySelectorAll('.demo-scheme-tab');
                 const schemePanels = document.querySelectorAll('.demo-scheme-panel');
                 
@@ -2000,8 +2255,9 @@
                 console.log('找到的按钮:', button);
                 if (button) {
                     console.log('按钮类名:', button.className);
+                    console.log('按钮文本:', button.textContent);
                     const isDemoButton = button.classList.contains('btn-demo-continue');
-                    const isPrepareButton = button.textContent.includes('继续素材准备');
+                    const isPrepareButton = button.classList.contains('btn-prepare-continue');
                     console.log('是demo按钮:', isDemoButton);
                     console.log('是素材准备按钮:', isPrepareButton);
                     
@@ -2320,6 +2576,7 @@
             // 初始化功能
             initCardCollapse();
             initProjectCollapse();
+            initDownloadButton();
             
             // 模拟发送消息
             const sendButton = document.querySelector('.fa-paper-plane').parentElement;
@@ -2657,17 +2914,23 @@
             // 显示最终结果
             const aiWorkingProcess = document.getElementById('ai-working-process');
             const finalFrontendPage = document.getElementById('final-frontend-page');
-            const requirementAnalysis = document.getElementById('requirement-analysis');
+            const header = document.getElementById('requirement-analysis-header');
+            const tabs = document.getElementById('requirement-analysis-tabs');
             
             console.log('Elements found:');
             console.log('aiWorkingProcess:', aiWorkingProcess);
             console.log('finalFrontendPage:', finalFrontendPage);
-            console.log('requirementAnalysis:', requirementAnalysis);
+            console.log('header:', header);
+            console.log('tabs:', tabs);
             
             // 隐藏需求解析结果
-            if (requirementAnalysis) {
-                console.log('Hiding requirementAnalysis');
-                requirementAnalysis.style.display = 'none';
+            if (header) {
+                console.log('Hiding header');
+                header.style.display = 'none';
+            }
+            if (tabs) {
+                console.log('Hiding tabs');
+                tabs.style.display = 'none';
             }
             
             // 隐藏AI工作过程
@@ -2709,6 +2972,18 @@
                         parent.style.display = 'block';
                     }
                     parent = parent.parentElement;
+                }
+                
+                // 确保page-preview-content是可见的，page-plan-content是隐藏的
+                const pagePreviewContent = document.getElementById('page-preview-content');
+                const pagePlanContent = document.getElementById('page-plan-content');
+                if (pagePreviewContent) {
+                    pagePreviewContent.classList.remove('hidden');
+                    pagePreviewContent.style.display = 'block';
+                }
+                if (pagePlanContent) {
+                    pagePlanContent.classList.add('hidden');
+                    pagePlanContent.style.display = 'none';
                 }
             }
             
@@ -2998,6 +3273,65 @@
                 }
             }
         }
+        
+        // TAB切换功能
+        function initTabs() {
+            console.log('initTabs called');
+            
+            // 直接使用ID选择器获取元素，避免任何可能的选择器问题
+            const tab1 = document.getElementById('tab1');
+            const tab2 = document.getElementById('tab2');
+            const tab1Btn = document.getElementById('tab1-btn');
+            const tab2Btn = document.getElementById('tab2-btn');
+            
+            console.log('Elements found:');
+            console.log('tab1:', tab1);
+            console.log('tab2:', tab2);
+            console.log('tab1Btn:', tab1Btn);
+            console.log('tab2Btn:', tab2Btn);
+            
+            // 确保tab1显示，tab2隐藏
+            if (tab1) tab1.style.display = 'block';
+            if (tab2) tab2.style.display = 'none';
+            
+            // 为需求解析TAB添加点击事件
+            if (tab1Btn) {
+                tab1Btn.addEventListener('click', function() {
+                    console.log('tab1Btn clicked');
+                    // 激活当前TAB
+                    this.classList.add('active', 'text-primary', 'border-b-2', 'border-primary');
+                    this.classList.remove('text-neutral-500');
+                    // 取消其他TAB的激活状态
+                    if (tab2Btn) {
+                        tab2Btn.classList.remove('active', 'text-primary', 'border-b-2', 'border-primary');
+                        tab2Btn.classList.add('text-neutral-500');
+                    }
+                    // 显示当前TAB内容，隐藏其他TAB内容
+                    if (tab1) tab1.style.display = 'block';
+                    if (tab2) tab2.style.display = 'none';
+                    console.log('tab1 content displayed');
+                });
+            }
+            
+            // 为Demo要求TAB添加点击事件
+            if (tab2Btn) {
+                tab2Btn.addEventListener('click', function() {
+                    console.log('tab2Btn clicked');
+                    // 激活当前TAB
+                    this.classList.add('active', 'text-primary', 'border-b-2', 'border-primary');
+                    this.classList.remove('text-neutral-500');
+                    // 取消其他TAB的激活状态
+                    if (tab1Btn) {
+                        tab1Btn.classList.remove('active', 'text-primary', 'border-b-2', 'border-primary');
+                        tab1Btn.classList.add('text-neutral-500');
+                    }
+                    // 显示当前TAB内容，隐藏其他TAB内容
+                    if (tab2) tab2.style.display = 'block';
+                    if (tab1) tab1.style.display = 'none';
+                    console.log('tab2 content displayed');
+                });
+            }
+        }
 
         function initCollapsePanels() {
             console.log('initCollapsePanels called');
@@ -3058,6 +3392,7 @@
 
         // 初始化滚动到底部
         window.addEventListener('load', function() {
+            console.log('Window load event fired');
             chatContainer.scrollTop = chatContainer.scrollHeight;
             // 初始化所有交互功能
             initCardCollapse();
@@ -3065,6 +3400,8 @@
             initButtonEffects();
             initProgressSteps();
             initCollapsePanels();
+            console.log('Calling initTabs');
+            initTabs();
             
             // 初始化Mermaid流程图
             if (typeof mermaid !== 'undefined') {
@@ -3076,6 +3413,34 @@
             if (firstPanel) {
                 toggleCollapse(firstPanel);
             }
+            
+            // 确保tab1显示，tab2隐藏
+            console.log('Setting initial tab visibility');
+            document.getElementById('tab1').style.display = 'block';
+            document.getElementById('tab2').style.display = 'none';
+            
+            // 确保tab1按钮激活
+            const tab1Btn = document.querySelector('[data-tab="tab1"]');
+            if (tab1Btn) {
+                tab1Btn.classList.add('active', 'text-primary', 'border-b-2', 'border-primary');
+                tab1Btn.classList.remove('text-neutral-500');
+            }
+            
+            // 确保tab2按钮非激活
+            const tab2Btn = document.querySelector('[data-tab="tab2"]');
+            if (tab2Btn) {
+                tab2Btn.classList.remove('active', 'text-primary', 'border-b-2', 'border-primary');
+                tab2Btn.classList.add('text-neutral-500');
+            }
+            
+            console.log('Initialization complete');
+            
+            // 测试直接访问元素
+            console.log('Testing element access:');
+            console.log('tab1 element:', document.getElementById('tab1'));
+            console.log('tab2 element:', document.getElementById('tab2'));
+            console.log('tab1 button:', document.querySelector('[data-tab="tab1"]'));
+            console.log('tab2 button:', document.querySelector('[data-tab="tab2"]'));
             
             // 下一步按钮点击事件
             const nextStepBtn = document.getElementById('next-step-btn');
