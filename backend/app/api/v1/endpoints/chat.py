@@ -1,135 +1,72 @@
 import json
-import logging
-from typing import Generator
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.db.session import SessionLocal
-from app.models.llm_provider import LLMProviderModel
-
-logger = logging.getLogger(__name__)
+from app.api.v1.endpoints.auth import get_current_user, UserInfoResponse
+from app.db.session import get_db
+from app.schemas.chat import ChatMessageRequest, ChatContextRequest
+from app.services import chat_service
 
 router = APIRouter()
 
 
-class ChatMessageRequest(BaseModel):
-    content: str
-    model: str | None = None
-
-
-def _get_active_provider():
-    try:
-        with SessionLocal() as db:
-            return db.query(LLMProviderModel).filter(LLMProviderModel.is_active == True).first()
-    except Exception as e:
-        logger.error("Error querying active LLM provider: %s", e)
-        return None
-
-
-def _chat_stream(message: str, model: str | None = None) -> Generator[str, None, None]:
-    """Sync generator for SSE streaming."""
-    provider = _get_active_provider()
-
-    if provider:
-        base_url = (provider.base_url or "").strip() or None
-        api_key = (provider.api_key or "").strip()
-        use_model = model or provider.model
-        protocol = getattr(provider, "protocol", "openai")
-    else:
-        base_url = (settings.llm_base_url or "").strip() or None
-        api_key = (settings.llm_api_key or "").strip()
-        use_model = model or settings.llm_model
-        protocol = "openai"
-
-    if not api_key:
-        yield f"data: {json.dumps({'error': 'LLM provider not configured'}, ensure_ascii=False)}\n\n"
-        yield "data: [DONE]\n\n"
-        return
-
-    if protocol == "anthropic":
-        import httpx
-        headers = {
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        url = base_url or "https://api.anthropic.com/v1"
-        if not url.endswith("/messages"):
-            url = url.rstrip("/") + "/messages"
-
-        payload = {
-            "model": use_model,
-            "max_tokens": 2048,
-            "temperature": 0.7,
-            "system": "你是标书助手AI，帮助用户处理招投标相关工作。",
-            "messages": [{"role": "user", "content": message}],
-            "stream": True,
-        }
-
-        with httpx.Client(timeout=float(settings.llm_timeout_seconds)) as client:
-            with client.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
-                for line in response.iter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                            if chunk.get("type") == "content_block_delta":
-                                text = chunk.get("delta", {}).get("text", "")
-                                if text:
-                                    yield f"data: {json.dumps({'content': text}, ensure_ascii=False)}\n\n"
-                        except json.JSONDecodeError:
-                            pass
-    else:
-        try:
-            from openai import OpenAI
-        except ImportError as exc:
-            yield f"data: {json.dumps({'error': 'openai package not installed'}, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-            return
-
-        client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=float(settings.llm_timeout_seconds),
-        )
-
-        stream = client.chat.completions.create(
-            model=use_model,
-            messages=[
-                {"role": "system", "content": "你是标书助手AI，帮助用户处理招投标相关工作。"},
-                {"role": "user", "content": message},
-            ],
-            temperature=0.7,
-            max_tokens=2048,
-            stream=True,
-        )
-
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield f"data: {json.dumps({'content': delta}, ensure_ascii=False)}\n\n"
-
-    yield "data: [DONE]\n\n"
-
-
 @router.post("/message")
-def chat_message(request: ChatMessageRequest):
+async def post_general_message(
+    payload: ChatMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: UserInfoResponse = Depends(get_current_user),
+) -> StreamingResponse:
+    """Send a general message (no project context) and stream AI response (SSE)."""
     return StreamingResponse(
-        _chat_stream(request.content, request.model),
+        chat_service.send_general_message(db, payload.content),
         media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
 @router.post("/{project_id}/message")
-def chat_project_message(project_id: str, request: ChatMessageRequest):
-    # TODO: 加载项目上下文
+async def post_message(
+    project_id: str,
+    payload: ChatMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: UserInfoResponse = Depends(get_current_user),
+) -> StreamingResponse:
+    """Send a message and stream AI response (SSE)."""
     return StreamingResponse(
-        _chat_stream(request.content, request.model),
+        chat_service.send_message(db, project_id, payload.content),
         media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/{project_id}/history")
+def get_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserInfoResponse = Depends(get_current_user),
+) -> list[dict]:
+    return chat_service.get_history(db, project_id)
+
+
+@router.post("/{project_id}/context")
+def inject_context(
+    project_id: str,
+    payload: ChatContextRequest,
+    db: Session = Depends(get_db),
+    current_user: UserInfoResponse = Depends(get_current_user),
+):
+    """Inject context (tender document, scoring rules, material) into chat."""
+    ctx = chat_service.inject_context(db, project_id, payload.context_type, payload.content)
+    return {"id": ctx.id, "context_type": ctx.context_type, "created_at": ctx.created_at.isoformat()}
+
+
+@router.delete("/{project_id}/history")
+def clear_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserInfoResponse = Depends(get_current_user),
+):
+    """Clear chat history for a project."""
+    chat_service.clear_history(db, project_id)
+    return {"message": "Chat history cleared"}

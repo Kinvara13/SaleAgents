@@ -21,6 +21,7 @@ from app.models.rule_config import RuleConfig
 from app.models.rule_statistics import RuleStatistics
 from app.models.workspace_panel import WorkspacePanel
 from app.models.llm_provider import LLMProviderModel
+from app.models.chat import ChatMessage, ChatContext
 
 __all__ = [
     "GenerationJob",
@@ -32,6 +33,8 @@ __all__ = [
     "KnowledgeAssetSourceRecord",
     "KnowledgeAssetWorkflowRecord",
     "LLMProviderModel",
+    "ChatMessage",
+    "ChatContext",
     "ProjectAssetPreferenceRecord",
     "ProjectDocument",
     "ProjectDocumentVersion",

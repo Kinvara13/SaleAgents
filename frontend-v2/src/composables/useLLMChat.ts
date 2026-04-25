@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, type Ref } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, type Ref } from 'vue'
 import { getChatHistory, sendChatStream, readChatStream, type ChatMessage, type SendChatOptions } from '../services/chat'
 
 export type ChatState = 'idle' | 'waiting' | 'streaming' | 'confirmed' | 'done'
@@ -43,6 +43,30 @@ export interface UseLLMChatReturn {
   scrollToBottom: (el?: HTMLElement | null) => Promise<void>
 }
 
+/** 自增 ID 计数器（模块级闭包，高并发安全） */
+let _idSeq = 0
+function makeId(prefix = 'msg'): string {
+  return `${prefix}_${Date.now()}_${++_idSeq}`
+}
+
+/** 构建请求体 */
+function buildRequestBody(
+  baseBody: Record<string, unknown> | undefined,
+  overrideBody: Record<string, unknown> | undefined,
+  content: string
+): Record<string, unknown> | undefined {
+  if (baseBody && overrideBody) {
+    return { ...baseBody, content, ...overrideBody }
+  }
+  if (baseBody) {
+    return { ...baseBody, content }
+  }
+  if (overrideBody) {
+    return { content, ...overrideBody }
+  }
+  return undefined
+}
+
 /**
  * 大模型对话 Composable
  *
@@ -54,6 +78,7 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
   const state = ref<ChatState>('idle')
   const isLoading = ref(false)
   const isStreaming = ref(false)
+  let _unmounted = false
 
   const stateLabel = computed(() => {
     switch (state.value) {
@@ -65,10 +90,6 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
       default: return ''
     }
   })
-
-  function makeId(prefix = 'msg'): string {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-  }
 
   /**
    * 发送消息
@@ -96,11 +117,7 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
         projectId: override?.projectId ?? options.projectId,
         endpoint: override?.endpoint ?? options.apiEndpoint,
         headers: { ...options.headers, ...override?.headers },
-        body: options.body
-          ? { ...options.body, content: trimmed, ...override?.body }
-          : override?.body
-            ? { content: trimmed, ...override.body }
-            : undefined,
+        body: buildRequestBody(options.body, override?.body, trimmed),
       }
 
       const { reader } = await sendChatStream(trimmed, streamOptions)
@@ -178,9 +195,11 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
     if (!options.projectId) return
     try {
       const history = await getChatHistory(options.projectId)
+      if (_unmounted) return
       messages.value = history
       state.value = 'done'
     } catch (e) {
+      if (_unmounted) return
       console.error('[useLLMChat] 加载历史失败:', e)
       messages.value = []
     }
@@ -196,10 +215,16 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
     }
   }
 
-  // 自动加载历史
-  if (options.autoLoadHistory !== false && options.projectId) {
-    loadHistory()
-  }
+  // 在组件挂载时自动加载历史
+  onMounted(() => {
+    if (options.autoLoadHistory !== false && options.projectId) {
+      loadHistory()
+    }
+  })
+
+  onUnmounted(() => {
+    _unmounted = true
+  })
 
   return {
     messages,
