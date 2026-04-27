@@ -21,3 +21,6 @@ venv/
 
 # Logs
 *.log
+
+# Uploaded files (temporary storage)
+storage/

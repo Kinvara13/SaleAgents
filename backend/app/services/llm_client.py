@@ -96,6 +96,95 @@ class _BaseLLMClient:
             )
             return response.choices[0].message.content
 
+    def chat_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+    ):
+        """Stream LLM tokens as they arrive. Yields raw token strings."""
+        if not self.is_llm_ready:
+            yield "抱歉，当前 AI 服务未配置或暂时不可用。请检查系统设置中的 AI 配置，或稍后重试。"
+            return
+
+        provider = self._get_active_provider()
+        if provider:
+            base_url = (provider.base_url or "").strip() or None
+            api_key = (provider.api_key or "").strip()
+            model = provider.model
+            protocol = getattr(provider, "protocol", "openai")
+        else:
+            base_url = (settings.llm_base_url or "").strip() or None
+            api_key = (settings.llm_api_key or "").strip()
+            model = settings.llm_model
+            protocol = "openai"
+
+        if protocol == "anthropic":
+            import httpx
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            url = base_url or "https://api.anthropic.com/v1"
+            if not url.endswith("/messages"):
+                url = url.rstrip("/") + "/messages"
+
+            payload = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}],
+                "stream": True,
+            }
+
+            with httpx.Client(timeout=float(settings.llm_timeout_seconds)) as client:
+                with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data)
+                                if chunk.get("type") == "content_block_delta":
+                                    text = chunk.get("delta", {}).get("text", "")
+                                    if text:
+                                        yield text
+                            except json.JSONDecodeError:
+                                pass
+        else:
+            try:
+                from openai import OpenAI
+            except ImportError as exc:
+                yield "openai package is not installed。"
+                return
+
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=float(settings.llm_timeout_seconds),
+            )
+
+            stream = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+
     def _parse_json_payload(self, content: str) -> dict[str, Any]:
         candidate = content.strip()
         if candidate.startswith("```"):

@@ -87,7 +87,6 @@ const menuItems = ref<MenuItem[]>([
   { name: '首页', path: '/home', icon: '🏠' },
   { name: '标前评估', path: '/pre-evaluation', icon: '📊' },
   { name: '招标项目', path: '/tender-list', icon: '📋' },
-  { name: '招标信息', path: '/tender-info-list', icon: '🔔' },
   { name: '回标文件', path: '/bid-list', icon: '📁' },
   { name: '技术建议书', path: '/proposal-editor', icon: '✍️' },
   { name: 'DEMO制作', path: '/demo-workflow', icon: '🎬' },
