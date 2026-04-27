@@ -330,6 +330,8 @@ class ParsingService:
         # 5. Extract tender fields via LLM (using curated text: head + tail + important paragraphs)
         curated_text = self._curate_text_for_llm(full_text)
         tender_info = llm_parsing_client.extract_tender_fields(curated_text)
+        if not tender_info:
+            logger.warning(f"No tender fields extracted for {filename} - LLM extraction returned empty")
 
         # 6. Persist
         if clear_existing:
@@ -345,7 +347,7 @@ class ParsingService:
                 section_name=chunk["title"],
                 section_type="评审" if any(k in chunk["title"] for k in ["评分", "评审", "招标"]) else "内容",
                 content=chunk["content"],
-                is_star_item=any(k in chunk["title"] for k in ["评分", "评审", "资格", "资质", "废标", "星标", "★"]),
+                is_star_item=any(k in chunk["title"] for k in ["评分", "评审", "资格", "资质", "废标", "星标", "★", "关键", "重要", "必须", "强制", "否决", "红线"]),
                 source_file=filename,
             )
             db.add(section)

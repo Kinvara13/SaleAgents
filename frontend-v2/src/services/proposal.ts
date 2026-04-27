@@ -2,131 +2,144 @@ import api from './api'
 
 // ============ 类型定义 ============
 
-/** 标书章节 */
-export interface ProposalSection {
+/** 技术建议书章节摘要 */
+export interface ProposalSectionSummary {
   id: string
-  title: string
+  section_name: string
+  score: number
+  is_confirmed: boolean
+  is_generated: boolean
+}
+
+/** 技术建议书章节详情 */
+export interface ProposalSectionDetail {
+  id: string
+  project_id: string
+  section_name: string
   content: string
-  order: number
+  score: number
+  is_confirmed: boolean
+  is_generated: boolean
 }
 
-/** 元数据 */
-export interface ProposalMetadata {
-  project_id?: string
-  tender_id?: string
-  created_at?: string
-  updated_at?: string
+/** 更新章节请求 */
+export interface ProposalSectionUpdateRequest {
+  content?: string
+  is_confirmed?: boolean
+}
+
+/** 评分响应 */
+export interface ProposalScoreResponse {
+  sections: ProposalSectionSummary[]
+  total_score: number
+}
+
+/** 生成请求 */
+export interface ProposalGenerationRequest {
+  include_client_bg?: boolean
+  include_company_bg?: boolean
+  reference_scoring?: boolean
+}
+
+/** 任务提交响应 */
+export interface TaskSubmitResponse {
+  task_id: string
   status: string
-  author: string
+  message: string
 }
 
-/** 星标项 */
+// ============ API 函数 ============
+
+/**
+ * 获取项目的技术建议书章节列表
+ */
+export async function listProposalSections(projectId: string): Promise<ProposalSectionSummary[]> {
+  const res = await api.get<ProposalSectionSummary[]>(`/proposal-editor/${projectId}/sections`)
+  return res.data
+}
+
+/**
+ * 获取技术建议书章节详情
+ */
+export async function getProposalSectionDetail(
+  projectId: string,
+  sectionId: string
+): Promise<ProposalSectionDetail> {
+  const res = await api.get<ProposalSectionDetail>(`/proposal-editor/${projectId}/sections/${sectionId}`)
+  return res.data
+}
+
+/**
+ * 更新技术建议书章节
+ */
+export async function updateProposalSection(
+  projectId: string,
+  sectionId: string,
+  payload: ProposalSectionUpdateRequest
+): Promise<ProposalSectionDetail> {
+  const res = await api.patch<ProposalSectionDetail>(
+    `/proposal-editor/${projectId}/sections/${sectionId}`,
+    payload
+  )
+  return res.data
+}
+
+/**
+ * 触发技术建议书生成任务
+ */
+export async function generateProposal(
+  projectId: string,
+  payload?: ProposalGenerationRequest
+): Promise<TaskSubmitResponse> {
+  const res = await api.post<TaskSubmitResponse>(`/proposal-editor/${projectId}/generate`, payload || {})
+  return res.data
+}
+
+/**
+ * 计算技术建议书评分
+ */
+export async function scoreProposal(projectId: string): Promise<ProposalScoreResponse> {
+  const res = await api.post<ProposalScoreResponse>(`/proposal-editor/${projectId}/score`)
+  return res.data
+}
+
+/**
+ * 确认全部章节
+ */
+export async function confirmProposal(projectId: string): Promise<ProposalSectionSummary[]> {
+  const res = await api.post<ProposalSectionSummary[]>(`/proposal-editor/${projectId}/confirm`)
+  return res.data
+}
+
+// ============ Legacy API（保留兼容） ============
+
+/** @deprecated 使用 listProposalSections */
+export async function getProposal(proposalId: string): Promise<any> {
+  const res = await api.get(`/proposal-editor/${proposalId}`)
+  return res.data
+}
+
+/** @deprecated 使用 updateProposalSection */
+export async function updateProposal(proposalId: string, payload: any): Promise<any> {
+  const res = await api.put(`/proposal-editor/${proposalId}`, payload)
+  return res.data
+}
+
+/** @deprecated */
+export async function confirmStarItem(proposalId: string, itemName: string, satisfied: boolean): Promise<any> {
+  const res = await api.post(`/proposal-editor/${proposalId}/star-items/${encodeURIComponent(itemName)}/confirm`, { satisfied })
+  return res.data
+}
+
+/** 星标项（前端类型，兼容旧代码） */
 export interface StarItem {
   name: string
   source: string
   satisfied: boolean | null
 }
 
-/** 应答内容 */
+/** 应答内容（前端类型，兼容旧代码） */
 export interface StarResponse {
   section: string
   content: string
-}
-
-/** 应答文件完整响应 */
-export interface Proposal {
-  id: string
-  title: string
-  content: string
-  sections: ProposalSection[]
-  metadata: ProposalMetadata
-  star_items: StarItem[]
-  star_responses: Record<string, StarResponse>
-}
-
-/** 更新请求 */
-export interface ProposalUpdatePayload {
-  title?: string
-  content?: string
-  sections?: ProposalSection[]
-  metadata?: ProposalMetadata
-  star_items?: StarItem[]
-  star_responses?: Record<string, StarResponse>
-}
-
-/** 星标项确认请求 */
-export interface StarItemConfirmPayload {
-  satisfied: boolean
-}
-
-// ============ API 函数 ============
-
-/**
- * 获取应答文件详情
- * @param proposalId 应答文件ID
- * @returns 应答文件完整信息
- */
-export async function getProposal(proposalId: string): Promise<Proposal> {
-  const res = await api.get<Proposal>(`/proposal-editor/${proposalId}`)
-  return res.data
-}
-
-/**
- * 更新应答文件
- * @param proposalId 应答文件ID
- * @param payload 更新内容
- * @returns 更新后的应答文件
- */
-export async function updateProposal(proposalId: string, payload: ProposalUpdatePayload): Promise<Proposal> {
-  const res = await api.put<Proposal>(`/proposal-editor/${proposalId}`, payload)
-  return res.data
-}
-
-/**
- * 确认星标项满足状态
- * @param proposalId 应答文件ID
- * @param itemName 星标项名称
- * @param satisfied 是否满足
- * @returns 确认结果
- */
-export async function confirmStarItem(
-  proposalId: string,
-  itemName: string,
-  satisfied: boolean
-): Promise<StarItem> {
-  const res = await api.post<StarItem>(
-    `/proposal-editor/${proposalId}/star-items/${encodeURIComponent(itemName)}/confirm`,
-    { satisfied }
-  )
-  return res.data
-}
-
-/**
- * 获取星标项列表
- * @param proposalId 应答文件ID
- * @returns 星标项列表
- */
-export async function listStarItems(proposalId: string): Promise<StarItem[]> {
-  const res = await api.get<StarItem[]>(`/proposal-editor/${proposalId}/star-items`)
-  return res.data
-}
-
-/**
- * 更新章节内容
- * @param proposalId 应答文件ID
- * @param sectionId 章节ID
- * @param content 章节内容
- * @returns 更新后的章节
- */
-export async function updateSectionContent(
-  proposalId: string,
-  sectionId: string,
-  content: string
-): Promise<ProposalSection> {
-  const res = await api.post<ProposalSection>(
-    `/proposal-editor/${proposalId}/sections/${sectionId}/content`,
-    { content },
-    { headers: { 'Content-Type': 'application/json' } }
-  )
-  return res.data
 }

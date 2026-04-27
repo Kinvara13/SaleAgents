@@ -1,5 +1,10 @@
 <template>
   <div class="fade-in">
+    <!-- 通知提示 -->
+    <div v-if="showToast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300" :class="uploadStatus === 'failed' ? 'bg-red-500 text-white' : uploadStatus === 'completed' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'">
+      {{ toastMessage }}
+    </div>
+
     <!-- 页面标题 -->
     <div class="mb-6 flex items-center justify-between">
       <h2 class="text-2xl font-bold text-gray-800">标前评估</h2>
@@ -10,15 +15,15 @@
 
     <!-- 上传区域 -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-      <h2 class="text-lg font-semibold text-gray-800 mb-4">上传招标文件</h2>
+      <h2 class="text-lg font-semibold text-gray-800 mb-4">上传标书要求文件</h2>
 
       <!-- 未上传状态 -->
       <div v-if="uploadStatus === 'idle'" class="border-2 border-dashed border-primary/30 rounded-lg p-8 text-center bg-primary/5 transition-all duration-300 hover:border-primary/50">
         <div class="flex flex-col items-center">
           <span class="text-4xl mb-4">📄</span>
           <p class="text-gray-600 mb-2">点击或拖拽文件到此处上传</p>
-          <p class="text-sm text-gray-400 mb-6">支持 PDF、Word（.docx）、ZIP 格式</p>
-          <input type="file" class="hidden" id="file-upload" accept=".pdf,.docx,.zip,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip" @change="handleFileUpload" />
+          <p class="text-sm text-gray-400 mb-6">支持 PDF、Word（.docx）、Excel（.xlsx）、ZIP 格式</p>
+          <input type="file" class="hidden" id="file-upload" accept=".pdf,.docx,.xlsx,.xls,.zip,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip" @change="handleFileUpload" />
           <label for="file-upload" class="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300 cursor-pointer">
             选择文件
           </label>
@@ -188,6 +193,7 @@
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件名称</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">上传时间</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">客观分</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
             </tr>
@@ -201,17 +207,31 @@
                 <div class="text-sm text-gray-500">{{ formatDate(record.created_at) }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">{{ record.objective_score ?? '-' }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
                 <span :class="statusBadgeClass(record.status)" class="px-2 py-1 text-xs rounded-full">
                   {{ statusLabel(record.status) }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-primary hover:text-primary/80 mr-3" @click="viewRecord(record.id)">查看</button>
-                <button class="text-red-500 hover:text-red-700" @click="deleteRecord(record.id)">删除</button>
+                <button
+                  class="mr-3 transition-colors"
+                  :class="viewingRecordId === record.id ? 'text-gray-400 cursor-not-allowed' : 'text-primary hover:text-primary/80'"
+                  :disabled="viewingRecordId === record.id"
+                  @click="viewRecord(record.id)"
+                >
+                  <span v-if="viewingRecordId === record.id" class="inline-flex items-center">
+                    <span class="spinner-sm mr-1"></span>加载中...
+                  </span>
+                  <span v-else>查看</span>
+                </button>
+                <button class="text-gray-600 hover:text-gray-900 mr-3" @click="downloadReport(record.id)">下载报告</button>
+                <button class="text-red-500 hover:text-red-700" :disabled="viewingRecordId === record.id" @click="deleteRecord(record.id)">删除</button>
               </td>
             </tr>
             <tr v-if="evaluationRecords.length === 0">
-              <td colspan="4" class="px-6 py-8 text-center text-sm text-gray-400">
+              <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-400">
                 暂无历史记录
               </td>
             </tr>
@@ -240,6 +260,24 @@ const route = useRoute()
 const uploadStatus = ref<'idle' | 'uploading' | 'analyzing' | 'completed' | 'failed'>('idle')
 const errorMessage = ref('')
 const currentJob = ref<PreEvaluationJobDetail | null>(null)
+
+// Toast 通知
+const showToast = ref(false)
+const toastMessage = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+// 查看按钮loading状态
+const viewingRecordId = ref<string | null>(null)
+
+const showNotification = (message: string, duration: number = 5000) => {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastMessage.value = message
+  showToast.value = true
+  toastTimer = setTimeout(() => {
+    showToast.value = false
+    toastTimer = null
+  }, duration)
+}
 
 // TAB
 const activeTab = ref(1)
@@ -306,6 +344,7 @@ const handleFileUpload = async (event: Event) => {
 
   uploadStatus.value = 'uploading'
   errorMessage.value = ''
+  showNotification('文件正在上传解析中，请稍后查看结果')
 
   try {
     const projectId = typeof route.query.projectId === 'string' ? route.query.projectId : undefined
@@ -316,6 +355,7 @@ const handleFileUpload = async (event: Event) => {
   } catch (e: any) {
     uploadStatus.value = 'failed'
     errorMessage.value = e.response?.data?.detail || e.message || '上传或分析失败'
+    showNotification('上传失败：' + (e.response?.data?.detail || e.message || '上传或分析失败'), 5000)
   }
 }
 
@@ -341,6 +381,7 @@ const loadHistory = async () => {
 
 // 查看记录详情
 const viewRecord = async (jobId: string) => {
+  viewingRecordId.value = jobId
   try {
     const result = await getPreEvaluation(jobId)
     currentJob.value = result
@@ -349,6 +390,8 @@ const viewRecord = async (jobId: string) => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e: any) {
     alert('加载详情失败: ' + (e.message || '未知错误'))
+  } finally {
+    viewingRecordId.value = null
   }
 }
 
@@ -366,10 +409,98 @@ const deleteRecord = async (jobId: string) => {
   }
 }
 
+// 下载报告
+const downloadReport = async (jobId: string) => {
+  try {
+    // 获取详情数据
+    const result = await getPreEvaluation(jobId)
+    // 生成报告内容
+    const reportContent = generateReportContent(result)
+    // 创建下载
+    const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `标前评估报告_${result.file_name || jobId}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    alert('下载报告失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// 生成报告内容
+const generateReportContent = (job: PreEvaluationJobDetail): string => {
+  let content = `标前评估报告\n`
+  content += `================\n\n`
+  content += `文件名称: ${job.file_name}\n`
+  content += `评估时间: ${formatDate(job.created_at)}\n`
+  content += `评估状态: ${statusLabel(job.status)}\n\n`
+
+  if (job.summary) {
+    content += `评估摘要\n`
+    content += `--------\n`
+    content += `${job.summary}\n\n`
+  }
+
+  if (job.review_method?.method) {
+    content += `评审办法\n`
+    content += `--------\n`
+    content += `评审方法: ${job.review_method.method}\n`
+    if (job.review_method.description) {
+      content += `说明: ${job.review_method.description}\n`
+    }
+    if (job.review_method.key_points?.length) {
+      content += `关键要点:\n`
+      job.review_method.key_points.forEach((point, idx) => {
+        content += `  ${idx + 1}. ${point}\n`
+      })
+    }
+    content += `\n`
+  }
+
+  if (job.tech_review_table?.length) {
+    content += `技术评审表\n`
+    content += `----------\n`
+    job.tech_review_table.forEach(item => {
+      content += `评审项: ${item.item}\n`
+      content += `分值: ${item.score}\n`
+      content += `评分标准: ${item.criteria}\n\n`
+    })
+  }
+
+  if (job.starred_items?.length) {
+    content += `星标项\n`
+    content += `------\n`
+    job.starred_items.forEach((item, idx) => {
+      content += `${idx + 1}. ${item.item}\n`
+      content += `   重要性: ${importanceLabel(item.importance)}\n`
+      if (item.suggestion) {
+        content += `   建议: ${item.suggestion}\n`
+      }
+      content += `\n`
+    })
+  }
+
+  return content
+}
+
 onMounted(() => {
   loadHistory()
 })
 </script>
 
 <style scoped>
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0,0,0,0.1);
+  border-top-color: #999;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
 </style>

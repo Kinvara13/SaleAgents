@@ -109,6 +109,8 @@
       </button>
     </div>
 
+    <slot name="input-suffix" />
+
     <!-- State indicator -->
     <div v-if="showState" class="flex-shrink-0 flex items-center justify-between mt-1.5 text-xs text-gray-400">
       <span>{{ stateLabel }}</span>
@@ -121,7 +123,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useLLMChat, type UseLLMChatOptions } from '../composables/useLLMChat'
 
-interface Props extends UseLLMChatOptions {
+interface Props extends /* @vue-ignore */ UseLLMChatOptions {
   title?: string
   emptyText?: string
   emptyIcon?: string
@@ -189,7 +191,7 @@ async function handleSend() {
 
   emit('send', text)
   inputText.value = ''
-  await sendMessage(text)
+  await sendMessage(text, { body: props.body })
   await scrollToBottom(messagesEl.value)
 }
 
@@ -218,6 +220,8 @@ defineExpose({
   clearMessages,
   loadHistory,
   isLoading,
+  setInputText: (text: string) => { inputText.value = text },
+  focusInput: () => { inputEl.value?.focus() },
 })
 </script>
 

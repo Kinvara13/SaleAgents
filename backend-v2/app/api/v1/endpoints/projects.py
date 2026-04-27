@@ -4,7 +4,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.project import ProjectCreateRequest, ProjectSummary, ProjectUpdateRequest
+from app.schemas.project import (
+    ProjectCreateRequest, ProjectSummary, ProjectUpdateRequest,
+    BidProgress, ScoringCriteriaItem, ProjectActivities,
+)
 from app.services import project_service
 from app.api.v1.endpoints.auth import get_current_user
 from app.schemas.auth import UserInfoResponse  # noqa: F401
@@ -90,3 +93,33 @@ def confirm_project(
             confirmed_at=now,
         ),
     )
+
+
+@router.get("/{project_id}/bid-progress", response_model=BidProgress)
+def get_project_bid_progress(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> BidProgress:
+    """获取项目回标文件完成情况"""
+    result = project_service.get_project_bid_progress(db, project_id)
+    return BidProgress(**result)
+
+
+@router.get("/{project_id}/scoring-criteria", response_model=list[ScoringCriteriaItem])
+def get_project_scoring_criteria(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> list[ScoringCriteriaItem]:
+    """获取项目预估得分"""
+    result = project_service.get_project_scoring_criteria(db, project_id)
+    return [ScoringCriteriaItem.model_validate(item) for item in result["criteria"]]
+
+
+@router.get("/{project_id}/activities", response_model=ProjectActivities)
+def get_project_activities(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> ProjectActivities:
+    """获取项目操作历史"""
+    result = project_service.get_project_activities(db, project_id)
+    return ProjectActivities(**result)

@@ -1,263 +1,453 @@
 <template>
   <div class="fade-in flex flex-col h-full">
-    <!-- Header -->
     <div class="flex items-center justify-between mb-4 flex-shrink-0">
-      <h2 class="text-xl font-bold text-gray-800">投标项目清单</h2>
+      <div class="flex items-center space-x-3">
+        <h2 class="text-xl font-bold text-gray-800">投标文件编辑器</h2>
+        <!-- 项目选择下拉框 -->
+        <div class="relative">
+          <input
+            type="text"
+            v-model="selectedProjectSearch"
+            placeholder="搜索项目..."
+            class="w-56 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300"
+            @focus="showProjectDropdown = true"
+            @blur="hideProjectDropdown"
+          />
+          <div v-if="showProjectDropdown" class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-md z-10 max-h-48 overflow-y-auto">
+            <div
+              v-for="project in filteredProjects"
+              :key="project.id"
+              class="px-3 py-1.5 hover:bg-gray-100 cursor-pointer transition-all duration-300 text-sm"
+              @click="selectProject(project)"
+            >
+              {{ project.name }}
+            </div>
+            <div v-if="filteredProjects.length === 0" class="px-3 py-2 text-sm text-gray-400 text-center">
+              无匹配项目
+            </div>
+          </div>
+        </div>
+        <span v-if="selectedProjectName" class="text-sm text-gray-500">{{ selectedProjectName }}</span>
+        <span v-if="loadingProjects || loadingSections" class="text-xs text-gray-400">加载中...</span>
+      </div>
+      <div class="flex space-x-2">
+        <button class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all duration-300">
+          保存草稿
+        </button>
+        <button class="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300">
+          一键完成
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab 切换 -->
+    <div class="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit flex-shrink-0">
       <button
-        class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300 text-sm font-medium"
-        @click="showCreateModal = true"
+        class="px-6 py-2 text-sm font-medium rounded-md transition-all duration-200"
+        :class="activeTab === 'writing' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'writing'"
       >
-        + 新建项目
+        回标文件编写
+      </button>
+      <button
+        class="px-6 py-2 text-sm font-medium rounded-md transition-all duration-200"
+        :class="activeTab === 'star' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'star'"
+      >
+        星标项确认
       </button>
     </div>
 
-    <!-- 状态筛选 -->
-    <div class="flex space-x-2 mb-4 flex-shrink-0">
-      <button
-        v-for="tab in statusTabs"
-        :key="tab.value"
-        class="px-4 py-1.5 text-sm rounded-lg transition-all duration-300"
-        :class="activeStatus === tab.value
-          ? 'bg-primary text-white shadow-sm'
-          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'"
-        @click="activeStatus = tab.value; fetchProjects()"
-      >
-        {{ tab.label }}
-        <span
-          v-if="tab.count !== undefined"
-          class="ml-1 px-1.5 py-0.5 text-xs rounded-full"
-          :class="activeStatus === tab.value ? 'bg-white/20' : 'bg-gray-100'"
+    <!-- 回标文件编写 Tab 内容 -->
+    <div v-if="activeTab === 'writing'" class="flex-1 flex flex-col min-h-0">
+      <!-- 文件目录 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-3 overflow-hidden">
+        <div class="flex items-center justify-between p-3 border-b border-gray-100 bg-gray-50">
+          <h3 class="font-medium text-gray-800 text-sm">文件目录</h3>
+          <button
+            class="text-gray-400 hover:text-gray-600 transition-all duration-300"
+            @click="isLeftSidebarHidden = !isLeftSidebarHidden"
+          >
+            {{ isLeftSidebarHidden ? '▼' : '▲' }}
+          </button>
+        </div>
+        <div v-if="!isLeftSidebarHidden" class="p-3 space-y-3">
+          <div v-if="loadingSections" class="text-sm text-gray-400 text-center py-4">加载文件目录...</div>
+          <div v-else-if="fileTree.length === 0" class="text-sm text-gray-400 text-center py-4">
+            {{ selectedProjectId ? '暂无解析文件，请先上传招标文件' : '请选择一个项目' }}
+          </div>
+          <div
+            v-for="section in fileTree"
+            :key="section.id"
+            class="group"
+          >
+            <div
+              class="flex items-center px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300"
+              :class="{ 'bg-primary/10 text-primary': selectedSection === section.id }"
+              @click="selectedSection = section.id"
+            >
+              <span class="mr-2">{{ section.icon }}</span>
+              <span class="flex-1 font-medium text-sm">{{ section.name }}</span>
+              <span
+                :class="[
+                  'text-xs px-2 py-0.5 rounded-full',
+                  section.completed === section.total ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+                ]"
+              >
+                {{ section.completed }}/{{ section.total }}
+              </span>
+            </div>
+            <div v-if="selectedSection === section.id" class="ml-6 mt-1 space-y-1">
+              <div
+                v-for="file in section.files"
+                :key="file.id"
+                class="flex items-center px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300 text-xs"
+                :class="{ 'bg-white border border-primary/30': selectedFile === file.id }"
+                @click="handleSelectFile(file.id)"
+              >
+                <span class="mr-2">{{ file.completed ? '✅' : '⭕' }}</span>
+                <span class="flex-1 text-gray-700">{{ file.name }}</span>
+                <button
+                  class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-all duration-300 ml-2"
+                  @click.stop="handleEditFile(file)"
+                >
+                  修改
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下方三栏布局 -->
+      <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex">
+        <!-- 左侧：AI生成后文件预览 -->
+        <div :class="[
+          'border-r border-gray-100 flex flex-col transition-all duration-300',
+          isRightTemplateHidden ? 'w-full' : 'w-1/2'
+        ]">
+          <div class="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+            <div class="flex items-center space-x-3">
+              <h3 class="font-medium text-gray-800">AI生成文件预览</h3>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span v-if="!isEditing" class="text-sm text-success flex items-center">
+                <span class="mr-1">✓</span> 已生成
+              </span>
+              <button
+                v-if="selectedFileData && !isEditing"
+                class="px-3 py-1 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300"
+                @click="startEdit"
+              >
+                编辑
+              </button>
+              <button
+                v-if="isEditing"
+                class="px-3 py-1 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-100 transition-all duration-300"
+                @click="cancelEdit"
+              >
+                取消
+              </button>
+              <button
+                v-if="isEditing"
+                class="px-3 py-1 text-xs bg-success text-white rounded-lg hover:bg-success/90 transition-all duration-300"
+                :disabled="saving"
+                @click="saveSection"
+              >
+                {{ saving ? '保存中...' : '保存' }}
+              </button>
+              <button
+                v-if="!isRightTemplateHidden && !isEditing"
+                class="text-gray-400 hover:text-gray-600 transition-all duration-300"
+                @click="isRightTemplateHidden = true"
+                title="隐藏原文件"
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 p-4 overflow-auto">
+            <div v-if="loadingDetail" class="flex items-center justify-center h-full text-gray-400">
+              <div class="text-center">
+                <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                <p>加载中...</p>
+              </div>
+            </div>
+            <div v-else-if="selectedFileData" class="space-y-4">
+              <div v-show="isEditing" key="editing-mode" class="space-y-3">
+                <h4 class="text-lg font-bold text-gray-800">{{ selectedFileData.name }}</h4>
+                <textarea
+                  v-model="editableContent"
+                  class="w-full h-[calc(100vh-340px)] min-h-[300px] p-4 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm resize-none font-sans leading-relaxed"
+                  placeholder="在此编辑投标文件内容..."
+                ></textarea>
+              </div>
+              <div v-show="!isEditing" key="viewing-mode" class="border border-gray-100 rounded-lg p-6">
+                <h4 class="text-xl font-bold text-gray-800 mb-4">{{ selectedFileData.name }}</h4>
+                <div v-if="isSelectingElement" class="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary">
+                  <span class="font-medium">选择元素模式：</span>请点击下方需要修改的文字元素
+                </div>
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">项目名称</label>
+                    <div
+                      class="bg-gray-50 rounded px-3 py-2 text-gray-800 cursor-pointer hover:bg-gray-100 transition-all duration-200"
+                      :class="{ 'ring-2 ring-primary ring-offset-1': isSelectingElement }"
+                      @click="isSelectingElement && selectElement('projectName', selectedProjectName || '')"
+                    >
+                      {{ selectedProjectName || '未选择项目' }}
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">章节名称</label>
+                    <div
+                      class="bg-gray-50 rounded px-3 py-2 text-gray-800 cursor-pointer hover:bg-gray-100 transition-all duration-200"
+                      :class="{ 'ring-2 ring-primary ring-offset-1': isSelectingElement }"
+                      @click="isSelectingElement && selectElement('sectionName', sectionDetail?.section_name || '')"
+                    >
+                      {{ sectionDetail?.section_name || '未选择章节' }}
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">来源文件</label>
+                    <div
+                      class="bg-gray-50 rounded px-3 py-2 text-gray-800 cursor-pointer hover:bg-gray-100 transition-all duration-200"
+                      :class="{ 'ring-2 ring-primary ring-offset-1': isSelectingElement }"
+                      @click="isSelectingElement && selectElement('sourceFile', sectionDetail?.source_file || '')"
+                    >
+                      {{ sectionDetail?.source_file || '未知' }}
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">投标说明</label>
+                    <div
+                      class="bg-gray-50 rounded px-3 py-2 text-gray-800 cursor-pointer hover:bg-gray-100 transition-all duration-200"
+                      :class="{ 'ring-2 ring-primary ring-offset-1': isSelectingElement }"
+                      @click="isSelectingElement && selectElement('bidDescription', '我方完全响应招标文件的所有要求，承诺提供优质的产品和服务。')"
+                    >
+                      我方完全响应招标文件的所有要求，承诺提供优质的产品和服务。
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="!isEditing" class="flex justify-center">
+                <button class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all duration-300">
+                  下载文件
+                </button>
+              </div>
+            </div>
+            <div v-else class="flex items-center justify-center h-full text-gray-400">
+              <div class="text-center">
+                <div class="text-4xl mb-2">🤖</div>
+                <p>请选择文件查看AI生成内容</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：模版原文件（可隐藏） -->
+        <div
+          :class="[
+            'border-r border-gray-100 flex flex-col transition-all duration-300',
+            isRightTemplateHidden ? 'w-0 hidden' : 'w-1/3'
+          ]"
         >
-          {{ tab.count }}
-        </span>
-      </button>
-    </div>
-
-    <!-- 列表 -->
-    <div class="flex-1 overflow-auto">
-      <div v-if="loading" class="flex items-center justify-center h-40">
-        <div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
-      </div>
-
-      <div v-else-if="projects.length === 0" class="flex flex-col items-center justify-center h-40 text-gray-400">
-        <div class="text-4xl mb-2">📋</div>
-        <p>暂无项目，点击上方按钮创建</p>
-      </div>
-
-      <table v-else class="w-full text-sm">
-        <thead class="sticky top-0 bg-white border-b border-gray-100">
-          <tr class="text-left text-gray-500 text-xs uppercase tracking-wider">
-            <th class="pb-3 pl-4 font-medium">项目名称</th>
-            <th class="pb-3 font-medium">客户</th>
-            <th class="pb-3 font-medium">截止时间</th>
-            <th class="pb-3 font-medium">金额</th>
-            <th class="pb-3 font-medium">解析状态</th>
-            <th class="pb-3 font-medium">节点进度</th>
-            <th class="pb-3 font-medium">状态</th>
-            <th class="pb-3 font-medium">操作</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-50">
-          <tr
-            v-for="project in projects"
-            :key="project.id"
-            class="hover:bg-gray-50/50 transition-all duration-200"
-          >
-            <td class="py-3 pl-4 font-medium text-gray-800">{{ project.name }}</td>
-            <td class="py-3 text-gray-600">{{ project.client || '-' }}</td>
-            <td class="py-3 text-gray-600">{{ project.deadline || '-' }}</td>
-            <td class="py-3 text-gray-600">{{ project.amount || '-' }}</td>
-            <td class="py-3">
-              <span
-                class="px-2 py-1 text-xs font-medium rounded-full"
-                :class="parseStatusClass(project.parse_status)"
-              >
-                {{ project.parse_status || '未上传' }}
-              </span>
-            </td>
-            <td class="py-3">
-              <div class="flex items-center space-x-1">
-                <span
-                  v-for="(val, key) in project.node_status || {}"
-                  :key="key"
-                  class="px-1.5 py-0.5 text-xs rounded"
-                  :class="nodeStatusClass(val)"
-                  :title="key"
-                >
-                  {{ nodeStatusLabel(key) }}
-                </span>
-              </div>
-            </td>
-            <td class="py-3">
-              <span
-                class="px-2 py-1 text-xs font-medium rounded-full"
-                :class="statusClass(project.status)"
-              >
-                {{ project.status }}
-              </span>
-            </td>
-            <td class="py-3">
-              <div class="flex items-center space-x-3">
-                <button
-                  class="text-primary hover:text-primary/80 text-xs font-medium transition-colors"
-                  @click="goToTenderDetail(project)"
-                >
-                  标书详情
-                </button>
-                <button
-                  class="text-gray-400 hover:text-gray-600 text-xs transition-colors"
-                  @click="goToProposalEditor(project)"
-                >
-                  建议书
-                </button>
-                <button
-                  class="text-gray-400 hover:text-gray-600 text-xs transition-colors"
-                  @click="openUpdateModal(project)"
-                >
-                  编辑
-                </button>
-                <button
-                  class="text-danger hover:text-danger/80 text-xs transition-colors"
-                  @click="confirmDelete(project)"
-                >
-                  删除
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 新建项目弹窗 -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="showCreateModal = false">
-      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-        <h3 class="text-lg font-bold text-gray-800 mb-4">新建项目</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">项目名称 <span class="text-danger">*</span></label>
-            <input
-              v-model="createForm.name"
-              type="text"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
-              placeholder="请输入项目名称"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">客户</label>
-            <input
-              v-model="createForm.client"
-              type="text"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
-              placeholder="请输入客户名称"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">截止时间</label>
-            <input
-              v-model="createForm.deadline"
-              type="text"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
-              placeholder="如：2026-06-01"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">预算金额</label>
-            <input
-              v-model="createForm.amount"
-              type="text"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
-              placeholder="如：500万"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">风险等级</label>
-            <select
-              v-model="createForm.risk"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
+          <div class="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+            <div class="flex items-center space-x-3">
+              <h3 class="font-medium text-gray-800">模版原文件</h3>
+            </div>
+            <button
+              class="text-gray-400 hover:text-gray-600 transition-all duration-300"
+              @click="isRightTemplateHidden = true"
             >
-              <option value="P1">P1 - 高风险</option>
-              <option value="P2">P2 - 中风险</option>
-              <option value="P3">P3 - 低风险</option>
-            </select>
+              ✕
+            </button>
+          </div>
+          <div class="flex-1 p-4 overflow-auto">
+            <div v-if="loadingDetail" class="flex items-center justify-center h-full text-gray-400">
+              <div class="text-center">
+                <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                <p>加载中...</p>
+              </div>
+            </div>
+            <div v-else-if="sectionDetail" class="space-y-4">
+              <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="font-medium text-gray-800 mb-2">{{ sectionDetail.section_name }}</h4>
+                <div class="text-sm text-gray-600 space-y-2">
+                  <p>来源文件：{{ sectionDetail.source_file || '未知' }}</p>
+                  <p>章节类型：{{ sectionDetail.section_type || '未知' }}</p>
+                  <div class="mt-4 border-t border-gray-200 pt-4">
+                    <p class="text-gray-500 text-xs mb-2">这是招标文件的原始内容：</p>
+                    <pre class="whitespace-pre-wrap font-sans text-gray-700 text-xs leading-relaxed">{{ sectionDetail.content || '暂无内容' }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="flex items-center justify-center h-full text-gray-400">
+              <div class="text-center">
+                <div class="text-4xl mb-2">📄</div>
+                <p>请选择文件查看原模版</p>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all"
-            @click="showCreateModal = false"
-          >
-            取消
-          </button>
-          <button
-            class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-all"
-            :disabled="!createForm.name || creating"
-            @click="handleCreate"
-          >
-            {{ creating ? '创建中...' : '创建' }}
-          </button>
-        </div>
-      </div>
-    </div>
 
-    <!-- 编辑状态弹窗 -->
-    <div v-if="isUpdateModalVisible" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="isUpdateModalVisible = false">
-      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-        <h3 class="text-lg font-bold text-gray-800 mb-4">更新项目状态</h3>
-        <div class="space-y-4">
-          <p class="text-sm text-gray-600">项目：<span class="font-medium text-gray-800">{{ updateForm.name }}</span></p>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
-            <select
-              v-model="updateForm.status"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm"
+        <!-- 右侧：AI对话框 -->
+        <div :class="[
+          'flex flex-col transition-all duration-300',
+          isRightTemplateHidden ? 'w-1/3' : 'w-1/6'
+        ]">
+          <!-- 选择元素按钮 -->
+          <div class="p-4 border-b border-gray-100 bg-white flex-shrink-0">
+            <button
+              v-if="!isSelectingElement"
+              class="w-full px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300 text-sm"
+              @click="startSelectElement"
             >
-              <option value="待决策">待决策</option>
-              <option value="已投标">已投标</option>
-              <option value="未中标">未中标</option>
-              <option value="已中标">已中标</option>
-            </select>
+              选择元素
+            </button>
+            <button
+              v-else
+              class="w-full px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all duration-300 text-sm"
+              @click="cancelSelect"
+            >
+              取消选择
+            </button>
           </div>
-        </div>
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all"
-            @click="isUpdateModalVisible = false"
+
+          <LLMChatPanel
+            ref="llmChatPanelRef"
+            class="flex-1 min-h-0"
+            title="AI助手"
+            :projectId="selectedProjectId || undefined"
+            :body="chatBody"
+            placeholder="输入修改需求..."
+            emptyText="发送消息开始对话，我可以帮你修改投标文件"
+            :showClear="true"
+            :inputRows="3"
+            :autoFocus="false"
           >
-            取消
-          </button>
-          <button
-            class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-all"
-            :disabled="updating"
-            @click="handleUpdate"
-          >
-            {{ updating ? '更新中...' : '更新' }}
-          </button>
+            <template #header-extra>
+              <button
+                v-if="isRightTemplateHidden"
+                class="text-primary hover:text-primary/80 transition-all text-sm flex items-center"
+                @click="isRightTemplateHidden = false"
+                title="展开原文件"
+              >
+                <span class="mr-1">◀</span> 原文件
+              </button>
+            </template>
+
+            <template #input-suffix>
+              <div class="flex items-center justify-end px-3 py-2 border-t border-gray-100 space-x-2">
+                <select
+                  v-model="selectedAIModel"
+                  class="px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm text-gray-700"
+                >
+                  <option v-for="cfg in aiConfigs" :key="cfg.id" :value="cfg.model">
+                    {{ cfg.name }}
+                  </option>
+                </select>
+              </div>
+            </template>
+          </LLMChatPanel>
         </div>
       </div>
     </div>
 
-    <!-- 删除确认弹窗 -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="showDeleteConfirm = false">
-      <div class="bg-white rounded-xl shadow-lg w-full max-w-sm p-6">
-        <h3 class="text-lg font-bold text-gray-800 mb-2">确认删除</h3>
-        <p class="text-sm text-gray-600 mb-6">
-          确定要删除项目「<span class="font-medium text-gray-800">{{ deleteTarget?.name }}</span>」吗？此操作不可恢复。
-        </p>
-        <div class="flex justify-end space-x-3">
-          <button
-            class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all"
-            @click="showDeleteConfirm = false"
+    <!-- 星标项确认 Tab 内容 -->
+    <div v-else class="flex-1 flex space-x-6 min-h-0">
+      <!-- 左侧：星标项列表 -->
+      <div class="w-1/3 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
+        <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <h3 class="font-medium text-gray-800">星标项列表</h3>
+          <div class="flex items-center space-x-2">
+            <span v-if="areAllStarItemsConfirmed && !hasUnsatisfiedItems" class="text-success text-xs font-medium">全部满足 ✅</span>
+            <span v-else-if="areAllStarItemsConfirmed && hasUnsatisfiedItems" class="text-danger text-xs font-medium">存在不满足 ❌</span>
+          </div>
+        </div>
+        <div class="flex-1 overflow-auto p-3 space-y-2">
+          <div v-if="starItems.length === 0" class="text-sm text-gray-400 text-center py-4">
+            {{ selectedProjectId ? '该项目暂无星标项' : '请选择一个项目' }}
+          </div>
+          <div
+            v-for="(item, index) in starItems"
+            :key="index"
+            class="p-4 border rounded-lg transition-all cursor-pointer group"
+            :class="[
+              selectedStarItem?.name === item.name ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-primary/30',
+            ]"
+            @click="selectStarItem(item)"
           >
-            取消
-          </button>
-          <button
-            class="px-4 py-2 text-sm bg-danger text-white rounded-lg hover:bg-danger/90 transition-all"
-            :disabled="deleting"
-            @click="handleDelete"
-          >
-            {{ deleting ? '删除中...' : '确认删除' }}
-          </button>
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <p class="text-sm font-medium transition-colors" :class="selectedStarItem?.name === item.name ? 'text-primary' : 'text-gray-800'">{{ item.name }}</p>
+                <p class="text-xs text-gray-500 mt-1 flex items-center">
+                  <span class="mr-1">📄</span> {{ item.source }}
+                </p>
+              </div>
+              <div class="flex flex-col items-end space-y-2">
+                <div class="flex space-x-1">
+                  <button
+                    class="w-6 h-6 flex items-center justify-center rounded-full border transition-all text-xs"
+                    :class="item.satisfied === true ? 'bg-success text-white border-success' : 'border-gray-200 text-gray-400 hover:bg-success/10'"
+                    @click.stop="item.satisfied = true"
+                    title="满足"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    class="w-6 h-6 flex items-center justify-center rounded-full border transition-all text-xs"
+                    :class="item.satisfied === false ? 'bg-danger text-white border-danger' : 'border-gray-200 text-gray-400 hover:bg-danger/10'"
+                    @click.stop="item.satisfied = false"
+                    title="不满足"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：对应应答文字 -->
+      <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
+        <div class="p-4 border-b border-gray-100 bg-gray-50">
+          <h3 class="font-medium text-gray-800">标书应答内容</h3>
+        </div>
+        <div class="flex-1 overflow-auto p-8">
+          <div v-if="selectedStarItem" class="max-w-3xl mx-auto space-y-6">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-1 bg-primary/10 text-primary text-xs font-bold rounded">应答章节</span>
+              <span class="text-gray-800 font-bold">{{ starItemDetail?.section_name || selectedStarItem.name }}</span>
+            </div>
+
+            <div class="bg-gray-50 rounded-xl p-6 border border-gray-100 relative">
+              <div class="absolute -top-3 left-6 px-3 py-1 bg-white border border-gray-100 rounded-full text-xs text-gray-400 font-medium">
+                应答详情
+              </div>
+              <pre class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">{{ starItemDetail?.content || '暂无对应应答文字内容，请在编辑器中编写。' }}</pre>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+              <button
+                class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all"
+                @click="activeTab = 'writing'"
+              >
+                前往编辑
+              </button>
+              <button class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-all">
+                确认为满足
+              </button>
+            </div>
+          </div>
+          <div v-else class="flex items-center justify-center h-full text-gray-400">
+            <div class="text-center">
+              <div class="text-5xl mb-4">🔍</div>
+              <p>请点击左侧星标项查看对应应答文字</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -266,163 +456,306 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { listProjects, createProject, updateProject, deleteProject } from '../services/project'
-import type { Project } from '../types'
+import {
+  listProjects,
+  getTenderSections,
+  getTenderSectionDetail,
+  updateTenderSection,
+  type Project,
+  type TenderSection,
+} from '../services/project'
+import { listAIConfigs, type AIConfig } from '../services/settings'
+import LLMChatPanel from '../components/LLMChatPanel.vue'
 
-const router = useRouter()
+interface FileItem {
+  id: string
+  name: string
+  completed: boolean
+}
+
+interface FileSection {
+  id: string
+  name: string
+  icon: string
+  completed: number
+  total: number
+  files: FileItem[]
+}
+
+interface StarItem {
+  name: string
+  source: string
+  satisfied: boolean | null
+  sectionId: string
+}
+
+const selectedSection = ref<string>('')
+const selectedFile = ref<string>('')
+const selectedProjectSearch = ref<string>('')
+const selectedProjectId = ref<string>('')
+const selectedProjectName = ref<string>('')
+const showProjectDropdown = ref<boolean>(false)
+const isLeftSidebarHidden = ref<boolean>(false)
+const isSelectingElement = ref<boolean>(false)
+const selectedElement = ref<{ element: string; text: string } | null>(null)
+const isRightTemplateHidden = ref<boolean>(false)
+const activeTab = ref<'writing' | 'star'>('writing')
+const selectedStarItem = ref<StarItem | null>(null)
 
 const projects = ref<Project[]>([])
-const loading = ref(false)
-const activeStatus = ref('全部')
+const sections = ref<TenderSection[]>([])
+const sectionDetail = ref<any>(null)
+const starItemDetail = ref<any>(null)
+const loadingProjects = ref(false)
+const loadingSections = ref(false)
+const loadingDetail = ref(false)
+const saving = ref(false)
+const error = ref('')
+const isEditing = ref(false)
+const editableContent = ref('')
 
-const statusTabs = computed(() => {
-  const counts: Record<string, number> = {}
-  for (const p of projects.value) {
-    counts[p.status] = (counts[p.status] || 0) + 1
+// AI 配置
+const aiConfigs = ref<AIConfig[]>([])
+const selectedAIModel = ref<string>('')
+
+const chatBody = computed(() => {
+  if (selectedAIModel.value) {
+    return { model: selectedAIModel.value }
   }
-  return [
-    { label: '全部', value: '全部', count: projects.value.length },
-    { label: '待决策', value: '待决策', count: counts['待决策'] || 0 },
-    { label: '已投标', value: '已投标', count: counts['已投标'] || 0 },
-    { label: '未中标', value: '未中标', count: counts['未中标'] || 0 },
-    { label: '已中标', value: '已中标', count: counts['已中标'] || 0 },
-  ]
+  return undefined
 })
 
-// Create modal
-const showCreateModal = ref(false)
-const creating = ref(false)
-const createForm = ref({ name: '', client: '', deadline: '', amount: '', risk: 'P2' })
+// 项目列表
+const filteredProjects = computed(() => {
+  if (!selectedProjectSearch.value) return projects.value
+  return projects.value.filter(project =>
+    project.name.toLowerCase().includes(selectedProjectSearch.value.toLowerCase())
+  )
+})
 
-// Update modal
-const isUpdateModalVisible = ref(false)
-const updating = ref(false)
-const updateForm = ref({ id: '', name: '', status: '待决策' })
-
-// Delete confirm
-const showDeleteConfirm = ref(false)
-const deleteTarget = ref<Project | null>(null)
-const deleting = ref(false)
-
-function statusClass(status: string) {
-  switch (status) {
-    case '待决策': return 'bg-gray-100 text-gray-600'
-    case '已投标': return 'bg-blue-100 text-blue-600'
-    case '未中标': return 'bg-red-100 text-red-600'
-    case '已中标': return 'bg-green-100 text-green-600'
-    default: return 'bg-gray-100 text-gray-600'
-  }
+// 选择项目
+const selectProject = (project: Project) => {
+  selectedProjectSearch.value = project.name
+  selectedProjectName.value = project.name
+  selectedProjectId.value = project.id
+  showProjectDropdown.value = false
+  loadSections(project.id)
 }
 
-function parseStatusClass(parseStatus: string | undefined) {
-  switch (parseStatus) {
-    case '已解析': return 'bg-green-100 text-green-600'
-    case '解析中': return 'bg-yellow-100 text-yellow-600'
-    case '解析失败': return 'bg-red-100 text-red-600'
-    default: return 'bg-gray-100 text-gray-400'
-  }
-}
-
-function nodeStatusClass(val: string) {
-  switch (val) {
-    case 'done': return 'bg-green-100 text-green-600'
-    case 'in_progress': return 'bg-blue-100 text-blue-600'
-    case 'pending': return 'bg-gray-100 text-gray-400'
-    default: return 'bg-gray-100 text-gray-400'
-  }
-}
-
-function nodeStatusLabel(key: string) {
-  const map: Record<string, string> = {
-    decision: '决策',
-    parsing: '解析',
-    generation: '生成',
-    review: '审查',
-  }
-  return map[key] || key
-}
-
-async function fetchProjects() {
-  loading.value = true
+// 加载项目列表
+async function loadProjects() {
+  loadingProjects.value = true
   try {
-    const status = activeStatus.value === '全部' ? undefined : activeStatus.value
-    projects.value = await listProjects(status as any)
-  } catch (e) {
-    console.error('Failed to fetch projects:', e)
+    projects.value = await listProjects()
+  } catch (e: any) {
+    error.value = e.message || '加载项目列表失败'
   } finally {
-    loading.value = false
+    loadingProjects.value = false
   }
 }
 
-async function handleCreate() {
-  if (!createForm.value.name) return
-  creating.value = true
+// 加载 AI 模型配置
+async function loadAIConfigs() {
   try {
-    await createProject({
-      name: createForm.value.name,
-      client: createForm.value.client,
-      deadline: createForm.value.deadline,
-      amount: createForm.value.amount,
-      risk: createForm.value.risk,
-    } as any)
-    createForm.value = { name: '', client: '', deadline: '', amount: '', risk: 'P2' }
-    showCreateModal.value = false
-    await fetchProjects()
+    aiConfigs.value = await listAIConfigs()
+    const active = aiConfigs.value.find(c => c.is_active)
+    if (active) {
+      selectedAIModel.value = active.model
+    } else if (aiConfigs.value.length > 0) {
+      selectedAIModel.value = aiConfigs.value[0].model
+    }
   } catch (e) {
-    console.error('Failed to create project:', e)
-  } finally {
-    creating.value = false
+    console.error('加载AI配置失败:', e)
   }
 }
 
-function openUpdateModal(project: Project) {
-  updateForm.value = { id: project.id, name: project.name, status: project.status }
-  isUpdateModalVisible.value = true
-}
-
-async function handleUpdate() {
-  updating.value = true
+// 加载章节列表
+async function loadSections(projectId: string) {
+  loadingSections.value = true
+  sections.value = []
+  sectionDetail.value = null
+  selectedFile.value = ''
+  selectedStarItem.value = null
+  starItemDetail.value = null
   try {
-    await updateProject(updateForm.value.id, { status: updateForm.value.status } as any)
-    isUpdateModalVisible.value = false
-    await fetchProjects()
-  } catch (e) {
-    console.error('Failed to update project:', e)
+    const data = await getTenderSections(projectId)
+    sections.value = data || []
+  } catch (e: any) {
+    error.value = e.message || '加载文件列表失败'
   } finally {
-    updating.value = false
+    loadingSections.value = false
   }
 }
 
-function confirmDelete(project: Project) {
-  deleteTarget.value = project
-  showDeleteConfirm.value = true
+// 文件目录按 section_type 分组
+const fileTree = computed((): FileSection[] => {
+  const groups: Record<string, TenderSection[]> = {}
+  for (const s of sections.value) {
+    groups[s.section_type] = groups[s.section_type] || []
+    groups[s.section_type].push(s)
+  }
+
+  const typeMeta: Record<string, { name: string; icon: string }> = {
+    '商务': { name: '商务部分', icon: '📁' },
+    '技术': { name: '技术部分', icon: '📄' },
+    '评审': { name: '评审部分', icon: '🔍' },
+    '内容': { name: '内容部分', icon: '📝' },
+  }
+
+  const result: FileSection[] = []
+  for (const [type, items] of Object.entries(groups)) {
+    const meta = typeMeta[type] || { name: type + '部分', icon: '📄' }
+    result.push({
+      id: type,
+      name: meta.name,
+      icon: meta.icon,
+      completed: 0,
+      total: items.length,
+      files: items.map(s => ({
+        id: s.id,
+        name: s.section_name,
+        completed: false,
+      })),
+    })
+  }
+  return result
+})
+
+// 星标项列表
+const starItems = computed((): StarItem[] => {
+  return sections.value
+    .filter(s => s.is_star_item)
+    .map(s => ({
+      name: s.section_name,
+      source: s.source_file || '招标文件',
+      satisfied: null,
+      sectionId: s.id,
+    }))
+})
+
+// 检查所有星标项是否都已确认
+const areAllStarItemsConfirmed = computed(() => {
+  return starItems.value.every(item => item.satisfied !== null)
+})
+
+// 检查是否有不满足的星标项
+const hasUnsatisfiedItems = computed(() => {
+  return starItems.value.some(item => item.satisfied === false)
+})
+
+// 选择星标项
+const selectStarItem = async (item: StarItem) => {
+  selectedStarItem.value = item
+  if (item.sectionId && selectedProjectId.value) {
+    try {
+      starItemDetail.value = await getTenderSectionDetail(selectedProjectId.value, item.sectionId)
+    } catch (e) {
+      console.error('加载星标项详情失败:', e)
+    }
+  }
 }
 
-async function handleDelete() {
-  if (!deleteTarget.value) return
-  deleting.value = true
+// 处理文件选择
+const handleSelectFile = async (fileId: string) => {
+  selectedFile.value = fileId
+  if (!selectedProjectId.value) return
+  loadingDetail.value = true
   try {
-    await deleteProject(deleteTarget.value.id)
-    showDeleteConfirm.value = false
-    deleteTarget.value = null
-    await fetchProjects()
-  } catch (e) {
-    console.error('Failed to delete project:', e)
+    sectionDetail.value = await getTenderSectionDetail(selectedProjectId.value, fileId)
+  } catch (e: any) {
+    console.error('加载章节详情失败:', e)
   } finally {
-    deleting.value = false
+    loadingDetail.value = false
   }
 }
 
-function goToTenderDetail(project: Project) {
-  router.push({ name: 'TenderDetailProject', params: { projectId: project.id } })
+// 处理文件修改
+const handleEditFile = async (file: FileItem) => {
+  console.log('>>> handleEditFile called', file.id, file.name)
+  await handleSelectFile(file.id)
+  console.log('>>> handleSelectFile done, sectionDetail:', sectionDetail.value)
+  isEditing.value = true
+  editableContent.value = sectionDetail.value?.content || ''
+  console.log('>>> isEditing set to:', isEditing.value)
 }
 
-function goToProposalEditor(project: Project) {
-  router.push({ name: 'ProposalEditor', params: { projectId: project.id } })
+// 开始选择元素
+const startSelectElement = () => {
+  isSelectingElement.value = true
+  selectedElement.value = null
+  console.log('开始选择元素')
 }
 
-onMounted(fetchProjects)
+// 选择元素
+const llmChatPanelRef = ref<InstanceType<typeof LLMChatPanel> | null>(null)
+
+const selectElement = (element: string, text: string) => {
+  selectedElement.value = { element, text }
+  isSelectingElement.value = false
+  console.log('选择元素:', text)
+  llmChatPanelRef.value?.setInputText(`修改这段文字: "${text}"`)
+  llmChatPanelRef.value?.focusInput()
+}
+
+// 取消选择
+const cancelSelect = () => {
+  isSelectingElement.value = false
+  selectedElement.value = null
+  console.log('取消选择')
+}
+
+// 修复 setTimeout 在模板中无法访问的问题
+const hideProjectDropdown = () => {
+  setTimeout(() => {
+    showProjectDropdown.value = false
+  }, 200)
+}
+
+// 开始编辑
+const startEdit = () => {
+  isEditing.value = true
+  editableContent.value = sectionDetail.value?.content || ''
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  isEditing.value = false
+  editableContent.value = ''
+}
+
+// 保存章节内容
+const saveSection = async () => {
+  if (!selectedProjectId.value || !selectedFile.value) return
+  saving.value = true
+  try {
+    const updated = await updateTenderSection(
+      selectedProjectId.value,
+      selectedFile.value,
+      { content: editableContent.value }
+    )
+    sectionDetail.value = updated
+    isEditing.value = false
+    editableContent.value = ''
+  } catch (e: any) {
+    error.value = e.message || '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+const selectedFileData = computed(() => {
+  if (!sectionDetail.value) return null
+  return {
+    id: selectedFile.value,
+    name: sectionDetail.value.section_name || '',
+    completed: false,
+  }
+})
+
+onMounted(() => {
+  loadProjects()
+  loadAIConfigs()
+})
 </script>
 
 <style scoped>

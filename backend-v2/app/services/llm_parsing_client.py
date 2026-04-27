@@ -1,8 +1,11 @@
 from typing import Any
 import json
 import re
+import logging
 
 from app.models.settings import AIConfig
+
+logger = logging.getLogger(__name__)
 
 
 class LLMParsingClient:
@@ -18,7 +21,7 @@ class LLMParsingClient:
                 ).first()
 
                 if not provider or not provider.api_key:
-                    print("No active LLM provider found in database")
+                    logger.warning("No active LLM provider found in database - tender field extraction skipped")
                     return {}
 
                 client = OpenAI(
@@ -33,7 +36,7 @@ class LLMParsingClient:
 
                 return self._call_llm(client, model, protocol, text)
         except Exception as e:
-            print(f"LLM Parsing error: {e}")
+            logger.warning(f"LLM Parsing error: {e}")
             return {}
 
     def _call_llm(self, client, model: str, protocol: str, text: str) -> dict[str, Any]:
@@ -117,7 +120,7 @@ class LLMParsingClient:
 
             return self._parse_json_payload(content)
         except Exception as e:
-            print(f"LLM call error: {e}")
+            logger.warning(f"LLM call error: {e}")
             return {}
 
     def _parse_json_payload(self, content: str) -> dict[str, Any]:
@@ -199,7 +202,7 @@ class LLMParsingClient:
                     )
                     return (resp.choices[0].message.content or "").strip()
         except Exception as e:
-            print(f"Summarization error: {e}")
+            logger.warning(f"Summarization error: {e}")
             return ""
 
 

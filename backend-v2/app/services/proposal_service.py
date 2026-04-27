@@ -172,11 +172,12 @@ def generate_proposal(
     ctx = _get_project_context(db, project_id)
     scoring_hints = ctx.get("scoring_hints", [])
 
-    # 删除旧的生成章节
+    # 删除旧的生成章节并立即提交，释放写锁
     db.query(ProposalSection).filter(
         ProposalSection.project_id == project_id,
         ProposalSection.is_generated == True,
-    ).delete()
+    ).delete(synchronize_session=False)
+    db.commit()
 
     created = []
     for name in PROPOSAL_SECTIONS:
@@ -194,9 +195,10 @@ def generate_proposal(
             is_generated=True,
         )
         db.add(section)
+        db.commit()  # 每个章节单独提交，避免长时间持有 SQLite 写锁
+        db.refresh(section)
         created.append(section)
 
-    db.commit()
     return [ProposalSectionSummary.model_validate(s) for s in created]
 
 

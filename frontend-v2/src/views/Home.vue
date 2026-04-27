@@ -70,10 +70,9 @@
                     
                     <!-- 模型选择下拉框 -->
                     <select v-model="tapModels[tap.id - 1]" class="w-24 px-3 py-1 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm" style="width: 100px">
-                      <option value="gpt-4">GPT-4</option>
-                      <option value="claude-3">Claude-3</option>
-                      <option value="gpt-3.5">GPT-3.5</option>
-                      <option value="custom">自定义模型</option>
+                      <option value="">请选择模型</option>
+                      <option v-if="models.length === 0" value="" disabled>暂无可用模型</option>
+                      <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name }} ({{ m.model }})</option>
                     </select>
                     
                     <!-- 上传文件按钮 -->
@@ -139,6 +138,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listProjects } from '../services/project'
+import api from '../services/api'
 import type { Project } from '../types'
 
 // TAP切换
@@ -158,7 +158,7 @@ const tapPlaceholders = [
 // 各 TAP 独立状态
 const tapInputs = ref(['', '', ''])
 const tapProjectIds = ref(['', '', ''])
-const tapModels = ref(['gpt-4', 'gpt-4', 'gpt-4'])
+const tapModels = ref(['', '', ''])
 
 // 上传文件相关
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -166,6 +166,25 @@ const uploadedFiles = ref<Array<{ name: string; size: number; type: string }>>([
 
 // 项目列表
 const projects = ref<Project[]>([])
+
+// AI 模型列表
+const models = ref<any[]>([])
+
+// 加载模型列表
+const loadModels = async () => {
+  try {
+    const res = await api.get('/settings/ai-configs')
+    const list = res.data || []
+    models.value = list
+    // 初始化 tapModels 为 active 配置的 id
+    const activeConfig = list.find((m: any) => m.is_active)
+    if (activeConfig) {
+      tapModels.value = [activeConfig.id, activeConfig.id, activeConfig.id]
+    }
+  } catch (e) {
+    console.error('加载模型配置失败', e)
+  }
+}
 
 // 路由
 const router = useRouter()
@@ -283,6 +302,7 @@ onMounted(async () => {
   } catch (e) {
     console.error('加载项目失败', e)
   }
+  loadModels()
 })
 </script>
 

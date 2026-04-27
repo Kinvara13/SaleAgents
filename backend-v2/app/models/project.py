@@ -25,6 +25,7 @@ class Project(Base):
     company_address: Mapped[str] = mapped_column(String(512), nullable=False, default="")   # 公司地址
     bank_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")         # 开户银行
     bank_account: Mapped[str] = mapped_column(String(128), nullable=False, default="")     # 银行账号
+    description: Mapped[str] = mapped_column(String(2000), nullable=False, default="")      # 项目描述
     # 相关人员确认反馈
     confirm_status: Mapped[str] = mapped_column(String(32), nullable=False, default="待确认")  # 确认状态: 待确认/已确认
     confirm_feedback: Mapped[str] = mapped_column(String(1024), nullable=False, default="")   # 确认反馈

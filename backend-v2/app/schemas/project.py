@@ -20,6 +20,7 @@ class ProjectSummary(BaseModel):
     company_address: str = ""
     bank_name: str = ""
     bank_account: str = ""
+    description: str = ""
     confirm_status: str = "待确认"
     confirm_feedback: str = ""
     confirmed_by: str = ""
@@ -49,6 +50,7 @@ class ProjectCreateRequest(BaseModel):
     bank_name: str = Field(default="", max_length=255)
     bank_account: str = Field(default="", max_length=128)
     confirm_status: str = Field(default="待确认", max_length=32)
+    description: str = Field(default="", max_length=2000)
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -69,9 +71,54 @@ class ProjectUpdateRequest(BaseModel):
     confirm_feedback: str | None = Field(default=None, max_length=1024)
     confirmed_by: str | None = Field(default=None, max_length=128)
     confirmed_at: str | None = Field(default=None, max_length=64)
+    description: str | None = Field(default=None, max_length=2000)
     # === 解析与工作台（F052-F053） ===
     tender_id: str | None = Field(default=None, max_length=64)
     parse_status: str | None = Field(default=None, max_length=32)
     file_list: list | None = Field(default=None)
     node_status: dict | None = Field(default=None)
     extracted_fields: list | None = Field(default=None)
+
+
+class BidFile(BaseModel):
+    id: str
+    name: str
+    status: str
+    icon: str = "📄"
+    responsible: str = ""
+
+
+class BidSection(BaseModel):
+    id: int
+    name: str
+    icon: str
+    completed: int
+    total: int
+    files: list[BidFile]
+
+
+class BidProgress(BaseModel):
+    sections: list[BidSection]
+
+
+class ScoringCriteriaItem(BaseModel):
+    primary: str
+    secondary: str
+    standard: str
+    maxScore: int
+    type: str
+    estimatedScore: int
+    isFirstInGroup: bool
+    groupSpan: int = 1
+
+
+class ProjectActivity(BaseModel):
+    icon: str
+    iconBg: str
+    iconColor: str
+    title: str
+    time: str
+
+
+class ProjectActivities(BaseModel):
+    activities: list[ProjectActivity]

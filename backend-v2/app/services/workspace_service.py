@@ -67,10 +67,10 @@ def initialize_database(db: Session) -> None:
             )
 
     existing_keys = set(db.scalars(select(WorkspacePanel.key)).all())
-    snapshot = build_default_workspace().model_dump()
+    # Seed empty workspace panels if they don't exist
     for key in WORKSPACE_PANEL_KEYS:
         if key not in existing_keys:
-            db.add(WorkspacePanel(key=key, payload=snapshot[key]))
+            db.add(WorkspacePanel(key=key, payload=[]))
 
     # Migrate LLM providers if json config exists
     from pathlib import Path

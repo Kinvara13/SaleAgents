@@ -101,7 +101,7 @@
     </div>
 
     <!-- AI 配置弹窗 -->
-    <div v-if="showAIModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="showAIModal = false">
+    <div v-if="showAIModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6">
         <h3 class="text-lg font-bold text-gray-800 mb-4">{{ aiModalMode === 'create' ? '添加配置' : '编辑配置' }}</h3>
         <div class="space-y-4">
@@ -151,7 +151,7 @@
     </div>
 
     <!-- 新建规则弹窗 -->
-    <div v-if="showRuleModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="showRuleModal = false">
+    <div v-if="showRuleModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
         <h3 class="text-lg font-bold text-gray-800 mb-4">新建规则</h3>
         <div class="space-y-4">
