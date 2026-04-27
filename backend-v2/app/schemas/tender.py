@@ -34,6 +34,7 @@ class TenderSummary(BaseModel):
     decision: str
     reject_reason: str
     project_id: str
+    service_commitment: str | None = None
     user_id: str
     created_at: datetime
 
@@ -42,6 +43,13 @@ class TenderSummary(BaseModel):
     @field_validator('margin', mode='before')
     @classmethod
     def convert_margin_to_str(cls, v):
+        if v is None:
+            return ""
+        return str(v)
+
+    @field_validator('service_commitment', mode='before')
+    @classmethod
+    def convert_service_commitment_to_str(cls, v):
         if v is None:
             return ""
         return str(v)

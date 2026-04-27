@@ -95,3 +95,42 @@
   - 修改 `fetch_tenders_from_source`：优先尝试真实抓取，失败时自动降级到 `_fallback_seed_tenders`，保留 fallback 降级策略。
   - 依赖更新：`requirements.txt` 和 `pyproject.toml` 新增 `httpx`、`beautifulsoup4`。
   - 语法验证：`python -m py_compile` 通过。
+
+
+## [2026-04-25 19:03] E2E-001 End-to-End Acceptance Test
+
+- **Flow:** Login → Create Tender → Upload → Parse → Generate → Score → Edit → Rescore
+- **Result:** 12/14 API calls returned 2xx
+- **Project ID:** `proj_caff1882ed66` | **Tender ID:** `tend_7e706b8a14ff`
+- **Score Before:** 0 | **Score After:** 0
+- **Failures:** 2 steps non-2xx (Parse timeout due to backend bug; Edit skipped due to zero proposal sections)
+- **Key Bugs Found:**
+  1. `tenders.py` calls `_parse_single_file_async(project_id, path, filename)` with 3 args but function signature requires 4 args (missing `task_id`), causing background parsing to crash silently.
+  2. `proposal_service.generate_proposal` accesses `tender.service_commitment` which does not exist on `Tender` model, causing generation task to fail.
+
+
+### [2026-04-25 19:04] E2E-001 Supplement (Correct Upload Path)
+- **Project:** `proj_caff1882ed66` | **Parsing Sections:** 14 | **Proposal Sections:** 0
+- **Score Before Edit:** 0 | **After Rescore:** 0
+- **Result:** 11/12 steps returned 2xx
+- **Note:** Using `/parsing/{project_id}/upload` successfully triggered background parsing (14 sections extracted). Proposal generation still failed due to Bug #2 above.
+
+
+### [2026-04-25 19:06] E2E-001 Business/Technical Document Flow
+- **Project:** `proj_caff1882ed66` | **Business Docs:** 13 | **Technical Docs:** 9
+- **Result:** 8/10 steps returned 2xx
+- **Findings:**
+  - Business/Technical document **edit** APIs work (PATCH returned 200).
+  - Business/Technical document **score** APIs work (GET returned 200, scores: 3.6 and 0.0).
+  - Business/Technical document **generate** APIs return 500 (likely same root cause as proposal generation or missing AI config).
+  - Parsing section **edit** API works (PATCH returned 200).
+
+### [2026-04-25 19:12] E2E-001 Bug Fixes
+- **Fix Bug 1** (`tenders.py` 参数不匹配): 
+  - Modified `_parse_single_file_async` in `parsing.py` to make `task_id` optional (default `None`).
+  - Added conditional checks to skip `update_task_status` calls when `task_id` is absent.
+- **Fix Bug 2** (`Tender` model 缺少 `service_commitment`):
+  - Added `service_commitment: Mapped[str]` column to `app/models/tender.py`.
+  - Added `service_commitment: str | None` field to `TenderSummary` schema with validator.
+  - Created and ran Alembic migration `62b79a85dd46_add_service_commitment_to_tenders`.
+

@@ -24,6 +24,8 @@ class Tender(Base):
     reject_reason: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     # 关联的投标项目ID（当 decision=bid 时关联到 projects.id）
     project_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    # 服务承诺
+    service_commitment: Mapped[str] = mapped_column(Text, nullable=False, default="")
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, default="user-001")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
