@@ -156,11 +156,12 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
     finally:
         db.close()
 
-def _parse_single_file_async(project_id: str, file_path: Path, filename: str, task_id: str):
+def _parse_single_file_async(project_id: str, file_path: Path, filename: str, task_id: str | None = None):
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
-        update_task_status(db, task_id, "processing")
+        if task_id:
+            update_task_status(db, task_id, "processing")
 
         project = db.query(Project).filter(Project.id == project_id).first()
         if project:
@@ -181,7 +182,8 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
                 project.node_status["parsing"] = "completed"
             db.commit()
 
-        update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
+        if task_id:
+            update_task_status(db, task_id, "completed", result={"section_count": len(sections)})
     except Exception as e:
         import logging
         logging.error(f"Single file parsing failed for project {project_id}: {e}")
@@ -193,7 +195,8 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "failed"
             db.commit()
-        update_task_status(db, task_id, "failed", error_message=str(e))
+        if task_id:
+            update_task_status(db, task_id, "failed", error_message=str(e))
     finally:
         db.close()
 
