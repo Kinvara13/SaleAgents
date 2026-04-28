@@ -71,7 +71,7 @@
             {{ isLeftSidebarHidden ? '▼' : '▲' }}
           </button>
         </div>
-        <div v-if="!isLeftSidebarHidden" class="p-3 space-y-3">
+        <div v-if="!isLeftSidebarHidden" class="p-3 space-y-3 max-h-[400px] overflow-y-auto">
           <div v-if="loadingSections" class="text-sm text-gray-400 text-center py-4">加载文件目录...</div>
           <div v-else-if="fileTree.length === 0" class="text-sm text-gray-400 text-center py-4">
             {{ selectedProjectId ? '暂无解析文件，请先上传招标文件' : '请选择一个项目' }}
@@ -84,8 +84,9 @@
             <div
               class="flex items-center px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300"
               :class="{ 'bg-primary/10 text-primary': selectedSection === section.id }"
-              @click="selectedSection = section.id"
+              @click="toggleSection(section.id)"
             >
+              <span class="mr-2 transition-transform duration-200" :class="{ 'rotate-90': expandedSections.has(section.id) }">▶</span>
               <span class="mr-2">{{ section.icon }}</span>
               <span class="flex-1 font-medium text-sm">{{ section.name }}</span>
               <span
@@ -97,7 +98,7 @@
                 {{ section.completed }}/{{ section.total }}
               </span>
             </div>
-            <div v-if="selectedSection === section.id" class="ml-6 mt-1 space-y-1">
+            <div v-if="expandedSections.has(section.id)" class="ml-6 mt-1 space-y-1 max-h-[300px] overflow-y-auto">
               <div
                 v-for="file in section.files"
                 :key="file.id"
@@ -231,7 +232,7 @@
                 </div>
               </div>
               <div v-if="!isEditing" class="flex justify-center">
-                <button class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all duration-300">
+                <button class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all duration-300" @click="downloadCurrentSection">
                   下载文件
                 </button>
               </div>
@@ -458,6 +459,7 @@
 import { ref, computed, onMounted } from 'vue'
 import {
   listProjects,
+  getProject,
   getTenderSections,
   getTenderSectionDetail,
   updateTenderSection,
@@ -496,6 +498,7 @@ const selectedProjectId = ref<string>('')
 const selectedProjectName = ref<string>('')
 const showProjectDropdown = ref<boolean>(false)
 const isLeftSidebarHidden = ref<boolean>(false)
+const expandedSections = ref<Set<string>>(new Set(['模板', '商务', '技术', '评审', '内容']))
 const isSelectingElement = ref<boolean>(false)
 const selectedElement = ref<{ element: string; text: string } | null>(null)
 const isRightTemplateHidden = ref<boolean>(false)
@@ -580,6 +583,18 @@ async function loadSections(projectId: string) {
   try {
     const data = await getTenderSections(projectId)
     sections.value = data || []
+
+    const project = await getProject(projectId)
+    if (project && project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0) {
+      const templateSection: TenderSection[] = project.bid_template_files.map((f: any) => ({
+        id: f.id,
+        section_name: f.name,
+        section_type: '模板',
+        is_star_item: false,
+        source_file: f.path || '模板文件',
+      }))
+      sections.value = [...templateSection, ...sections.value]
+    }
   } catch (e: any) {
     error.value = e.message || '加载文件列表失败'
   } finally {
@@ -596,6 +611,7 @@ const fileTree = computed((): FileSection[] => {
   }
 
   const typeMeta: Record<string, { name: string; icon: string }> = {
+    '模板': { name: '回标文件模板', icon: '📋' },
     '商务': { name: '商务部分', icon: '📁' },
     '技术': { name: '技术部分', icon: '📄' },
     '评审': { name: '评审部分', icon: '🔍' },
@@ -620,6 +636,14 @@ const fileTree = computed((): FileSection[] => {
   }
   return result
 })
+
+const toggleSection = (sectionId: string) => {
+  if (expandedSections.value.has(sectionId)) {
+    expandedSections.value.delete(sectionId)
+  } else {
+    expandedSections.value.add(sectionId)
+  }
+}
 
 // 星标项列表
 const starItems = computed((): StarItem[] => {
@@ -677,6 +701,24 @@ const handleEditFile = async (file: FileItem) => {
   isEditing.value = true
   editableContent.value = sectionDetail.value?.content || ''
   console.log('>>> isEditing set to:', isEditing.value)
+}
+
+// 下载当前章节为TXT文件
+const downloadCurrentSection = () => {
+  if (!sectionDetail.value) {
+    alert('请先选择文件')
+    return
+  }
+  const content = editableContent.value || sectionDetail.value.content || ''
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${sectionDetail.value.section_name || '文档'}.txt`
+  document.body.appendChild(a)
+  a.click()
+  window.URL.revokeObjectURL(url)
+  document.body.removeChild(a)
 }
 
 // 开始选择元素

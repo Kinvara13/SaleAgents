@@ -12,6 +12,7 @@ export interface Project {
   bidding_company: string
   description: string
   module_progress: Record<string, string>
+  extracted_fields?: Array<{label: string; value: string; confidence?: string}>
 }
 
 export interface ProjectCreateRequest {
@@ -144,4 +145,33 @@ export async function getProjectScoringCriteria(projectId: string): Promise<Scor
 export async function getProjectActivities(projectId: string): Promise<ProjectActivity[]> {
   const res = await api.get<{ activities: ProjectActivity[] }>(`/projects/${projectId}/activities`)
   return res.data.activities
+}
+
+// ============ Knowledge Assets ============
+
+export interface KnowledgeAsset {
+  id: string
+  title: string
+  asset_type: string
+  score: string
+  status: string
+  summary: string
+}
+
+export async function listKnowledgeAssets(assetType?: string, limit: number = 20): Promise<KnowledgeAsset[]> {
+  const params: Record<string, string | number> = { limit }
+  if (assetType) params.asset_type = assetType
+  const res = await api.get<KnowledgeAsset[]>('/knowledge/knowledge-assets', { params })
+  return res.data
+}
+
+export async function uploadBidTemplate(projectId: string, file: File): Promise<{status: string; message: string; filename: string; files: any[]}> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await api.post(`/bid-template/${projectId}/upload-template`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return res.data
 }

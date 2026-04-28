@@ -27,15 +27,15 @@ export interface Project {
   confirmed_by?: string
   confirmed_at?: string | null
   user_id?: string
-  created_at?: string
-  updated_at?: string
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface ParsingSection {
   id: string
   project_id?: string
   section_name: string
-  section_type: '商务' | '技术'
+  section_type: '商务' | '技术' | '评审' | '内容'
   content?: string
   is_star_item: boolean
   source_file: string

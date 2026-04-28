@@ -6,7 +6,7 @@
         <div class="flex items-center space-x-4">
           <div class="flex items-center">
             <span class="text-sm text-gray-500 mr-2">当前项目:</span>
-            <span class="text-sm font-medium">智能城市项目</span>
+            <span class="text-sm font-medium">{{ currentProjectName || '未选择项目' }}</span>
           </div>
         </div>
         <div class="flex items-center space-x-4">
@@ -127,17 +127,20 @@
           <!-- 上传状态 -->
           <div v-if="uploadStatus" class="flex items-center justify-between p-3 border border-gray-100 rounded-lg" :class="{
             'bg-green-50 border-green-200': uploadStatus === '文件解析成功',
-            'bg-yellow-50 border-yellow-200': uploadStatus === '解析中',
+            'bg-yellow-50 border-yellow-200': uploadStatus === '解析中' || uploadStatus.includes('正在后台解析'),
             'bg-red-50 border-red-200': uploadStatus === 'error'
           }">
             <span class="text-sm" :class="{
               'text-green-700': uploadStatus === '文件解析成功',
-              'text-yellow-700': uploadStatus === '解析中',
+              'text-yellow-700': uploadStatus === '解析中' || uploadStatus.includes('正在后台解析'),
               'text-red-700': uploadStatus === 'error'
             }">
-              {{ uploadStatus === '文件解析成功' ? '文件解析成功，已提取关键信息' : uploadStatus }}
+              {{ uploadStatus === '文件解析成功' ? '文件解析成功，已提取关键信息' : (uploadStatus === 'error' ? formErrors.companyName || '解析失败' : uploadStatus) }}
             </span>
             <button v-if="uploadStatus === '文件解析成功'" class="text-xs text-primary" @click="reuploadFile">
+              重新上传
+            </button>
+            <button v-if="uploadStatus === 'error'" class="text-xs text-primary ml-2" @click="reuploadFile">
               重新上传
             </button>
           </div>
@@ -220,10 +223,8 @@
               <h3 class="text-lg font-semibold text-gray-800 mb-4">招标原文</h3>
               <div class="border border-gray-200 rounded-lg overflow-hidden">
                 <div class="bg-gray-50 border-b border-gray-200 px-4 py-2">
-                  <select class="text-sm border-none bg-transparent focus:outline-none">
-                    <option>技术规格书.docx</option>
-                    <option>商务要求.docx</option>
-                    <option>附件.zip</option>
+                  <select v-model="selectedSourceFile" class="text-sm border-none bg-transparent focus:outline-none" @change="onSourceFileChange">
+                    <option v-for="(file, idx) in projectFileList" :key="idx" :value="file.name">{{ file.name }}</option>
                   </select>
                 </div>
                 <div class="p-4 max-h-96 overflow-auto bg-gray-50">
@@ -499,58 +500,23 @@
           <!-- 知识库引用 -->
           <div>
             <h3 class="text-lg font-semibold text-gray-800 mb-4">知识库引用</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div class="border border-gray-200 rounded-lg p-4">
-                <h4 class="font-medium text-gray-800 mb-3">历史标书</h4>
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">城市交通系统标书</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">企业数字化转型标书</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">智慧城市安防标书</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
+            <div v-if="knowledgeAssets.length === 0" class="text-sm text-gray-400 py-4 text-center">
+              暂无可用知识库素材
+            </div>
+            <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div
+                v-for="asset in knowledgeAssets"
+                :key="asset.id"
+                class="border border-gray-200 rounded-lg p-4"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="font-medium text-gray-800 text-sm">{{ asset.title }}</h4>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{{ asset.asset_type }}</span>
                 </div>
-              </div>
-              
-              <div class="border border-gray-200 rounded-lg p-4">
-                <h4 class="font-medium text-gray-800 mb-3">人员信息</h4>
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">张三 - 技术总监</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">李四 - 项目经理</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">王五 - 商务经理</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="border border-gray-200 rounded-lg p-4">
-                <h4 class="font-medium text-gray-800 mb-3">公司资质</h4>
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">ISO9001认证</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">软件企业认证</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
-                  <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition-all">
-                    <span class="text-sm text-gray-700">系统集成资质</span>
-                    <button class="text-xs text-primary">选择</button>
-                  </div>
+                <p class="text-xs text-gray-500 mb-3 line-clamp-2">{{ asset.summary || '暂无摘要' }}</p>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-gray-400">匹配度: {{ asset.score }}</span>
+                  <button class="text-xs text-primary hover:underline">选择</button>
                 </div>
               </div>
             </div>
@@ -862,11 +828,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { createProject, uploadAndParseTender, getProject, getTenderSections } from '../services/project'
-import type { Project } from '../types'
+import { useRouter, useRoute } from 'vue-router'
+import { createProject, uploadAndParseTender, getProject, getTenderSections, listKnowledgeAssets, uploadBidTemplate } from '../services/project'
+import { createGenerationJob, exportGenerationJobDocx, getLatestJobByProject } from '../services/generation'
 
 const router = useRouter()
+const route = useRoute()
 const currentStep = ref(0)
 const steps = [
   { name: '解析文件', description: '解析招标文件信息' },
@@ -887,6 +854,13 @@ const templateUploadStatus = ref('') // '', 'processing', 'success', 'error'
 const templateUploadMessage = ref('')
 const templateFileInput = ref<HTMLInputElement | null>(null)
 const uploadedTemplateFile = ref<any>(null)
+
+// 招标原文文件列表
+const projectFileList = ref<any[]>([])
+const selectedSourceFile = ref('')
+const onSourceFileChange = () => {
+  console.log('Selected source file:', selectedSourceFile.value)
+}
 
 // 基础信息表单
 const basicInfo = ref({
@@ -909,6 +883,7 @@ const formErrors = ref({
 })
 
 const currentProjectId = ref<string | null>(null)
+const currentProjectName = ref<string>('')
 
 // 关键信息
 const keyInfo = ref<Record<string, { checked: boolean; value: any }>>({
@@ -934,6 +909,9 @@ const keyInfo = ref<Record<string, { checked: boolean; value: any }>>({
 
 // 星标项列表
 const starItems = ref<any[]>([])
+
+// 知识库引用
+const knowledgeAssets = ref<KnowledgeAsset[]>([])
 
 // 回标文件清单
 const bidFiles = ref<any[]>([])
@@ -1012,12 +990,14 @@ const onFileSelected = async (event: any) => {
   try {
     // 1. 如果还没有项目，先创建一个基础项目
     if (!currentProjectId.value) {
+      const projectName = file.name.split('.')[0] || '新项目'
       const proj = await createProject({
-        name: file.name.split('.')[0] || '新项目',
+        name: projectName,
         owner: '当前用户',
         status: '解析中',
       })
       currentProjectId.value = proj.id
+      currentProjectName.value = projectName
     }
     
     uploadProgress.value = 40
@@ -1043,6 +1023,13 @@ const onFileSelected = async (event: any) => {
         
         if (proj.status === '解析完成') {
           sections = await getTenderSections(currentProjectId.value)
+          // Populate projectFileList from the project's file_list
+          if (proj.file_list && Array.isArray(proj.file_list)) {
+            projectFileList.value = proj.file_list
+            if (proj.file_list.length > 0) {
+              selectedSourceFile.value = proj.file_list[0].name
+            }
+          }
           break
         }
         
@@ -1061,90 +1048,85 @@ const onFileSelected = async (event: any) => {
     uploadProgress.value = 100
     uploadStatus.value = '文件解析成功'
     
-    // 把后端返回的内容塞到基本信息里，暂时放在待确认状态
+    // 从后端返回的 extracted_fields 填充基本信息
     console.log('Parsed sections:', sections)
     
-    // 假设后端返回了 sections，我们从中找出特定的内容填充表单
-    // (这部分也可以通过后端再提供一个项目基本信息的聚合接口)
-    const bizSections = sections.filter((s: any) => s.section_type === '商务' || s.section_type === '评审')
-    
-    // 我们把解析到的 "评分重点" 塞到 starItems 里用于展示
-    const evalRule = sections.find((s: any) => s.section_name === '评分规则解析')
-    if (evalRule) {
-      starItems.value.push({
-        id: 1,
-        name: '评分重点',
-        type: '评审规则',
-        source: evalRule.source_file,
-        status: '需关注',
-        content: evalRule.content
-      })
-    }
-    
-    // 技术要求
-    const techReq = sections.find((s: any) => s.section_name === '技术要求')
-    if (techReq) {
-      starItems.value.push({
-        id: 2,
-        name: '核心技术要求',
-        type: '技术规范',
-        source: techReq.source_file,
-        status: '需关注',
-        content: techReq.content
-      })
-    }
-
-    // 初始化回标文件清单
-    const files: any[] = []
-    let fileId = 1
-    sections.forEach((s: any) => {
-      // 如果 section_type 存在，我们把它当成一个需要编制的文件（简单模拟）
-      if (s.section_type === '商务' || s.section_type === '技术') {
-        files.push({
-          id: fileId++,
-          name: s.section_name,
-          description: `来源: ${s.source_file}`,
-          status: '待分配',
-          selected: true,
-          icon: s.section_type === '商务' ? '📄' : '💻',
-          preview: (s.content || '').substring(0, 100) + '...',
-          original: s
-        })
+    // Fetch full project with extracted_fields
+    const fullProject = await getProject(currentProjectId.value)
+    if (fullProject.extracted_fields && Array.isArray(fullProject.extracted_fields)) {
+      const fieldMap: Record<string, string> = {}
+      for (const f of fullProject.extracted_fields) {
+        fieldMap[f.label] = f.value
       }
+      keyInfo.value.projectName.value = fieldMap['项目名称'] || ''
+      keyInfo.value.projectName.checked = !!fieldMap['项目名称']
+      keyInfo.value.bidType.value = fieldMap['标书类型'] || ''
+      keyInfo.value.bidType.checked = !!fieldMap['标书类型']
+      keyInfo.value.budget.value = fieldMap['预算金额'] || ''
+      keyInfo.value.budget.checked = !!fieldMap['预算金额']
+      keyInfo.value.bidDeadline.value = fieldMap['投标截止时间'] || ''
+      keyInfo.value.bidDeadline.checked = !!fieldMap['投标截止时间']
+      keyInfo.value.evaluationCriteria.value = fieldMap['评分重点'] || ''
+      keyInfo.value.evaluationCriteria.checked = !!fieldMap['评分重点']
+      keyInfo.value.starItems.value = fieldMap['技术要求'] || ''
+      keyInfo.value.starItems.checked = !!fieldMap['技术要求']
+    }
+    
+    // Populate star items from sections with is_star_item=true
+    starItems.value = []
+    let starId = 1
+    sections.filter((s: any) => s.is_star_item).forEach((s: any) => {
+      starItems.value.push({
+        id: starId++,
+        name: s.section_name,
+        type: s.section_type === '评审' ? '评审规则' : '技术规范',
+        source: s.source_file,
+        status: '需关注',
+        content: s.content
+      })
     })
-    
-    // 去重文件
-    const uniqueFiles: any[] = []
-    const seenNames = new Set()
-    for (const f of files) {
-      if (!seenNames.has(f.name)) {
-        seenNames.add(f.name)
-        uniqueFiles.push(f)
-      }
-    }
-    bidFiles.value = uniqueFiles
 
   } catch (e: any) {
     console.error(e)
     uploadStatus.value = 'error'
     uploadProgress.value = 0
-    formErrors.value.companyName = e.message || '解析失败'
+    formErrors.value.companyName = e.message || '解析失败，请检查文件后重试'
   }
 }
 
 // 上传回标文件模版
-const handleTemplateUpload = (event: any) => {
+const handleTemplateUpload = async (event: any) => {
   const file = event.target.files[0]
-  if (file) {
-    uploadedTemplateFile.value = file
-    templateUploadStatus.value = 'processing'
-    templateUploadMessage.value = '正在上传并解析回标文件模版...'
+  if (!file || !currentProjectId.value) return
 
-    // 模拟文件上传和AI识别
-    setTimeout(() => {
-      templateUploadStatus.value = 'success'
-      templateUploadMessage.value = '回标文件模版上传成功，AI已识别并生成回标文件清单'
-    }, 3000)
+  uploadedTemplateFile.value = file
+  templateUploadStatus.value = 'processing'
+  templateUploadMessage.value = '正在上传并解析回标文件模版...'
+
+  try {
+    const res = await uploadBidTemplate(currentProjectId.value, file)
+    templateUploadStatus.value = 'success'
+    templateUploadMessage.value = res.message
+
+    if (res.files && res.files.length > 0) {
+      const files: any[] = []
+      let fileId = 1
+      for (const f of res.files) {
+        files.push({
+          id: fileId++,
+          name: f.name,
+          description: f.path || '模板文件',
+          status: '待分配',
+          selected: true,
+          icon: f.icon || '📄',
+          preview: '',
+        })
+      }
+      bidFiles.value = files
+    }
+  } catch (e: any) {
+    templateUploadStatus.value = 'error'
+    templateUploadMessage.value = e.message || '上传失败'
   }
 }
 
@@ -1223,22 +1205,65 @@ const generationProgress = ref(0)
 const generationLogs = ref<string[]>([])
 
 // 开始生成
-const startGeneration = () => {
+const startGeneration = async () => {
+  if (!currentProjectId.value) {
+    alert('请先创建项目')
+    return
+  }
   isGenerating.value = true
   generationProgress.value = 0
+  generationLogs.value = ['正在创建生成任务...']
 
-  // 模拟生成过程
-  const interval = setInterval(() => {
-    generationProgress.value += 5
-    if (generationProgress.value >= 100) {
-      clearInterval(interval)
-      setTimeout(() => {
-        isGenerating.value = false
-        alert('回标文件生成完成！项目状态已更新为进行中')
-        router.push('/bid-list')
-      }, 1000)
+  try {
+    const job = await createGenerationJob(currentProjectId.value)
+    generationLogs.value.push(`任务已创建: ${job.id}`)
+    generationProgress.value = 30
+
+    generationLogs.value.push('正在生成回标文件内容...')
+    generationProgress.value = 60
+
+    let latestJob = job
+    let retries = 0
+    while (retries < 60) {
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      latestJob = await getLatestJobByProject(currentProjectId.value)
+      if (latestJob && latestJob.status === 'completed') {
+        break
+      }
+      if (latestJob && latestJob.status === 'failed') {
+        throw new Error('生成任务失败')
+      }
+      retries++
+      generationProgress.value = Math.min(60 + Math.floor(retries * 0.5), 95)
     }
-  }, 200)
+
+    generationProgress.value = 95
+    generationLogs.value.push('正在导出Word文档...')
+
+    const blob = await exportGenerationJobDocx(latestJob.id)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `回标文件_${currentProjectName.value || '项目'}.docx`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+
+    generationProgress.value = 100
+    generationLogs.value.push('回标文件生成完成！Word文档已下载')
+
+    setTimeout(() => {
+      isGenerating.value = false
+      alert('回标文件生成完成！Word文档已下载')
+      router.push('/bid-list')
+    }, 1000)
+  } catch (e: any) {
+    console.error(e)
+    generationLogs.value.push(`错误: ${e.message}`)
+    isGenerating.value = false
+    alert(`生成失败: ${e.message}`)
+  }
 }
 
 // 上一步
@@ -1322,7 +1347,83 @@ const nextStep = () => {
 }
 
 onMounted(async () => {
-  // 如果需要加载已有项目列表
+  try {
+    knowledgeAssets.value = await listKnowledgeAssets()
+  } catch (e) {
+    console.error('Failed to load knowledge assets:', e)
+  }
+
+  const projectId = route.params.projectId as string
+  if (projectId) {
+    try {
+      const project = await getProject(projectId)
+      if (project) {
+        currentProjectId.value = project.id
+        currentProjectName.value = project.name
+        uploadedFile.value = { name: project.name, size: 0 }
+
+        if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+          const fieldMap: Record<string, string> = {}
+          for (const f of project.extracted_fields) {
+            fieldMap[f.label] = f.value
+          }
+          keyInfo.value.projectName.value = fieldMap['项目名称'] || project.name
+          keyInfo.value.projectName.checked = true
+          keyInfo.value.budget.value = fieldMap['预算金额'] || ''
+          keyInfo.value.budget.checked = !!fieldMap['预算金额']
+          keyInfo.value.bidDeadline.value = fieldMap['投标截止时间'] || ''
+          keyInfo.value.bidDeadline.checked = !!fieldMap['投标截止时间']
+          keyInfo.value.evaluationCriteria.value = fieldMap['评分重点'] || ''
+          keyInfo.value.evaluationCriteria.checked = !!fieldMap['评分重点']
+          keyInfo.value.starItems.value = fieldMap['技术要求'] || ''
+          keyInfo.value.starItems.checked = !!fieldMap['技术要求']
+        }
+
+        if (project.bidding_company) basicInfo.value.companyName = project.bidding_company
+        if (project.agent_name) basicInfo.value.agent = project.agent_name
+        if (project.agent_phone) basicInfo.value.phone = project.agent_phone
+        if (project.agent_email) basicInfo.value.email = project.agent_email
+        if (project.company_address) basicInfo.value.address = project.company_address
+        if (project.bank_name) basicInfo.value.bankInfo = project.bank_name
+
+        if (project.status === '解析完成' || project.parse_status === '已解析') {
+          uploadStatus.value = '文件解析成功'
+          currentStep.value = 0
+          const sections = await getTenderSections(projectId)
+          if (sections && sections.length > 0) {
+            starItems.value = []
+            let starId = 1
+            sections.filter((s: any) => s.is_star_item).forEach((s: any) => {
+              starItems.value.push({
+                id: starId++,
+                name: s.section_name,
+                type: s.section_type === '评审' ? '评审规则' : '技术规范',
+                source: s.source_file,
+                status: '需关注',
+                content: s.content
+              })
+            })
+          }
+        }
+
+        if (project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0) {
+          templateUploadStatus.value = 'success'
+          templateUploadMessage.value = '模板已上传'
+          bidFiles.value = project.bid_template_files.map((f: any, i: number) => ({
+            id: i + 1,
+            name: f.name,
+            description: f.path || '模板文件',
+            status: '待分配',
+            selected: true,
+            icon: f.icon || '📄',
+            preview: '',
+          }))
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load project:', e)
+    }
+  }
 })
 </script>
 

@@ -1,4 +1,5 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,11 +8,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.logging_config import setup_logging
 from app.core.scheduler_config import init_scheduler, get_scheduler
 from app.db.base import Base
 from app.db.session import engine
 from app.models import *  # noqa: F401, F403
 from app.db.seed_tenders import seed_tenders
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 
 def _seed_tenders():

@@ -16,6 +16,7 @@ import Login from '../views/Login.vue'
 import UserManagement from '../views/UserManagement.vue'
 import RoleManagement from '../views/RoleManagement.vue'
 import SystemSettings from '../views/SystemSettings.vue'
+import SystemLogs from '../views/SystemLogs.vue'
 import { isLoggedIn } from '../services/auth'
 
 const routes: RouteRecordRaw[] = [
@@ -91,7 +92,7 @@ const routes: RouteRecordRaw[] = [
         component: PricingStrategy
       },
       {
-        path: 'project-create',
+        path: 'project-create/:projectId?',
         name: 'ProjectCreate',
         component: ProjectCreate
       },
@@ -109,6 +110,11 @@ const routes: RouteRecordRaw[] = [
         path: 'system-settings',
         name: 'SystemSettings',
         component: SystemSettings
+      },
+      {
+        path: 'system-logs',
+        name: 'SystemLogs',
+        component: SystemLogs
       }
     ]
   }

@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 class LLMParsingClient:
     def extract_tender_fields(self, text: str) -> dict[str, Any]:
-        """使用数据库中激活的 LLM Provider 进行解析"""
         from app.db.session import SessionLocal
         from openai import OpenAI
 
@@ -21,9 +20,10 @@ class LLMParsingClient:
                 ).first()
 
                 if not provider or not provider.api_key:
-                    logger.warning("No active LLM provider found in database - tender field extraction skipped")
+                    logger.warning("[LLM] No active provider found - skipping extraction")
                     return {}
 
+                logger.info(f"[LLM] Extract: model={provider.model}, provider={provider.provider}, text_len={len(text)}")
                 client = OpenAI(
                     api_key=provider.api_key,
                     base_url=provider.base_url,
@@ -32,7 +32,7 @@ class LLMParsingClient:
                 )
 
                 model = provider.model
-                protocol = getattr(provider, "protocol", getattr(provider, "provider", "openai"))
+                protocol = provider.provider
 
                 return self._call_llm(client, model, protocol, text)
         except Exception as e:
@@ -141,7 +141,6 @@ class LLMParsingClient:
 
 
     def summarize_text(self, text: str, title: str = "", max_words: int = 2000) -> str:
-        """Summarize long text using LLM. Returns summary or empty string on failure."""
         from app.db.session import SessionLocal
         from openai import OpenAI
 
@@ -166,7 +165,7 @@ class LLMParsingClient:
                 user_prompt = f"章节名称：{title}\n\n原始内容（前12000字）：\n{text[:12000]}\n\n请生成摘要（约{max_words}字）："
 
                 model = provider.model
-                protocol = getattr(provider, "protocol", getattr(provider, "provider", "openai"))
+                protocol = provider.provider
 
                 if protocol == "anthropic":
                     import httpx

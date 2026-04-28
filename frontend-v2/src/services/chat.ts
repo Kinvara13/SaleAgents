@@ -103,8 +103,17 @@ export async function readChatStream(
     for (const line of lines) {
       const data = line.replace(/^data: /, '').trim()
       if (data && data !== '[DONE]') {
-        fullText += data
-        onChunk?.(data)
+        try {
+          const parsed = JSON.parse(data)
+          const text = parsed.content || ''
+          if (text) {
+            fullText += text
+            onChunk?.(text)
+          }
+        } catch {
+          fullText += data
+          onChunk?.(data)
+        }
       }
     }
   }

@@ -26,13 +26,13 @@ def get_logs(
     result = LogsResponse()
 
     if log_type in ("backend", "all"):
-        backend_log = logs_dir / "backend.log"
+        backend_log = logs_dir / "backend-v2.log"
         result.backend_exists = backend_log.exists()
         if result.backend_exists:
             result.backend = _read_last_lines(backend_log, lines)
 
     if log_type in ("frontend", "all"):
-        frontend_log = logs_dir / "frontend.log"
+        frontend_log = logs_dir / "frontend-v2.log"
         result.frontend_exists = frontend_log.exists()
         if result.frontend_exists:
             result.frontend = _read_last_lines(frontend_log, lines)

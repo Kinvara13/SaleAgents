@@ -4,7 +4,7 @@ const baseURL = (import.meta.env.VITE_API_BASE || '') + '/api/v1'
 
 const api = axios.create({
   baseURL,
-  timeout: 180000,
+  timeout: 300000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

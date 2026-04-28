@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     llm_ready: bool = False
     llm_model: str = "glm-4"
-    llm_timeout_seconds: int = 120
+    llm_timeout_seconds: int = 300
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_max_review_issues: int = 5

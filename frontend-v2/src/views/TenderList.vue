@@ -67,11 +67,37 @@
       <div
         v-for="project in projects"
         :key="project.id"
-        class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 cursor-pointer"
+        class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 cursor-pointer relative"
         @click="handleProjectClick(project.id)"
       >
+        <button
+          class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-danger hover:bg-danger/10 transition-all"
+          @click.stop="showDeleteConfirm = project.id"
+          title="删除项目"
+        >
+          ✕
+        </button>
+
+        <div v-if="showDeleteConfirm === project.id" class="absolute inset-0 bg-white/95 rounded-xl flex flex-col items-center justify-center z-10 p-4">
+          <p class="text-sm text-gray-700 mb-3">确定删除此项目？</p>
+          <div class="flex space-x-2">
+            <button
+              class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+              @click.stop="showDeleteConfirm = null"
+            >
+              取消
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs bg-danger text-white rounded-lg hover:bg-danger/90"
+              @click.stop="handleDeleteProject(project.id)"
+            >
+              删除
+            </button>
+          </div>
+        </div>
+
         <div class="mb-4">
-          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">{{ project.name }}</h3>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 pr-6">{{ project.name }}</h3>
           <p class="text-sm text-gray-500 mb-2">招标方：{{ project.client || '-' }}</p>
           <p class="text-sm text-gray-600">应标方：{{ project.owner || '-' }}</p>
         </div>
@@ -84,6 +110,10 @@
           <div class="flex justify-between">
             <span class="text-sm text-gray-500">截止时间</span>
             <span class="text-sm font-semibold text-gray-800">{{ project.deadline || '-' }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-sm text-gray-500">创建时间</span>
+            <span class="text-xs text-gray-500">{{ formatDate(project.created_at) }}</span>
           </div>
         </div>
 
@@ -118,7 +148,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { listProjects } from '../services/project'
+import { listProjects, deleteProject } from '../services/project'
 import type { Project } from '../types'
 
 const router = useRouter()
@@ -127,6 +157,7 @@ const projects = ref<Project[]>([])
 const loading = ref(false)
 const error = ref('')
 const mineFilter = ref(false)
+const showDeleteConfirm = ref<string | null>(null)
 
 function toggleMineFilter() {
   mineFilter.value = !mineFilter.value
@@ -151,16 +182,40 @@ const handleCreateProject = () => {
 
 const handleProjectClick = (id: string) => {
   const project = projects.value.find(p => p.id === id)
-  if (project && project.status === '草稿') {
-    router.push('/project-create')
+  if (project && (project.status === '草稿' || project.status === '解析中' || project.status === '解析失败')) {
+    router.push(`/project-create/${id}`)
   } else {
     router.push(`/tender-detail/${id}`)
+  }
+}
+
+const handleDeleteProject = async (id: string) => {
+  try {
+    await deleteProject(id)
+    projects.value = projects.value.filter(p => p.id !== id)
+    showDeleteConfirm.value = null
+  } catch (e: any) {
+    error.value = e.message || '删除失败'
   }
 }
 
 const formatAmount = (amount: string) => {
   if (!amount) return '-'
   return amount.startsWith('¥') ? amount : `¥ ${amount}`
+}
+
+const formatDate = (dateStr: string | undefined) => {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '-'
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch {
+    return '-'
+  }
 }
 
 const formatCountdown = (deadline: string) => {

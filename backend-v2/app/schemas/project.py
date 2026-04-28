@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -12,7 +14,6 @@ class ProjectSummary(BaseModel):
     deadline: str = ""
     amount: str = ""
     risk: str = "P2"
-    # 投标项目清单字段
     bidding_company: str = ""
     agent_name: str = ""
     agent_phone: str = ""
@@ -26,12 +27,14 @@ class ProjectSummary(BaseModel):
     confirmed_by: str = ""
     confirmed_at: str = ""
     user_id: str = "user-001"
-    # === 解析与工作台链路（F052-F053） ===
     tender_id: str | None = None
     parse_status: str | None = None
     file_list: list | None = None
     node_status: dict | None = None
     extracted_fields: list | None = None
+    bid_template_files: list | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class ProjectCreateRequest(BaseModel):

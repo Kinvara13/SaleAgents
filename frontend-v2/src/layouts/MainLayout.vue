@@ -100,6 +100,7 @@ const menuItems = ref<MenuItem[]>([
       { name: '系统设置', path: '/system-settings', icon: '⚙️' },
       { name: '用户管理', path: '/user-management', icon: '👥' },
       { name: '角色管理', path: '/role-management', icon: '🔐' },
+      { name: '系统日志', path: '/system-logs', icon: '📋' },
     ]
   }
 ])

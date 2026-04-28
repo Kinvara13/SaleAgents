@@ -319,11 +319,6 @@ class ParsingService:
         # 2. Split oversized chunks
         chunks = _split_oversized_chunks(chunks)
 
-        # 3. Summarize if still too long
-        for chunk in chunks:
-            if len(chunk["content"]) > SUMMARIZE_THRESHOLD:
-                chunk["content"] = _summarize_chunk(chunk["content"], chunk["title"])
-
         # 4. Merge tiny chunks with neighbors
         chunks = self._merge_tiny_chunks(chunks)
 

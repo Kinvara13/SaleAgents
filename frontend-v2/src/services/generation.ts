@@ -50,3 +50,23 @@ export async function getGenerationJobSections(jobId: string): Promise<Generatio
   const res = await api.get<GenerationSection[]>(`/generation/jobs/${jobId}/sections`)
   return res.data
 }
+
+export async function createGenerationJob(projectId: string, templateName?: string): Promise<GenerationJob> {
+  const res = await api.post<GenerationJob>('/generation/jobs', {
+    project_id: projectId,
+    template_name: templateName || '默认模板',
+  })
+  return res.data
+}
+
+export async function exportGenerationJobDocx(jobId: string): Promise<Blob> {
+  const res = await api.get(`/generation/jobs/${jobId}/export/docx`, {
+    responseType: 'blob',
+  })
+  return res.data
+}
+
+export async function getLatestJobByProject(projectId: string): Promise<GenerationJob | null> {
+  const res = await api.get<GenerationJob | null>(`/generation/projects/${projectId}/latest`)
+  return res.data
+}
