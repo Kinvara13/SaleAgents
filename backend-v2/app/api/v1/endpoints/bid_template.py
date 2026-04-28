@@ -21,6 +21,10 @@ def _decode_zip_filename(name: str) -> str:
     if not isinstance(name, str):
         name = str(name)
     
+    # If filename already contains Chinese characters, it's correctly decoded
+    if any('\u4e00' <= c <= '\u9fff' for c in name):
+        return name
+    
     try:
         name.encode('utf-8')
         if '\ufffd' not in name and not any(ord(c) > 127 and c.isprintable() for c in name[:20]):
@@ -29,7 +33,7 @@ def _decode_zip_filename(name: str) -> str:
         pass
     
     try:
-        original_bytes = name.encode('cp437')
+        original_bytes = name.encode('latin-1')
         try:
             decoded = original_bytes.decode('gbk')
             if any('\u4e00' <= c <= '\u9fff' for c in decoded):

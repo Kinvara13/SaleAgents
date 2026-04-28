@@ -26,9 +26,9 @@ UNZIP_DIR = Path(settings.storage_path or Path(__file__).resolve().parents[4] / 
 def _decode_zip_filename(name: str) -> str:
     """Decode ZIP filename with Chinese encoding fallback.
     
-    Python's zipfile uses CP437 by default for non-UTF-8 flag entries.
+    Python's zipfile uses Latin-1 (ISO-8859-1) by default for non-UTF-8 flag entries.
     Chinese tools (WinRAR, 360压缩) on Windows use GBK encoding.
-    We need to re-encode from CP437 back to bytes, then decode with GBK.
+    We need to re-encode from Latin-1 back to bytes, then decode with GBK.
     """
     if not isinstance(name, str):
         name = str(name)
@@ -37,7 +37,7 @@ def _decode_zip_filename(name: str) -> str:
     if any('\u4e00' <= c <= '\u9fff' for c in name):
         return name
     
-    # Check if filename is already valid UTF-8 (modern ZIP files)
+    # Check if filename is already valid UTF-8 (modern ZIP files with UTF-8 flag)
     try:
         name.encode('utf-8')
         # If no replacement characters and looks normal, return as-is
@@ -46,11 +46,11 @@ def _decode_zip_filename(name: str) -> str:
     except (UnicodeEncodeError, UnicodeDecodeError):
         pass
     
-    # The filename was decoded by Python's zipfile using CP437
-    # We need to encode it back to bytes using CP437, then decode with Chinese encodings
+    # The filename was decoded by Python's zipfile using Latin-1 (ISO-8859-1)
+    # We need to encode it back to bytes using Latin-1, then decode with Chinese encodings
     try:
-        # Step 1: Re-encode the garbled string back to original bytes using CP437
-        original_bytes = name.encode('cp437')
+        # Step 1: Re-encode the garbled string back to original bytes using Latin-1
+        original_bytes = name.encode('latin-1')
         
         # Step 2: Try decoding with GBK (most common for Chinese Windows)
         try:
@@ -80,7 +80,7 @@ def _decode_zip_filename(name: str) -> str:
     except (UnicodeEncodeError, UnicodeDecodeError) as e:
         logger.warning(f"Failed to decode filename '{name}': {e}")
     
-    # Fallback: return original or replace invalid chars
+    # Fallback: return original
     return name
 
 
