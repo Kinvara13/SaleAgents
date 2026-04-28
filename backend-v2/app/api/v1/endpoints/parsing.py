@@ -18,7 +18,7 @@ from app.core.config import settings
 
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".zip"}
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".zip", ".rar"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 UNZIP_DIR = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "unzip_temp"
 
@@ -27,47 +27,57 @@ def _decode_zip_filename(name: str) -> str:
     """Decode ZIP filename with Chinese encoding fallback.
     
     Python's zipfile uses CP437 by default for non-UTF-8 flag entries.
-    Chinese tools (WinRAR, 360压缩) on Windows may use GBK encoding instead.
+    Chinese tools (WinRAR, 360压缩) on Windows use GBK encoding.
+    We need to re-encode from CP437 back to bytes, then decode with GBK.
     """
-    # If it's already a string, try various encodings
-    if isinstance(name, str):
-        # Try to detect if it's already valid UTF-8
+    if not isinstance(name, str):
+        name = str(name)
+    
+    # Check if filename is already valid UTF-8 (modern ZIP files)
+    try:
+        name.encode('utf-8')
+        # If no replacement characters and looks normal, return as-is
+        if '\ufffd' not in name and not any(ord(c) > 127 and c.isprintable() for c in name[:20]):
+            return name
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    
+    # The filename was decoded by Python's zipfile using CP437
+    # We need to encode it back to bytes using CP437, then decode with Chinese encodings
+    try:
+        # Step 1: Re-encode the garbled string back to original bytes using CP437
+        original_bytes = name.encode('cp437')
+        
+        # Step 2: Try decoding with GBK (most common for Chinese Windows)
         try:
-            name.encode('utf-8')
-            # Check if it looks like garbled text (contains replacement chars)
-            if '\ufffd' not in name:
-                return name
-        except (UnicodeEncodeError, UnicodeDecodeError):
+            decoded = original_bytes.decode('gbk')
+            # Verify it contains Chinese characters
+            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                return decoded
+        except (UnicodeDecodeError, UnicodeEncodeError):
             pass
-
-    # Try GBK encoding (Chinese Windows default)
-    try:
-        if isinstance(name, bytes):
-            return name.decode('gbk')
-        return name.encode('cp437').decode('gbk')
-    except (UnicodeDecodeError, UnicodeEncodeError):
-        pass
-
-    # Try GB2312
-    try:
-        if isinstance(name, bytes):
-            return name.decode('gb2312')
-        return name.encode('cp437').decode('gb2312')
-    except (UnicodeDecodeError, UnicodeEncodeError):
-        pass
-
-    # Try GB18030 (superset of GBK)
-    try:
-        if isinstance(name, bytes):
-            return name.decode('gb18030')
-        return name.encode('cp437').decode('gb18030')
-    except (UnicodeDecodeError, UnicodeEncodeError):
-        pass
-
-    # Fallback: replace invalid chars
-    if isinstance(name, bytes):
-        return name.decode('utf-8', errors='replace')
-    return name.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+        
+        # Step 3: Try GB18030 (superset of GBK)
+        try:
+            decoded = original_bytes.decode('gb18030')
+            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                return decoded
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+        
+        # Step 4: Try GB2312
+        try:
+            decoded = original_bytes.decode('gb2312')
+            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                return decoded
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+        
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        logger.warning(f"Failed to decode filename '{name}': {e}")
+    
+    # Fallback: return original or replace invalid chars
+    return name
 
 
 @router.post("/{project_id}/upload", response_model=TaskSubmitResponse)
@@ -107,12 +117,12 @@ async def upload_and_parse(
     upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_documents"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    if ext == ".zip":
-        # Handle ZIP archive
-        zip_path = upload_dir / filename
-        with open(zip_path, "wb") as f:
+    if ext == ".zip" or ext == ".rar":
+        # Handle ZIP/RAR archive
+        archive_path = upload_dir / filename
+        with open(archive_path, "wb") as f:
             f.write(content)
-        background_tasks.add_task(_handle_zip_async, project_id, zip_path, task.id)
+        background_tasks.add_task(_handle_archive_async, project_id, archive_path, ext, task.id)
     else:
         # Handle single file
         file_path = upload_dir / filename
@@ -126,11 +136,11 @@ async def upload_and_parse(
         message="文件已接收，后台解析任务已启动",
     )
 
-def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
+def _handle_archive_async(project_id: str, archive_path: Path, ext: str, task_id: str):
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
-        logger.info(f"[ZIP_PARSE] Start: project_id={project_id}, zip_path={zip_path}, task_id={task_id}")
+        logger.info(f"[ARCHIVE_PARSE] Start: project_id={project_id}, archive_path={archive_path}, ext={ext}, task_id={task_id}")
         update_task_status(db, task_id, "processing")
 
         project = db.query(Project).filter(Project.id == project_id).first()
@@ -192,8 +202,58 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
                 raise
             return extracted_files
 
-        all_extracted_files = extract_zip_recursive(zip_path, extract_dir)
-        logger.info(f"Extracted {len(all_extracted_files)} files from ZIP archive")
+        def extract_rar_recursive(rar_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
+            """Recursively extract RAR files and return list of extracted file paths."""
+            try:
+                import rarfile
+            except ImportError:
+                logger.error("rarfile library not installed. Please run: pip install rarfile")
+                raise RuntimeError("RAR support requires rarfile library. Run: pip install rarfile")
+            
+            extracted_files: list[Path] = []
+            if depth > 5:
+                logger.warning(f"Max RAR nesting depth reached at: {rar_path}")
+                return extracted_files
+            target_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                with rarfile.RarFile(str(rar_path), 'r') as rf:
+                    for info in rf.infolist():
+                        decoded_name = _decode_zip_filename(info.filename)
+                        # Skip macOS metadata and hidden files
+                        if decoded_name.startswith("__MACOSX/") or decoded_name.startswith(".") or "/." in decoded_name:
+                            continue
+                        target_path = target_dir / decoded_name
+                        if info.is_dir():
+                            target_path.mkdir(parents=True, exist_ok=True)
+                            continue
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        with rf.open(info) as src, open(target_path, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        extracted_files.append(target_path)
+                        # Recursively extract nested RARs
+                        if target_path.suffix.lower() == ".rar":
+                            nested_dir = target_path.parent / target_path.stem
+                            try:
+                                nested_files = extract_rar_recursive(target_path, nested_dir, depth + 1)
+                                extracted_files.extend(nested_files)
+                                # Remove the nested RAR file after extraction
+                                target_path.unlink(missing_ok=True)
+                                logger.info(f"Recursively extracted nested RAR: {decoded_name} ({len(nested_files)} files)")
+                            except Exception as e:
+                                logger.warning(f"Failed to extract nested RAR {decoded_name}: {e}")
+            except rarfile.RarFileError as e:
+                logger.error(f"Bad RAR file: {rar_path} - {e}")
+                raise
+            return extracted_files
+
+        if ext == ".zip":
+            all_extracted_files = extract_zip_recursive(archive_path, extract_dir)
+        elif ext == ".rar":
+            all_extracted_files = extract_rar_recursive(archive_path, extract_dir)
+        else:
+            raise ValueError(f"Unsupported archive type: {ext}")
+        
+        logger.info(f"Extracted {len(all_extracted_files)} files from {ext.upper()} archive")
 
         # Process all extracted files
         files_to_parse: list[tuple[Path, str]] = []
@@ -240,7 +300,7 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
                 skipped_files.append(f"{fname} (parse error: {e})")
 
         logger.info(
-            f"Zip extraction summary for project {project_id}: "
+            f"Archive extraction summary for project {project_id}: "
             f"found={total_files_found}, parsed={total_files_parsed}, skipped={len(skipped_files)}"
         )
         if skipped_files:
@@ -249,7 +309,7 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
 
         # Cleanup
         shutil.rmtree(UNZIP_DIR / project_id, ignore_errors=True)
-        zip_path.unlink(missing_ok=True)
+        archive_path.unlink(missing_ok=True)
 
         if project:
             project.status = "解析完成"

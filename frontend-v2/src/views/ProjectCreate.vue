@@ -25,7 +25,18 @@
 
     <!-- 标题和操作按钮 -->
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">新增项目</h2>
+      <div class="flex items-center space-x-4">
+        <button 
+          class="flex items-center px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-all duration-300"
+          @click="goBack"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          返回
+        </button>
+        <h2 class="text-2xl font-bold text-gray-800">新增项目</h2>
+      </div>
       <button class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-all duration-300">
         保存项目
       </button>
@@ -1294,6 +1305,11 @@ const prevStep = () => {
   if (currentStep.value > 0) {
     currentStep.value--
   }
+}
+
+// 返回上一页
+const goBack = () => {
+  router.push('/bid-list')
 }
 
 // 验证基础信息表单
