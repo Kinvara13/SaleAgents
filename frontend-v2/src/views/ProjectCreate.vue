@@ -239,14 +239,10 @@
                   </select>
                 </div>
                 <div class="p-4 max-h-96 overflow-auto bg-gray-50">
-                  <pre class="text-sm text-gray-700 whitespace-pre-wrap">
-3.3 接口日志
-接口日志应结合所有与外部系统的交互日志，包括平台内部编排各环节接口日志。接口日志具备信息完整、可追溯、可分析。
-
-4.4 系统安全要求
-系统应具有较高的可靠性，防病毒软件应具备全面查杀病毒、查杀准确度高无误、管理方便、病毒特征码自动更新、安装简单的特点。
-系统具有入侵检测的功能，监控可疑的连接、非法访问等，采取的措施包括实时报警、自动阻断通信连接或执行用户自定义的安全策略。
-                  </pre>
+                  <pre v-if="selectedFileContent" class="text-sm text-gray-700 whitespace-pre-wrap">{{ selectedFileContent }}</pre>
+                  <div v-else class="text-sm text-gray-400 text-center py-8">
+                    选择文件后显示内容
+                  </div>
                 </div>
               </div>
 
@@ -690,10 +686,13 @@
                     <h5 class="font-medium text-gray-800">{{ selectedFileData.name }}</h5>
                     <p class="text-sm text-gray-500">{{ selectedFileData.description }}</p>
                   </div>
-                  <div class="border border-gray-100 rounded-lg p-4 bg-gray-50 min-h-64 flex items-center justify-center">
-                    <div class="text-center">
-                      <div class="text-4xl mb-2">{{ selectedFileData.icon }}</div>
-                      <p class="text-gray-500">{{ selectedFileData.preview }}</p>
+                  <div class="border border-gray-100 rounded-lg p-4 bg-gray-50 min-h-64 overflow-auto">
+                    <div v-if="loadingPreview" class="text-center py-8 text-gray-400">
+                      正在加载文件内容...
+                    </div>
+                    <pre v-else-if="templateFilePreview" class="text-sm text-gray-700 whitespace-pre-wrap">{{ templateFilePreview }}</pre>
+                    <div v-else class="text-center py-8 text-gray-400">
+                      该文件暂无可预览内容
                     </div>
                   </div>
                   <div class="flex justify-between">
@@ -869,8 +868,33 @@ const uploadedTemplateFile = ref<any>(null)
 // 招标原文文件列表
 const projectFileList = ref<any[]>([])
 const selectedSourceFile = ref('')
-const onSourceFileChange = () => {
-  console.log('Selected source file:', selectedSourceFile.value)
+const selectedFileContent = ref('')
+const fileContentMap = ref<Record<string, string>>({})
+
+const onSourceFileChange = async () => {
+  if (!currentProjectId.value || !selectedSourceFile.value) return
+  
+  // 先从缓存中查找
+  if (fileContentMap.value[selectedSourceFile.value]) {
+    selectedFileContent.value = fileContentMap.value[selectedSourceFile.value]
+    return
+  }
+  
+  try {
+    // 从sections中查找对应文件的内容
+    const sections = await getTenderSections(currentProjectId.value)
+    const fileSections = sections.filter((s: any) => s.source_file === selectedSourceFile.value)
+    if (fileSections.length > 0) {
+      const content = fileSections.map((s: any) => `【${s.section_name}】\n${s.content}`).join('\n\n')
+      selectedFileContent.value = content
+      fileContentMap.value[selectedSourceFile.value] = content
+    } else {
+      selectedFileContent.value = '该文件暂无解析内容'
+    }
+  } catch (e) {
+    console.error('Failed to load file content:', e)
+    selectedFileContent.value = '加载文件内容失败'
+  }
 }
 
 // 基础信息表单
@@ -1039,6 +1063,12 @@ const onFileSelected = async (event: any) => {
             projectFileList.value = proj.file_list
             if (proj.file_list.length > 0) {
               selectedSourceFile.value = proj.file_list[0].name
+              // Auto-load first file content
+              const firstFileSections = sections.filter((s: any) => s.source_file === proj.file_list[0].name)
+              if (firstFileSections.length > 0) {
+                selectedFileContent.value = firstFileSections.map((s: any) => `【${s.section_name}】\n${s.content}`).join('\n\n')
+                fileContentMap.value[proj.file_list[0].name] = selectedFileContent.value
+              }
             }
           }
           break
@@ -1154,9 +1184,15 @@ const handleTemplateUpload = async (event: any) => {
           selected: true,
           icon: f.icon || '📄',
           preview: '',
+          path: f.path,
         })
       }
       bidFiles.value = files
+      // Auto-select first file and load preview
+      if (files.length > 0) {
+        selectedFile.value = files[0].id
+        await loadFilePreview(files[0])
+      }
     }
   } catch (e: any) {
     templateUploadStatus.value = 'error'
@@ -1232,6 +1268,43 @@ const showTenderOriginal = (key: string, index: number | null = null) => {
 const selectedFileData = computed(() => {
   return bidFiles.value.find((file: any) => file.id === selectedFile.value)
 })
+
+// 文件预览内容
+const templateFilePreview = ref('')
+const loadingPreview = ref(false)
+
+// 加载文件预览
+const loadFilePreview = async (file: any) => {
+  if (!currentProjectId.value || !file?.path) {
+    templateFilePreview.value = ''
+    return
+  }
+  
+  loadingPreview.value = true
+  try {
+    const res = await fetch(`/api/v1/bid-template/${currentProjectId.value}/template-files/${encodeURIComponent(file.path)}/preview`)
+    const data = await res.json()
+    if (data.status === 'success') {
+      templateFilePreview.value = data.content
+    } else {
+      templateFilePreview.value = '无法加载文件内容'
+    }
+  } catch (e) {
+    console.error('Failed to load file preview:', e)
+    templateFilePreview.value = '加载预览失败'
+  } finally {
+    loadingPreview.value = false
+  }
+}
+
+// 重写selectFile以加载预览
+const selectFile = async (id: number) => {
+  selectedFile.value = id
+  const file = bidFiles.value.find((f: any) => f.id === id)
+  if (file) {
+    await loadFilePreview(file)
+  }
+}
 
 // 生成状态
 const isGenerating = ref(false)

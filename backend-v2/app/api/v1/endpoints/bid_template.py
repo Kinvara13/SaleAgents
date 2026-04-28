@@ -17,18 +17,64 @@ MAX_TEMPLATE_SIZE = 50 * 1024 * 1024
 
 
 def _decode_zip_filename(name: str) -> str:
+    """Decode ZIP filename with Chinese encoding fallback."""
+    if not isinstance(name, str):
+        name = str(name)
+    
     try:
         name.encode('utf-8')
-        return name
+        if '\ufffd' not in name and not any(ord(c) > 127 and c.isprintable() for c in name[:20]):
+            return name
     except (UnicodeEncodeError, UnicodeDecodeError):
         pass
+    
     try:
-        if isinstance(name, bytes):
-            return name.decode('gbk')
-        return name.encode('cp437').decode('gbk')
-    except (UnicodeDecodeError, UnicodeEncodeError):
+        original_bytes = name.encode('cp437')
+        try:
+            decoded = original_bytes.decode('gbk')
+            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                return decoded
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+        try:
+            decoded = original_bytes.decode('gb18030')
+            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                return decoded
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+    except (UnicodeEncodeError, UnicodeDecodeError):
         pass
-    return name.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+    
+    return name
+
+
+def _extract_text_from_file(file_path: Path) -> str:
+    """Extract text content from a document file for preview."""
+    ext = file_path.suffix.lower()
+    try:
+        if ext == ".txt":
+            return file_path.read_text(encoding="utf-8", errors="replace")
+        elif ext == ".docx":
+            from docx import Document
+            doc = Document(str(file_path))
+            return "\n".join([p.text for p in doc.paragraphs])
+        elif ext == ".pdf":
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(str(file_path))
+                texts = []
+                for page in reader.pages:
+                    pt = page.extract_text() or ""
+                    if pt.strip():
+                        texts.append(pt)
+                return "\n\n".join(texts)
+            except Exception:
+                return "[PDF内容预览暂不可用]"
+        else:
+            return file_path.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        logger.warning(f"Failed to extract text from {file_path}: {e}")
+        return f"[文件内容读取失败: {e}]"
 
 
 @router.post("/{project_id}/upload-template")
@@ -132,4 +178,37 @@ async def upload_bid_template(
         "message": "模板上传成功",
         "filename": filename,
         "files": bid_files,
+    }
+
+
+@router.get("/{project_id}/template-files")
+def get_template_files(project_id: str, db: Session = Depends(get_db)) -> dict:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    
+    return {
+        "status": "success",
+        "files": project.bid_template_files or [],
+    }
+
+
+@router.get("/{project_id}/template-files/{file_path:path}/preview")
+def preview_template_file(project_id: str, file_path: str, db: Session = Depends(get_db)) -> dict:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    
+    upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_templates"
+    target_file = upload_dir / file_path
+    
+    if not target_file.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
+    
+    content = _extract_text_from_file(target_file)
+    
+    return {
+        "status": "success",
+        "filename": target_file.name,
+        "content": content,
     }
