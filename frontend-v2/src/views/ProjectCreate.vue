@@ -1058,14 +1058,37 @@ const onFileSelected = async (event: any) => {
       for (const f of fullProject.extracted_fields) {
         fieldMap[f.label] = f.value
       }
+      // 基本信息
       keyInfo.value.projectName.value = fieldMap['项目名称'] || ''
       keyInfo.value.projectName.checked = !!fieldMap['项目名称']
       keyInfo.value.bidType.value = fieldMap['标书类型'] || ''
       keyInfo.value.bidType.checked = !!fieldMap['标书类型']
       keyInfo.value.budget.value = fieldMap['预算金额'] || ''
       keyInfo.value.budget.checked = !!fieldMap['预算金额']
+      keyInfo.value.startTime.value = fieldMap['标书起始时间'] || ''
+      keyInfo.value.startTime.checked = !!fieldMap['标书起始时间']
+      keyInfo.value.endTime.value = fieldMap['标书结束时间'] || ''
+      keyInfo.value.endTime.checked = !!fieldMap['标书结束时间']
       keyInfo.value.bidDeadline.value = fieldMap['投标截止时间'] || ''
       keyInfo.value.bidDeadline.checked = !!fieldMap['投标截止时间']
+      // 保证金信息
+      const hasDeposit = fieldMap['是否有保证金']
+      keyInfo.value.hasSecurityDeposit.value = hasDeposit === '是'
+      keyInfo.value.hasSecurityDeposit.checked = !!hasDeposit
+      keyInfo.value.securityDepositAmount.value = fieldMap['保证金金额'] || ''
+      keyInfo.value.securityDepositAmount.checked = !!fieldMap['保证金金额']
+      keyInfo.value.securityDepositType.value = fieldMap['保证金形式'] || ''
+      keyInfo.value.securityDepositType.checked = !!fieldMap['保证金形式']
+      // 其他信息
+      keyInfo.value.needSignature.value = fieldMap['是否需要签字盖章'] === '是'
+      keyInfo.value.needSignature.checked = !!fieldMap['是否需要签字盖章']
+      const hasClarification = fieldMap['是否有项目澄清会']
+      keyInfo.value.hasClarificationMeeting.value = hasClarification === '是'
+      keyInfo.value.hasClarificationMeeting.checked = !!hasClarification
+      keyInfo.value.clarificationTime.value = fieldMap['项目澄清会时间'] || ''
+      keyInfo.value.clarificationTime.checked = !!fieldMap['项目澄清会时间']
+      keyInfo.value.clarificationLink.value = fieldMap['项目澄清会链接'] || ''
+      keyInfo.value.clarificationLink.checked = !!fieldMap['项目澄清会链接']
       keyInfo.value.evaluationCriteria.value = fieldMap['评分重点'] || ''
       keyInfo.value.evaluationCriteria.checked = !!fieldMap['评分重点']
       keyInfo.value.starItems.value = fieldMap['技术要求'] || ''
@@ -1369,10 +1392,34 @@ onMounted(async () => {
           }
           keyInfo.value.projectName.value = fieldMap['项目名称'] || project.name
           keyInfo.value.projectName.checked = true
+          keyInfo.value.bidType.value = fieldMap['标书类型'] || ''
+          keyInfo.value.bidType.checked = !!fieldMap['标书类型']
           keyInfo.value.budget.value = fieldMap['预算金额'] || ''
           keyInfo.value.budget.checked = !!fieldMap['预算金额']
+          keyInfo.value.startTime.value = fieldMap['标书起始时间'] || ''
+          keyInfo.value.startTime.checked = !!fieldMap['标书起始时间']
+          keyInfo.value.endTime.value = fieldMap['标书结束时间'] || ''
+          keyInfo.value.endTime.checked = !!fieldMap['标书结束时间']
           keyInfo.value.bidDeadline.value = fieldMap['投标截止时间'] || ''
           keyInfo.value.bidDeadline.checked = !!fieldMap['投标截止时间']
+          // 保证金信息
+          const hasDeposit = fieldMap['是否有保证金']
+          keyInfo.value.hasSecurityDeposit.value = hasDeposit === '是'
+          keyInfo.value.hasSecurityDeposit.checked = !!hasDeposit
+          keyInfo.value.securityDepositAmount.value = fieldMap['保证金金额'] || ''
+          keyInfo.value.securityDepositAmount.checked = !!fieldMap['保证金金额']
+          keyInfo.value.securityDepositType.value = fieldMap['保证金形式'] || ''
+          keyInfo.value.securityDepositType.checked = !!fieldMap['保证金形式']
+          // 其他信息
+          keyInfo.value.needSignature.value = fieldMap['是否需要签字盖章'] === '是'
+          keyInfo.value.needSignature.checked = !!fieldMap['是否需要签字盖章']
+          const hasClarification = fieldMap['是否有项目澄清会']
+          keyInfo.value.hasClarificationMeeting.value = hasClarification === '是'
+          keyInfo.value.hasClarificationMeeting.checked = !!hasClarification
+          keyInfo.value.clarificationTime.value = fieldMap['项目澄清会时间'] || ''
+          keyInfo.value.clarificationTime.checked = !!fieldMap['项目澄清会时间']
+          keyInfo.value.clarificationLink.value = fieldMap['项目澄清会链接'] || ''
+          keyInfo.value.clarificationLink.checked = !!fieldMap['项目澄清会链接']
           keyInfo.value.evaluationCriteria.value = fieldMap['评分重点'] || ''
           keyInfo.value.evaluationCriteria.checked = !!fieldMap['评分重点']
           keyInfo.value.starItems.value = fieldMap['技术要求'] || ''

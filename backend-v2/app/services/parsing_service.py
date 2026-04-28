@@ -368,12 +368,26 @@ class ParsingService:
                     db, project_id, "资质要求", "评审", qual_req, True, filename
                 ))
 
+            # Extract star items from LLM response
+            star_items_list = tender_info.get("星标项列表", [])
+            if isinstance(star_items_list, list):
+                for star_item in star_items_list:
+                    if isinstance(star_item, dict):
+                        star_name = star_item.get("name", "")
+                        star_content = star_item.get("content", "")
+                        if star_name and star_content:
+                            created.append(self._add_section(
+                                db, project_id, star_name, "评审", star_content, True, filename
+                            ))
+
             # Update project extracted_fields
             project = db.query(Project).filter(Project.id == project_id).first()
             if project:
                 extracted = []
-                for key in ["项目名称", "招标编号", "投标截止时间", "预算金额", "必备资质",
-                            "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺"]:
+                for key in ["项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
+                            "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额", "保证金形式",
+                            "必备资质", "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺",
+                            "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接"]:
                     val = self._extract_field_value(tender_info, key)
                     if val:
                         extracted.append({"label": key, "value": val, "confidence": "85%"})

@@ -29,12 +29,16 @@ def _decode_zip_filename(name: str) -> str:
     Python's zipfile uses CP437 by default for non-UTF-8 flag entries.
     Chinese tools (WinRAR, 360压缩) on Windows may use GBK encoding instead.
     """
-    try:
-        # If it's already valid UTF-8, return as-is
-        name.encode('utf-8')
-        return name
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
+    # If it's already a string, try various encodings
+    if isinstance(name, str):
+        # Try to detect if it's already valid UTF-8
+        try:
+            name.encode('utf-8')
+            # Check if it looks like garbled text (contains replacement chars)
+            if '\ufffd' not in name:
+                return name
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
 
     # Try GBK encoding (Chinese Windows default)
     try:
@@ -52,7 +56,17 @@ def _decode_zip_filename(name: str) -> str:
     except (UnicodeDecodeError, UnicodeEncodeError):
         pass
 
+    # Try GB18030 (superset of GBK)
+    try:
+        if isinstance(name, bytes):
+            return name.decode('gb18030')
+        return name.encode('cp437').decode('gb18030')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        pass
+
     # Fallback: replace invalid chars
+    if isinstance(name, bytes):
+        return name.decode('utf-8', errors='replace')
     return name.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
 
 
@@ -140,16 +154,19 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
         extract_dir = UNZIP_DIR / project_id
         extract_dir.mkdir(parents=True, exist_ok=True)
 
-        def extract_zip_recursive(zip_path: Path, target_dir: Path, depth: int = 0) -> None:
-            if depth > 3:
+        def extract_zip_recursive(zip_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
+            """Recursively extract ZIP files and return list of extracted file paths."""
+            extracted_files: list[Path] = []
+            if depth > 5:
                 logger.warning(f"Max ZIP nesting depth reached at: {zip_path}")
-                return
+                return extracted_files
             target_dir.mkdir(parents=True, exist_ok=True)
             try:
                 with zipfile.ZipFile(zip_path, "r") as zf:
                     for info in zf.infolist():
                         decoded_name = _decode_zip_filename(info.filename)
-                        if decoded_name.startswith("__MACOSX/") or decoded_name.startswith("."):
+                        # Skip macOS metadata and hidden files
+                        if decoded_name.startswith("__MACOSX/") or decoded_name.startswith(".") or "/." in decoded_name:
                             continue
                         target_path = target_dir / decoded_name
                         if info.is_dir():
@@ -158,52 +175,69 @@ def _handle_zip_async(project_id: str, zip_path: Path, task_id: str):
                         target_path.parent.mkdir(parents=True, exist_ok=True)
                         with zf.open(info) as src, open(target_path, "wb") as dst:
                             shutil.copyfileobj(src, dst)
+                        extracted_files.append(target_path)
+                        # Recursively extract nested ZIPs
                         if target_path.suffix.lower() == ".zip":
                             nested_dir = target_path.parent / target_path.stem
                             try:
-                                extract_zip_recursive(target_path, nested_dir, depth + 1)
+                                nested_files = extract_zip_recursive(target_path, nested_dir, depth + 1)
+                                extracted_files.extend(nested_files)
+                                # Remove the nested ZIP file after extraction
                                 target_path.unlink(missing_ok=True)
-                                logger.info(f"Recursively extracted nested ZIP: {decoded_name}")
+                                logger.info(f"Recursively extracted nested ZIP: {decoded_name} ({len(nested_files)} files)")
                             except Exception as e:
                                 logger.warning(f"Failed to extract nested ZIP {decoded_name}: {e}")
             except zipfile.BadZipFile as e:
                 logger.error(f"Bad ZIP file: {zip_path} - {e}")
                 raise
+            return extracted_files
 
-        extract_zip_recursive(zip_path, extract_dir)
+        all_extracted_files = extract_zip_recursive(zip_path, extract_dir)
+        logger.info(f"Extracted {len(all_extracted_files)} files from ZIP archive")
 
+        # Process all extracted files
+        files_to_parse: list[tuple[Path, str]] = []
         for root, dirs, files in os.walk(extract_dir):
             for fname in files:
                 total_files_found += 1
                 fpath = Path(root) / fname
                 ext = fpath.suffix.lower()
-                if ext not in ALLOWED_EXTENSIONS:
-                    skipped_files.append(f"{fname} (unsupported extension: {ext})")
+                
+                # Check if it's a supported document type
+                supported_docs = {".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx"}
+                if ext not in supported_docs:
+                    if ext == ".zip":
+                        skipped_files.append(f"{fname} (residual zip)")
+                    else:
+                        skipped_files.append(f"{fname} (unsupported extension: {ext})")
                     continue
-                if ext == ".zip":
-                    logger.info(f"Skipping residual ZIP file: {fname}")
-                    skipped_files.append(f"{fname} (residual zip)")
-                    continue
-                # Skip small files and obvious attachments to speed up parsing
+                
+                # Skip small files and obvious attachments
                 file_size = fpath.stat().st_size if fpath.exists() else 0
                 is_attachment = any(kw in fname.lower() for kw in ["附件", "证明", "证书", "资质", "执照", "授权", "承诺", "偏离", "格式", "模板", "样本"])
                 if file_size < 10000 or is_attachment:
                     skipped_files.append(f"{fname} (attachment/small, skip LLM)")
                     continue
-                try:
-                    result = parsing_service.parse_document(
-                        db, project_id, fpath, fname, clear_existing=first
-                    )
-                    total_sections += len(result)
-                    total_files_parsed += 1
-                    parsed_files.append({
-                        "name": fname,
-                        "path": str(fpath),
-                        "uploaded_at": str(datetime.utcnow())
-                    })
-                    first = False
-                except Exception as e:
-                    logger.warning(f"Failed to parse {fname} in ZIP: {e}")
+                
+                files_to_parse.append((fpath, fname))
+        
+        # Parse files sequentially
+        for fpath, fname in files_to_parse:
+            try:
+                result = parsing_service.parse_document(
+                    db, project_id, fpath, fname, clear_existing=first
+                )
+                total_sections += len(result)
+                total_files_parsed += 1
+                parsed_files.append({
+                    "name": fname,
+                    "path": str(fpath),
+                    "uploaded_at": str(datetime.utcnow())
+                })
+                first = False
+            except Exception as e:
+                logger.warning(f"Failed to parse {fname}: {e}")
+                skipped_files.append(f"{fname} (parse error: {e})")
 
         logger.info(
             f"Zip extraction summary for project {project_id}: "
