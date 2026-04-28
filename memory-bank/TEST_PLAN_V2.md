@@ -1,6 +1,6 @@
 # SaleAgents v2 测试计划
 
-更新日期：2026-04-21
+更新日期：2026-04-26
 
 ## 1. 测试分层
 
@@ -71,7 +71,7 @@
 | F077 | 方案建议书-项目经理能力 | 否 | 否 | 否 | 人员匹配逻辑未测 |
 | F078 | 方案建议书-人员能力 | 否 | 否 | 否 | 人员匹配逻辑未测 |
 | F079 | 硬件资源占用情况 | 否 | 否 | 否 | 计算逻辑未测 |
-| F080 | 报价策略 | 是 | 否 | 否 | `/pricing/calculate` 已测成功，页面未走查 |
+| F080 | 报价策略 | 是 | 否 | 否 | `/pricing/calculate`、`/bidding-game/simulate`、`/bidding-game/history-learning` 已完成接口级验证；报价策略页面未做人工走查 |
 | F081 | 技术案例 | 是 | 否 | 否 | 技术案例列表 API 已测，自动检索与文档联动未测 |
 | F082 | 技术建议书打分 | 是 | 否 | 否 | `generate/score` 已测成功，但页面有 axios/fetch 混用问题 |
 
@@ -80,6 +80,9 @@
 | 能力 | API 已测 | 页面已测 | 备注 |
 | --- | --- | --- | --- |
 | 登录鉴权 | 是 | 否 | `POST /auth/login` 已通过 |
+| 博弈模拟-多轮迭代 | 是 | 否 | `POST /bidding-game/simulate` 已完成真实 HTTP 验证，确认 `iterative_result` 返回并落库 |
+| 博弈模拟-历史学习 | 是 | 否 | `POST /bidding-game/history-learning` 已完成直调验证，返回 `profiles/sample_count/source_breakdown` |
+| 博弈模拟-协同博弈 | 是 | 否 | `POST /bidding-game/simulate` 带 `coalition_config` 已通过编译后直调验证，返回 `coalition_result.alliance_count=1`；不带联盟配置时向后兼容 |
 | 聊天历史清空 | 是 | 否 | `DELETE /chat/{project_id}/history` 已通过 |
 | 用户创建 | 是 | 否 | 需补页面走查 |
 | 角色列表 | 是 | 否 | 需补页面走查 |

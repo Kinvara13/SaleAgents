@@ -1,6 +1,6 @@
 # SaleAgents v2 功能矩阵审计
 
-更新日期：2026-04-24  
+更新日期：2026-04-26  
 审计范围：`memory-bank/招投标智能体功能点拆分.xlsx` 行 `49-82`，排除 `demo制作`。  
 状态枚举：`已完成` / `部分完成` / `仅页面` / `仅接口` / `未开始` / `阻塞`
 
@@ -55,7 +55,7 @@
 | F077 | 77 | 方案建议书-项目经理能力 | 人员匹配、预览、二次计算 | 同上 | 同上 | 部分完成 | 方案建议书模板存在 | 未看到人员素材检索与复核逻辑 | P0 | FE+BE |
 | F078 | 78 | 方案建议书-人员能力 | 人员匹配、预览、二次计算 | 同上 | 同上 | 部分完成 | 同上 | 缺少人员能力素材回填与打分计算 | P0 | FE+BE |
 | F079 | 79 | 硬件资源占用情况 | 最高得分配置、预览、二次计算 | 同上 | 同上 | 部分完成 | 同上 | 缺少硬件资源计算与重算闭环 | P0 | FE+BE |
-| F080 | 80 | 报价策略 | 填写报价表并计算得分 | `PricingStrategy.vue` | `POST /pricing/calculate`; `pricing_service` | 已完成 | 报价页接 `pricing.ts`；`POST /api/v1/pricing/calculate` 2026-04-21 smoke pass | 仍需页面级回归，但当前无关键阻塞 | P1 | FE+QA |
+| F080 | 80 | 报价策略 | 填写报价表并计算得分 | `PricingStrategy.vue` | `POST /pricing/calculate`; `pricing_service`; 定价策略扩展服务链路 | 已完成 | 报价页已接 `pricing.ts`、`techScore.ts`、`competitorIntel.ts`、`biddingGame.ts`；`POST /api/v1/pricing/calculate` 2026-04-21 smoke pass；2026-04-26 新增 F11 多轮迭代博弈前后端链路、持久化字段和结果可视化；新增 `POST /api/v1/bidding-game/history-learning` 与前端“从历史数据学习”入口；新增 F14 协同博弈节点：联盟配置、3种协同策略(高报价陪标/价格垫/区间包裹)、迭代联动、持久化与 Amber 结果面板；`python3.11` 服务层烟测已返回 `iterative_result` 和 `coalition_result`；内存 SQLite 最小路由处理层烟测已验证历史学习返回 `profiles/sample_count/source_breakdown`；真实 HTTP 鉴权和 `/api/v1/bidding-game/simulate` 请求已联调通过；`npm run build` 通过 | 正式环境仍需执行 Alembic 迁移，并在补齐 `python-docx` 依赖后执行完整 `pytest` 回归 | P1 | FE+BE+QA |
 | F081 | 81 | 技术案例 | 检索技术案例并填充证明材料 | `TenderDetail.vue` 技术案例区 | `GET/POST/PATCH/DELETE /projects/{id}/technical-cases`; `search` | 部分完成 | 技术案例列表和 CRUD/search 接口存在；列表 smoke pass | 自动从素材库检索并生成文档未闭环；列表当前为空 | P0 | FE+BE |
 || F082 | 82 | 技术建议书打分 | 生成结果预打分、人工修改后二次打分 | `ProposalEditor.vue` | `POST /proposal-editor/{id}/generate|score|rescore|confirm` | 部分完成 | `generate`、`score` 2026-04-21 smoke pass；FE-001 已修复 `ProposalEditor.vue` 中 axios/fetch 混用和动态路径问题 | 页面级生成、评分、重评分、确认的端到端验收尚未完成；缺少真实样本的人工修改后二次打分验证 | P0 | FE+BE |
 

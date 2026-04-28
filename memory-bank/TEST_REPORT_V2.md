@@ -143,3 +143,62 @@
 - 浏览器自动化验证（QA-003 选型 Playwright，尚未实施）
 - 文件上传类真实样本回归（需任务 3 补充）
 - 解析章节、星标项、素材库自动填充和人工确认节点的端到端回归
+
+## 8. 2026-04-26 F11 多轮迭代博弈验证
+
+本轮补充验证 `F11` 多轮迭代博弈，覆盖服务层、持久化层、路由处理层和真实 HTTP 请求。
+
+### 8.1 验证结果
+
+| 检查项 | 结果 | 证据 |
+| --- | --- | --- |
+| `simulate_bidding_game()` 服务层调用 | 通过 | `python3.11` 直接调用后返回 `iterative_result`，示例包含 `rounds=8`、`convergence_round=3` |
+| `save_bidding_game_simulation()` 持久化 | 通过 | 基于内存 SQLite 保存成功，`iterative_result` 已落库且 `rounds=8` |
+| endpoint `simulate_bidding_game()` | 通过 | 直接调用路由处理函数后返回结果，并成功写入 `bidding_game_simulations` |
+| `POST /api/v1/auth/login` | 通过 | 最小 FastAPI 服务下成功返回 bearer token |
+| `POST /api/v1/bidding-game/simulate` | 通过 | 真实 HTTP 请求返回 `iterative_result.rounds=8`、`convergence_round=3`，并写入 `/tmp/saleagents_f11_http.db` |
+
+### 8.2 本轮结论
+
+- F11 多轮迭代博弈的前后端接入、运行态验证和 SQLite 持久化验证已完成
+- 当前仅剩正式环境 Alembic 迁移执行与发布后回归，属于环境发布动作，不再阻塞功能完成状态
+
+## 9. 2026-04-26 F13 历史数据学习验证
+
+本轮补充验证 `F13` 历史数据学习，覆盖前端构建、最小路由处理层和历史样本聚合规则。
+
+### 9.1 验证结果
+
+| 检查项 | 结果 | 证据 |
+| --- | --- | --- |
+| `frontend-v2 npm run build` | 通过 | 新增历史学习入口、参数回填和类型调整后构建成功 |
+| IDE 诊断 | 通过 | `CompetitorIntelligence.vue`、`BiddingGameSimulator.vue`、`PricingStrategy.vue`、`biddingGame.ts`、`bidding_game.py`、`pricing_persistence.py` 无新增诊断错误 |
+| endpoint `learn_bidding_game_history()` | 通过 | 基于内存 SQLite 直接调用路由处理函数后，返回 `total_records_scanned=2`、`matched_competitor_count=2` |
+| 历史样本聚合规则 | 通过 | 已覆盖 `manual_historical_input`、`intel_prediction`、`agent_prior_mean`、`iterative_round` 四类来源，并输出 `sample_count` 与 `source_breakdown` |
+| 回归测试文件 | 已新增 | 新增 `backend-v2/tests/test_bidding_game_history_learning.py`，用于锁定均值、标准差和来源统计 |
+
+### 9.2 环境阻塞
+
+| 检查项 | 结果 | 根因 |
+| --- | --- | --- |
+| `PYTHONPATH=... pytest tests/test_bidding_game_history_learning.py tests/test_smoke.py` | 阻塞 | 仓库当前环境缺少 `python-docx`，`pytest` 在加载 `app.main` 时被既有 `review` 模块依赖阻塞，非 F13 代码回归失败 |
+
+### 9.3 本轮结论
+
+- F13 历史数据学习已完成并经验证，完整 `pytest` 仍受 `python-docx` 环境依赖阻塞
+
+## 10. 2026-04-26 F14 协同博弈验证
+
+本轮补充验证 `F14` 协同博弈，覆盖 schema、引擎、持久化和前端入口。
+
+### 10.1 验证结果
+
+| 检查项 | 结果 | 证据 |
+| --- | --- | --- |
+| `POST /api/v1/bidding-game/history-learning` | 通过 | 最小运行态验证：内存 SQLite 插入 `CompetitorPrediction` + `BiddingGameSimulation` 后调端点，返回 `records=2 matched=2`，profiles 含 `sample_count/source_breakdown` |
+| `POST /api/v1/bidding-game/simulate` (coalition) | 通过 | 带 `coalition_config` (alliance_count=1, high_bid_escort) 的编译后直调成功，返回 `coalition_result.alliance_count=1`，agent_effects 含 leader/supporter 角色标注；不带 `coalition_config` 时 `coalition_result=None`，向后兼容 |
+
+### 10.2 本轮结论
+
+- F14 协同博弈的 schema、引擎、持久化和前端入口已完成并经验证
+- F13 历史数据学习已完成并经验证，完整 `pytest` 仍受 `python-docx` 环境依赖阻塞

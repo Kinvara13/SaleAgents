@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 from app.schemas.pricing import PricingCalculateRequest, PricingCalculateResponse
 from app.services import pricing_service
+from app.services.pricing_persistence import save_pricing_calculation
+from app.db.session import get_db
 from app.api.v1.endpoints.auth import get_current_user
-from app.schemas.auth import UserInfoResponse  # noqa: F401
+from app.schemas.auth import UserInfoResponse
 
 router = APIRouter()
 
@@ -12,14 +15,19 @@ router = APIRouter()
 def calculate_pricing(
     payload: PricingCalculateRequest,
     current_user: UserInfoResponse = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> PricingCalculateResponse:
-    """
-    报价策略计算
-    根据报价策略填写报价表，系统自动计算得分
-
-    - 计算报价明细（不含税/含税价格、成本、折扣率）
-    - 竞商报价模拟与排名
-    - 价格得分、总评分计算
-    - AI报价建议
-    """
-    return pricing_service.calculate_pricing(payload)
+    result = pricing_service.calculate_pricing(payload)
+    try:
+        competitors_data = [c.model_dump() for c in payload.competitors] if payload.competitors else []
+        save_pricing_calculation(
+            db=db,
+            project_id=payload.project_id or "",
+            response=result,
+            competitors=competitors_data,
+            user_id=current_user.id if hasattr(current_user, "id") else "user-001",
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Failed to persist pricing calculation: %s", exc)
+    return result

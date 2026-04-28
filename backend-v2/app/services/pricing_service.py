@@ -6,6 +6,62 @@ from app.schemas.pricing import (
     PricingScores,
 )
 from typing import List
+import json
+import logging
+
+from app.services.llm_client import _BaseLLMClient
+
+logger = logging.getLogger(__name__)
+
+
+class _PricingLLMClient(_BaseLLMClient):
+    def generate_pricing_advice(
+        self,
+        tech_score: float,
+        our_rank: int,
+        price_score: float,
+        profit_margin: float,
+        discount_rate: float,
+        budget: float,
+        competitor_summary: str,
+    ) -> str | None:
+        if not self.is_llm_ready:
+            return None
+
+        system_prompt = (
+            "你是招投标报价策略顾问。"
+            "根据当前报价参数和竞争态势，给出简洁专业的策略建议（不超过80字）。"
+            "建议应包含具体行动方向，不要泛泛而谈。"
+        )
+
+        user_prompt = (
+            f"当前报价状态：\n"
+            f"- 技术分: {tech_score}分\n"
+            f"- 我方排名: 第{our_rank}名\n"
+            f"- 价格得分: {price_score:.1f}分\n"
+            f"- 利润率: {profit_margin}%\n"
+            f"- 折扣率: {discount_rate:.2f}%\n"
+            f"- 项目预算: ¥{budget:,.0f}\n"
+            f"- 竞争态势: {competitor_summary}\n\n"
+            "请给出报价策略建议。"
+        )
+
+        try:
+            content = self._chat_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.4,
+                max_tokens=256,
+            )
+            if content:
+                return content.strip()
+            return None
+        except Exception as exc:
+            logger.warning("LLM pricing advice generation failed: %s", exc)
+            return None
+
+
+_pricing_llm = _PricingLLMClient()
 
 
 def _calc_average(values: List[float]) -> float:
@@ -174,10 +230,28 @@ def _generate_ai_advice(
     our_rank: int,
     price_score: float,
     profit_margin: float,
+    discount_rate: float = 0.0,
+    budget: float = 0.0,
+    competitor_summary: str = "",
 ) -> str:
-    """生成AI建议"""
+    """Generate AI advice: LLM-first with rule-based fallback"""
     if tech_score < 60:
         return "技术分低于60分，不得参与报价分评审。请先提高技术方案质量。"
+
+    llm_advice = _pricing_llm.generate_pricing_advice(
+        tech_score=tech_score,
+        our_rank=our_rank,
+        price_score=price_score,
+        profit_margin=profit_margin,
+        discount_rate=discount_rate,
+        budget=budget,
+        competitor_summary=competitor_summary,
+    )
+    if llm_advice:
+        logger.info("LLM pricing advice generated successfully")
+        return llm_advice
+
+    logger.info("LLM pricing advice unavailable, falling back to rule-based advice")
 
     if our_rank == 1 and price_score >= 90:
         return "当前报价在模拟对手中排名靠前且价格得分高，建议保持并关注利润空间。"
@@ -255,7 +329,23 @@ def calculate_pricing(payload: PricingCalculateRequest) -> PricingCalculateRespo
     else:
         total_score = 0.0
 
-    ai_advice = _generate_ai_advice(payload.tech_score, our_rank, our_price_score, payload.profit_margin)
+    competitor_summary_parts = []
+    for r in scored_rows:
+        if not r["is_our"]:
+            competitor_summary_parts.append(
+                f"{r['name']}(折扣{r['discount_rate']:.1f}%, 得分{r['price_score']:.1f})"
+            )
+    competitor_summary = "; ".join(competitor_summary_parts) if competitor_summary_parts else "无竞商数据"
+
+    ai_advice = _generate_ai_advice(
+        tech_score=payload.tech_score,
+        our_rank=our_rank,
+        price_score=our_price_score,
+        profit_margin=payload.profit_margin,
+        discount_rate=discount_rate,
+        budget=budget,
+        competitor_summary=competitor_summary,
+    )
 
     breakdown = PricingBreakdown(
         ex_tax_price=ex_tax_price,

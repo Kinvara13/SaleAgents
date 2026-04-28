@@ -1,6 +1,6 @@
 # SaleAgents v2 任务看板
 
-更新日期：2026-04-24  
+更新日期：2026-04-26  
 说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `in_progress` / `blocked` / `review` / `done`
 
 | task_id | 来源功能点 | 问题类型 | 目标结果 | owner | status | depends_on | 验收标准 | 记录文件 |
@@ -35,3 +35,11 @@
 | BE-007 | 后端 | 异步调度 | 引入 BackgroundTasks/Celery 改造长耗时解析与生成接口 | Backend Agent | todo | 无 | 耗时任务转为异步，前端不会遇到 504 Timeout，并能获取状态 | `memory-bank/agent-worklogs/backend-agent.md` |
 | BE-008 | 后端 | LLM接入 | 重构 proposal_service.py，接入真实 LLM 替代硬编码模板 | Backend Agent | todo | BE-007 | 能根据上下文真实生成不同内容的文档，并根据标书给出语义化预打分 | `memory-bank/agent-worklogs/backend-agent.md` |
 | BE-009 | 后端 | 文本处理 | 优化标书解析处理，引入分块与摘要策略代替硬截断 | Backend Agent | todo | BE-007 | 支持超长 PDF 解析，末尾的技术要求或合同条款不会被丢弃 | `memory-bank/agent-worklogs/backend-agent.md` |
+| BE-012 | F11 | 后端 | 为 `/bidding-game/simulate` 补齐 iterative 模式、轮次结果、策略演化和持久化字段 | Backend Agent | done | BE-006 | `SimulationConfig.method=iterative` 已返回 `iterative_result`；迁移脚本已补齐 `bidding_game_simulations.iterative_result`；内存 SQLite 持久化烟测通过 | `memory-bank/agent-worklogs/backend-agent.md` |
+| FE-008 | F11 | 前端 | 在博弈沙盘中接入 iterative 模式配置、结果摘要、轮次明细和策略演化图表 | Frontend Agent | done | BE-012 | `BiddingGameSimulator.vue` 可切换迭代模式并展示收敛轮次、演化表和图表；`npm run build` 通过 | `memory-bank/agent-worklogs/frontend-agent.md` |
+| QA-005 | F11 | 测试 | 补多轮迭代博弈真实 HTTP 联调和真实数据库验证 | QA Agent | done | BE-012,FE-008 | 已完成 `POST /api/v1/auth/login` + `POST /api/v1/bidding-game/simulate` 真请求验证，确认 `iterative_result` 返回和 SQLite 落库；正式环境仅需补 Alembic 迁移回归 | `memory-bank/agent-worklogs/qa-agent.md` |
+| BE-014 | F14 | 后端 | 实现协同博弈引擎：联盟解析、3种协同策略（高报价陪标/价格垫/区间包裹）、迭代联动、持久化 | Backend Agent | done | BE-012 | `_resolve_alliance_map` + `_apply_coalition_to_discount` 已接入 MC 模拟和迭代模式；`coalition_result` 返回正常 | `memory-bank/agent-worklogs/backend-agent.md` |
+| FE-010 | F14 | 前端 | 在博弈沙盘添加协同博弈配置面板、联盟管理、结果展示 | Frontend Agent | done | BE-014 | `BiddingGameSimulator.vue` 可折叠联盟面板、多联盟增删、主攻方/陪标方选择、策略类型和折扣间距配置；结果区联盟面板展示正常 | `memory-bank/agent-worklogs/frontend-agent.md` |
+| BE-013 | F13 | 后端 | 新增 `/bidding-game/history-learning` 与历史样本聚合逻辑，按项目回传竞对先验画像 | Backend Agent | done | BE-012 | `build_competitor_history_profiles()` 已聚合情报预测、手工历史折扣、Agent 先验和迭代轮次样本；路由已返回 `profiles/sample_count/source_breakdown` | `memory-bank/agent-worklogs/backend-agent.md` |
+| FE-009 | F13 | 前端 | 在竞商情报和博弈沙盘之间打通“从历史数据学习”入口与参数回填 | Frontend Agent | done | BE-013 | `CompetitorIntelligence.vue` 可触发历史学习；`PricingStrategy.vue` 可传递 `project_id`；`BiddingGameSimulator.vue` 可应用历史画像；`npm run build` 通过 | `memory-bank/agent-worklogs/frontend-agent.md` |
+| QA-006 | F13 | 测试 | 补历史学习最小运行态验证并记录测试环境阻塞项 | QA Agent | done | BE-013,FE-009 | 已完成内存 SQLite 最小路由处理层烟测和前端构建验证；完整 `pytest` 回归当前受仓库缺少 `python-docx` 阻塞，已记录在测试报告 | `memory-bank/agent-worklogs/qa-agent.md` |
