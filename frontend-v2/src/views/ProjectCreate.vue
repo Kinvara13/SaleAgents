@@ -967,11 +967,6 @@ const currentReference = ref({
   visible: false
 })
 
-// 选择文件
-const selectFile = (id: number) => {
-  selectedFile.value = id
-}
-
 // 添加自定义文件
 const addCustomFile = () => {
   if (newFile.value.name) {
