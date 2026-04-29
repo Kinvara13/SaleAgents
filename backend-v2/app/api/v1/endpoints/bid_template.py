@@ -21,7 +21,6 @@ def _decode_zip_filename(name: str) -> str:
     if not isinstance(name, str):
         name = str(name)
     
-    # If filename already contains Chinese characters, it's correctly decoded
     if any('\u4e00' <= c <= '\u9fff' for c in name):
         return name
     
@@ -81,6 +80,137 @@ def _extract_text_from_file(file_path: Path) -> str:
         return f"[文件内容读取失败: {e}]"
 
 
+def _extract_zip_recursive(zip_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
+    """Recursively extract ZIP files and return list of extracted file paths."""
+    extracted_files: list[Path] = []
+    if depth > 3:
+        logger.warning(f"Max ZIP nesting depth reached at: {zip_path}")
+        return extracted_files
+    target_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for info in zf.infolist():
+                decoded_name = _decode_zip_filename(info.filename)
+                if decoded_name.startswith("__MACOSX/") or decoded_name.startswith(".") or "/." in decoded_name:
+                    continue
+                target_path = target_dir / decoded_name
+                if info.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                    continue
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info) as src, open(target_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                extracted_files.append(target_path)
+                if target_path.suffix.lower() == ".zip":
+                    nested_dir = target_path.parent / target_path.stem
+                    try:
+                        nested_files = _extract_zip_recursive(target_path, nested_dir, depth + 1)
+                        extracted_files.extend(nested_files)
+                        target_path.unlink(missing_ok=True)
+                        logger.info(f"Recursively extracted nested ZIP: {decoded_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to extract nested ZIP {decoded_name}: {e}")
+    except zipfile.BadZipFile as e:
+        logger.error(f"Bad ZIP file: {zip_path} - {e}")
+        raise
+    return extracted_files
+
+
+def _extract_rar_recursive(rar_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
+    """Recursively extract RAR files and return list of extracted file paths."""
+    extracted_files: list[Path] = []
+    if depth > 3:
+        logger.warning(f"Max RAR nesting depth reached at: {rar_path}")
+        return extracted_files
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    extracted = False
+    
+    if not extracted:
+        try:
+            import patoolib
+            patoolib.extract_archive(str(rar_path), outdir=str(target_dir))
+            extracted = True
+        except Exception as e:
+            logger.warning(f"patool extraction failed: {e}")
+    
+    if not extracted:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['7z', 'x', f'-o{target_dir}', '-y', str(rar_path)],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0:
+                extracted = True
+            else:
+                logger.warning(f"7z extraction failed: {result.stderr[:200]}")
+        except Exception as e:
+            logger.warning(f"7z extraction failed: {e}")
+    
+    if not extracted:
+        raise RuntimeError(
+            f"无法解压RAR文件: {rar_path.name}。"
+            f"系统未安装 unrar/unar 工具。"
+            f"请将RAR文件转换为ZIP格式后重新上传，或联系管理员安装 unrar 工具。"
+        )
+    
+    for root, dirs, files in os.walk(target_dir):
+        for fname in files:
+            decoded_name = _decode_zip_filename(fname)
+            if decoded_name.startswith(".") or "/." in decoded_name:
+                continue
+            target_path = Path(root) / decoded_name
+            extracted_files.append(target_path)
+            if target_path.suffix.lower() == ".rar":
+                nested_dir = target_path.parent / target_path.stem
+                try:
+                    nested_files = _extract_rar_recursive(target_path, nested_dir, depth + 1)
+                    extracted_files.extend(nested_files)
+                    target_path.unlink(missing_ok=True)
+                except Exception as e:
+                    logger.warning(f"Failed to extract nested RAR {decoded_name}: {e}")
+    return extracted_files
+
+
+def _extract_7z_recursive(sevenz_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
+    """Recursively extract 7z files and return list of extracted file paths."""
+    try:
+        import py7zr
+    except ImportError:
+        logger.error("py7zr library not installed. Please run: pip install py7zr")
+        raise RuntimeError("7z support requires py7zr library. Run: pip install py7zr")
+    
+    extracted_files: list[Path] = []
+    if depth > 3:
+        logger.warning(f"Max 7z nesting depth reached at: {sevenz_path}")
+        return extracted_files
+    target_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with py7zr.SevenZipFile(str(sevenz_path), mode='r') as archive:
+            archive.extractall(path=target_dir)
+            for info in archive.list():
+                decoded_name = _decode_zip_filename(info.filename)
+                if decoded_name.startswith(".") or "/." in decoded_name:
+                    continue
+                target_path = target_dir / decoded_name
+                if target_path.exists():
+                    extracted_files.append(target_path)
+                    if target_path.suffix.lower() == ".7z":
+                        nested_dir = target_path.parent / target_path.stem
+                        try:
+                            nested_files = _extract_7z_recursive(target_path, nested_dir, depth + 1)
+                            extracted_files.extend(nested_files)
+                            target_path.unlink(missing_ok=True)
+                            logger.info(f"Recursively extracted nested 7z: {decoded_name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract nested 7z {decoded_name}: {e}")
+    except Exception as e:
+        logger.error(f"Bad 7z file: {sevenz_path} - {e}")
+        raise
+    return extracted_files
+
+
 @router.post("/{project_id}/upload-template")
 async def upload_bid_template(
     project_id: str,
@@ -116,42 +246,12 @@ async def upload_bid_template(
     if ext == ".zip":
         extract_dir = upload_dir / "extracted"
         extract_dir.mkdir(parents=True, exist_ok=True)
-
-        def extract_and_list(zip_path: Path, target_dir: Path, depth: int = 0) -> None:
-            if depth > 3:
-                return
-            target_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    for info in zf.infolist():
-                        decoded_name = _decode_zip_filename(info.filename)
-                        if decoded_name.startswith("__MACOSX/") or decoded_name.startswith("."):
-                            continue
-                        target_path = target_dir / decoded_name
-                        if info.is_dir():
-                            target_path.mkdir(parents=True, exist_ok=True)
-                            continue
-                        target_path.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(info) as src, open(target_path, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        if target_path.suffix.lower() == ".zip":
-                            nested_dir = target_path.parent / target_path.stem
-                            try:
-                                extract_and_list(target_path, nested_dir, depth + 1)
-                                target_path.unlink(missing_ok=True)
-                            except Exception:
-                                pass
-            except zipfile.BadZipFile:
-                logger.error(f"Bad ZIP file: {zip_path}")
-                raise
-
-        extract_and_list(template_path, extract_dir)
-
+        _extract_zip_recursive(template_path, extract_dir)
         for root, dirs, files in os.walk(extract_dir):
             for fname in files:
                 decoded_name = _decode_zip_filename(fname)
-                ext = Path(decoded_name).suffix.lower()
-                if ext in {".docx", ".doc", ".pdf", ".txt"}:
+                file_ext = Path(decoded_name).suffix.lower()
+                if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
                     rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
                     bid_files.append({
                         "id": f"tpl_{uuid4().hex[:8]}",
@@ -161,10 +261,49 @@ async def upload_bid_template(
                         "selected": True,
                         "icon": "📄",
                     })
-
         shutil.rmtree(extract_dir, ignore_errors=True)
 
-    elif ext in {".docx", ".doc"}:
+    elif ext == ".rar":
+        extract_dir = upload_dir / "extracted"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        _extract_rar_recursive(template_path, extract_dir)
+        for root, dirs, files in os.walk(extract_dir):
+            for fname in files:
+                decoded_name = _decode_zip_filename(fname)
+                file_ext = Path(decoded_name).suffix.lower()
+                if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
+                    rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
+                    bid_files.append({
+                        "id": f"tpl_{uuid4().hex[:8]}",
+                        "name": decoded_name,
+                        "path": rel_path,
+                        "status": "待分配",
+                        "selected": True,
+                        "icon": "📄",
+                    })
+        shutil.rmtree(extract_dir, ignore_errors=True)
+
+    elif ext == ".7z":
+        extract_dir = upload_dir / "extracted"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        _extract_7z_recursive(template_path, extract_dir)
+        for root, dirs, files in os.walk(extract_dir):
+            for fname in files:
+                decoded_name = _decode_zip_filename(fname)
+                file_ext = Path(decoded_name).suffix.lower()
+                if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
+                    rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
+                    bid_files.append({
+                        "id": f"tpl_{uuid4().hex[:8]}",
+                        "name": decoded_name,
+                        "path": rel_path,
+                        "status": "待分配",
+                        "selected": True,
+                        "icon": "📄",
+                    })
+        shutil.rmtree(extract_dir, ignore_errors=True)
+
+    elif ext in {".docx", ".doc", ".pdf"}:
         bid_files.append({
             "id": f"tpl_{uuid4().hex[:8]}",
             "name": filename,

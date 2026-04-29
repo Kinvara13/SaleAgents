@@ -342,7 +342,7 @@ class ParsingService:
                 section_name=chunk["title"],
                 section_type="评审" if any(k in chunk["title"] for k in ["评分", "评审", "招标"]) else "内容",
                 content=chunk["content"],
-                is_star_item=any(k in chunk["title"] for k in ["评分", "评审", "资格", "资质", "废标", "星标", "★", "关键", "重要", "必须", "强制", "否决", "红线"]),
+                is_star_item=any(k in chunk["title"] for k in ["★", "星标", "废标", "否决", "红线", "关键条款", "实质性要求"]),
                 source_file=filename,
             )
             db.add(section)
@@ -433,7 +433,7 @@ class ParsingService:
             return str(item.get("value", ""))
         return str(item) if item else ""
 
-    def _curate_text_for_llm(self, full_text: str, max_chars: int = 40000) -> str:
+    def _curate_text_for_llm(self, full_text: str, max_chars: int = 20000) -> str:
         """Curate text for LLM field extraction: include head, tail, and keyword-rich paragraphs."""
         if len(full_text) <= max_chars:
             return full_text

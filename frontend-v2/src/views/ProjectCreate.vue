@@ -564,9 +564,13 @@
             </div>
             
             <!-- 已上传文件展示 -->
-            <div v-else class="border-2 border-dashed border-primary/30 rounded-lg p-4 text-center bg-primary/5 transition-all duration-300">
+            <div v-else class="border-2 border-dashed rounded-lg p-4 text-center transition-all duration-300" :class="{
+              'border-primary/30 bg-primary/5': templateUploadStatus === 'success',
+              'border-red-300 bg-red-50': templateUploadStatus === 'error',
+              'border-gray-200': !templateUploadStatus || templateUploadStatus === 'processing'
+            }">
               <div class="flex items-center justify-center space-x-4">
-                <div class="text-4xl">📦</div>
+                <div class="text-4xl">{{ templateUploadStatus === 'error' ? '❌' : '📦' }}</div>
                 <div class="text-left">
                   <p class="font-medium text-gray-800">{{ uploadedTemplateFile.name }}</p>
                   <p class="text-sm text-gray-500">{{ formatFileSize(uploadedTemplateFile.size) }}</p>
@@ -590,7 +594,7 @@
               }">
                 {{ templateUploadMessage }}
               </span>
-              <button v-if="templateUploadStatus === 'success'" class="text-xs text-primary" @click="clearTemplateUpload">
+              <button v-if="templateUploadStatus === 'success' || templateUploadStatus === 'error'" class="text-xs text-primary" @click="clearTemplateUpload">
                 重新上传
               </button>
             </div>
@@ -1060,10 +1064,10 @@ const onFileSelected = async (event: any) => {
               selectedSourceFile.value = proj.file_list[0].name
               // Auto-load first file content
               const firstFileSections = sections.filter((s: any) => s.source_file === proj.file_list[0].name)
-              if (firstFileSections.length > 0) {
-                selectedFileContent.value = firstFileSections.map((s: any) => `【${s.section_name}】\n${s.content}`).join('\n\n')
-                fileContentMap.value[proj.file_list[0].name] = selectedFileContent.value
-              }
+            if (firstFileSections.length > 0) {
+              selectedFileContent.value = firstFileSections.map((s: any) => s.content).join('\n\n')
+              fileContentMap.value[proj.file_list[0].name] = selectedFileContent.value
+            }
             }
           }
           break
@@ -1377,7 +1381,7 @@ const prevStep = () => {
 
 // 返回上一页
 const goBack = () => {
-  router.push('/bid-list')
+  router.push('/tender-list')
 }
 
 // 验证基础信息表单
@@ -1469,7 +1473,7 @@ onMounted(async () => {
         currentProjectName.value = project.name
         uploadedFile.value = { name: project.name, size: 0 }
 
-        if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+        if (project.extracted_fields && Array.isArray(project.extracted_fields) && project.extracted_fields.length > 0) {
           const fieldMap: Record<string, string> = {}
           for (const f of project.extracted_fields) {
             fieldMap[f.label] = f.value
@@ -1486,7 +1490,6 @@ onMounted(async () => {
           keyInfo.value.endTime.checked = !!fieldMap['标书结束时间']
           keyInfo.value.bidDeadline.value = fieldMap['投标截止时间'] || ''
           keyInfo.value.bidDeadline.checked = !!fieldMap['投标截止时间']
-          // 保证金信息
           const hasDeposit = fieldMap['是否有保证金']
           keyInfo.value.hasSecurityDeposit.value = hasDeposit === '是'
           keyInfo.value.hasSecurityDeposit.checked = !!hasDeposit
@@ -1494,7 +1497,6 @@ onMounted(async () => {
           keyInfo.value.securityDepositAmount.checked = !!fieldMap['保证金金额']
           keyInfo.value.securityDepositType.value = fieldMap['保证金形式'] || ''
           keyInfo.value.securityDepositType.checked = !!fieldMap['保证金形式']
-          // 其他信息
           keyInfo.value.needSignature.value = fieldMap['是否需要签字盖章'] === '是'
           keyInfo.value.needSignature.checked = !!fieldMap['是否需要签字盖章']
           const hasClarification = fieldMap['是否有项目澄清会']
@@ -1508,6 +1510,13 @@ onMounted(async () => {
           keyInfo.value.evaluationCriteria.checked = !!fieldMap['评分重点']
           keyInfo.value.starItems.value = fieldMap['技术要求'] || ''
           keyInfo.value.starItems.checked = !!fieldMap['技术要求']
+        } else {
+          keyInfo.value.projectName.value = project.name || ''
+          keyInfo.value.projectName.checked = !!project.name
+          keyInfo.value.budget.value = project.amount || ''
+          keyInfo.value.budget.checked = !!project.amount
+          keyInfo.value.bidDeadline.value = project.deadline || ''
+          keyInfo.value.bidDeadline.checked = !!project.deadline
         }
 
         if (project.bidding_company) basicInfo.value.companyName = project.bidding_company
@@ -1519,7 +1528,6 @@ onMounted(async () => {
 
         if (project.status === '解析完成' || project.parse_status === '已解析') {
           uploadStatus.value = '文件解析成功'
-          currentStep.value = 0
           const sections = await getTenderSections(projectId)
           if (sections && sections.length > 0) {
             starItems.value = []
@@ -1535,6 +1543,25 @@ onMounted(async () => {
               })
             })
           }
+          if (project.file_list && Array.isArray(project.file_list) && project.file_list.length > 0) {
+            projectFileList.value = project.file_list
+            selectedSourceFile.value = project.file_list[0].name
+            const firstFileSections = sections.filter((s: any) => s.source_file === project.file_list[0].name)
+            if (firstFileSections.length > 0) {
+              selectedFileContent.value = firstFileSections.map((s: any) => s.content).join('\n\n')
+              fileContentMap.value[project.file_list[0].name] = selectedFileContent.value
+            }
+          }
+          currentStep.value = project.bid_template_files?.length > 0 ? 1 : 0
+        } else if (project.status === '解析失败' || project.parse_status === '解析失败') {
+          uploadStatus.value = 'error'
+          formErrors.value.companyName = '解析失败，请重新上传招标文件'
+          currentStep.value = 0
+        } else if (project.status === '解析中' || project.parse_status === '解析中') {
+          uploadStatus.value = '解析中'
+          currentStep.value = 0
+        } else {
+          currentStep.value = 0
         }
 
         if (project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0) {
@@ -1549,6 +1576,7 @@ onMounted(async () => {
             icon: f.icon || '📄',
             preview: '',
           }))
+          if (currentStep.value < 1) currentStep.value = 1
         }
       }
     } catch (e) {

@@ -15,6 +15,7 @@ export interface Project {
   file_list?: Array<{name: string; path: string; uploaded_at?: string}>
   node_status?: Record<string, string>
   extracted_fields?: Array<{label: string; value: string; confidence?: string}>
+  bid_template_files?: Array<{id: string; name: string; path: string; icon?: string}>
   bidding_company?: string
   agent_name?: string
   agent_phone?: string

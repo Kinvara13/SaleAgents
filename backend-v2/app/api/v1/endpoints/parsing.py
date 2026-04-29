@@ -208,46 +208,63 @@ def _handle_archive_async(project_id: str, archive_path: Path, ext: str, task_id
 
         def extract_rar_recursive(rar_path: Path, target_dir: Path, depth: int = 0) -> list[Path]:
             """Recursively extract RAR files and return list of extracted file paths."""
-            try:
-                import rarfile
-            except ImportError:
-                logger.error("rarfile library not installed. Please run: pip install rarfile")
-                raise RuntimeError("RAR support requires rarfile library. Run: pip install rarfile")
-            
             extracted_files: list[Path] = []
             if depth > 5:
                 logger.warning(f"Max RAR nesting depth reached at: {rar_path}")
                 return extracted_files
             target_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                with rarfile.RarFile(str(rar_path), 'r') as rf:
-                    for info in rf.infolist():
-                        decoded_name = _decode_zip_filename(info.filename)
-                        # Skip macOS metadata and hidden files
-                        if decoded_name.startswith("__MACOSX/") or decoded_name.startswith(".") or "/." in decoded_name:
-                            continue
-                        target_path = target_dir / decoded_name
-                        if info.is_dir():
-                            target_path.mkdir(parents=True, exist_ok=True)
-                            continue
-                        target_path.parent.mkdir(parents=True, exist_ok=True)
-                        with rf.open(info) as src, open(target_path, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        extracted_files.append(target_path)
-                        # Recursively extract nested RARs
-                        if target_path.suffix.lower() == ".rar":
-                            nested_dir = target_path.parent / target_path.stem
-                            try:
-                                nested_files = extract_rar_recursive(target_path, nested_dir, depth + 1)
-                                extracted_files.extend(nested_files)
-                                # Remove the nested RAR file after extraction
-                                target_path.unlink(missing_ok=True)
-                                logger.info(f"Recursively extracted nested RAR: {decoded_name} ({len(nested_files)} files)")
-                            except Exception as e:
-                                logger.warning(f"Failed to extract nested RAR {decoded_name}: {e}")
-            except rarfile.RarFileError as e:
-                logger.error(f"Bad RAR file: {rar_path} - {e}")
-                raise
+            
+            extracted = False
+            
+            # Try patool first
+            if not extracted:
+                try:
+                    import patoolib
+                    patoolib.extract_archive(str(rar_path), outdir=str(target_dir))
+                    extracted = True
+                    logger.info(f"Extracted RAR using patool: {rar_path}")
+                except Exception as e:
+                    logger.warning(f"patool extraction failed: {e}")
+            
+            # Try subprocess with 7z
+            if not extracted:
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ['7z', 'x', f'-o{target_dir}', '-y', str(rar_path)],
+                        capture_output=True, text=True, timeout=60
+                    )
+                    if result.returncode == 0:
+                        extracted = True
+                        logger.info(f"Extracted RAR using 7z: {rar_path}")
+                    else:
+                        logger.warning(f"7z extraction failed: {result.stderr[:200]}")
+                except Exception as e:
+                    logger.warning(f"7z extraction failed: {e}")
+            
+            if not extracted:
+                raise RuntimeError(
+                    f"无法解压RAR文件: {rar_path.name}。"
+                    f"系统未安装 unrar/unar 工具。"
+                    f"请将RAR文件转换为ZIP格式后重新上传，或联系管理员安装 unrar 工具。"
+                )
+            
+            for root, dirs, files in os.walk(target_dir):
+                for fname in files:
+                    decoded_name = _decode_zip_filename(fname)
+                    if decoded_name.startswith("__MACOSX/") or decoded_name.startswith(".") or "/." in decoded_name:
+                        continue
+                    target_path = Path(root) / decoded_name
+                    extracted_files.append(target_path)
+                    if target_path.suffix.lower() == ".rar":
+                        nested_dir = target_path.parent / target_path.stem
+                        try:
+                            nested_files = extract_rar_recursive(target_path, nested_dir, depth + 1)
+                            extracted_files.extend(nested_files)
+                            target_path.unlink(missing_ok=True)
+                            logger.info(f"Recursively extracted nested RAR: {decoded_name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract nested RAR {decoded_name}: {e}")
             return extracted_files
 
         if ext == ".zip":
@@ -361,6 +378,7 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
         if project:
             project.status = "解析完成"
             project.parse_status = "已解析"
+            project.file_list = [{"name": filename, "path": str(file_path), "uploaded_at": str(datetime.utcnow())}]
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
             db.commit()

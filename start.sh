@@ -46,6 +46,12 @@ fi
 echo "[1/2] 正在启动后端服务 V2 (端口: 8000)..."
 cd "${PROJECT_ROOT}/backend-v2"
 
+# 检查系统依赖
+if ! command -v unar &> /dev/null && ! command -v unrar &> /dev/null; then
+    echo "  ⚠️  未找到 unar/unrar 工具（用于解压RAR文件）"
+    echo "  RAR文件将无法解析，请使用ZIP格式的压缩包"
+fi
+
 # 检查并激活虚拟环境
 if [ ! -d ".venv" ]; then
     echo "  > 未找到虚拟环境 (.venv)，正在创建..."

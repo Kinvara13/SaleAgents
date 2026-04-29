@@ -97,8 +97,8 @@ class LLMParsingClient:
         }
         ```
 
-        待解析文本(截取前80000字以防超出长度)：
-        """ + text[:80000]
+        待解析文本(截取前20000字以防超出长度)：
+        """ + text[:20000]
 
         system_prompt = "你是一个专业的招投标解析AI助手。"
         user_prompt = prompt

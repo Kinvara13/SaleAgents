@@ -182,7 +182,16 @@ const handleCreateProject = () => {
 
 const handleProjectClick = (id: string) => {
   const project = projects.value.find(p => p.id === id)
-  if (project && (project.status === '草稿' || project.status === '解析中' || project.status === '解析失败')) {
+  if (!project) return
+
+  const hasTemplate = project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0
+  const isGenerationDone = project.node_status && (project.node_status as any).generation === 'completed'
+
+  if (project.status === '草稿' || project.status === '解析中' || project.status === '解析失败') {
+    router.push(`/project-create/${id}`)
+  } else if (project.status === '解析完成' && !hasTemplate) {
+    router.push(`/project-create/${id}`)
+  } else if (hasTemplate && !isGenerationDone) {
     router.push(`/project-create/${id}`)
   } else {
     router.push(`/tender-detail/${id}`)
