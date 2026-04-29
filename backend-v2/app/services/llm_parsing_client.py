@@ -44,6 +44,22 @@ class LLMParsingClient:
         你是一个专业的招投标文档解析专家。请仔细阅读以下招标文件内容（可能包含招标公告、技术规范、评审办法、合同条款、附件表格等），并提取出以下关键信息。
         如果某些信息在文档中找不到，请填写 "待补充"。
 
+        === 星标项提取规则（非常重要）===
+        ★ 和 * 符号出现在行首时，通常表示关键条款。星标项常见于以下章节：评分标准、资质要求、废标条款、技术要求。
+        星标项通常格式为：★内容 或 *内容，也可能写作"关键条款"、"实质性要求"、"否决条款"。请特别注意评分标准表格中的星标行。
+        每个星标项必须提取：项名称、具体内容、来源章节、符号类型（★或*）。
+
+        === 评分标准提取规则 ===
+        评分重点必须包含完整的评分表格内容，包括每项的分值、评分标准、加分项。如果评分标准以表格形式出现，请逐行提取。
+        需要包含：评分大类（价格分/技术分/商务分）、各类权重、每小项的分值和评分细则。
+
+        === 废标条款提取规则 ===
+        废标条款必须完整列出所有会导致投标无效的情形，不要遗漏任何一条。
+        包括但不限于：未按要求密封、未签字盖章、未提交保证金、资质不满足、技术参数偏离、逾期送达等。
+
+        === 交叉验证提示 ===
+        如果文档中存在规则可提取的字段（如项目名称、招标编号、截止时间），请仍然尝试提取作为交叉验证。
+
         要求提取的字段：
         1. 项目名称 - 完整的招标项目名称
         2. 招标编号 - 招标公告或文件编号
@@ -65,7 +81,11 @@ class LLMParsingClient:
         18. 是否有项目澄清会 - 是否召开投标答疑或澄清会议（是/否）
         19. 项目澄清会时间 - 澄清会议的时间
         20. 项目澄清会链接 - 澄清会议的链接或地址
-        21. 星标项列表 - **非常重要**：提取所有带星标（★）或标注为"关键条款"、"实质性要求"、"否决条款"的内容，每项单独列出
+        21. 星标项列表 - **非常重要**：提取所有带星标（★或*）或标注为"关键条款"、"实质性要求"、"否决条款"的内容，每项单独列出，包含名称、内容、来源章节、符号类型
+        22. 废标条款 - 所有会导致投标被否决的条款，逐条列出
+        23. 合同条款 - 合同主要条款，包括违约责任、验收标准、质保期等
+        24. 商务条款 - 商务要求，包括付款方式、发票要求、履约保证金等
+        25. 投标人须知 - 投标人须知中的关键要求，包括投标文件组成、密封要求、递交方式等
 
         请务必以 JSON 格式返回，包含以下结构，不要输出其他无关内容：
         ```json
@@ -91,14 +111,17 @@ class LLMParsingClient:
           "项目澄清会时间": {"value": "...", "confidence": "85%"},
           "项目澄清会链接": {"value": "...", "confidence": "80%"},
           "星标项列表": [
-            {"name": "星标项1名称", "content": "具体要求内容", "confidence": "95%"},
-            {"name": "星标项2名称", "content": "具体要求内容", "confidence": "90%"}
-          ]
+            {"name": "项名称", "content": "具体要求", "source_section": "来源章节", "symbol": "★或*", "confidence": "95%"}
+          ],
+          "废标条款": {"value": "逐条列出所有废标情形", "confidence": "90%"},
+          "合同条款": {"value": "合同主要条款内容", "confidence": "85%"},
+          "商务条款": {"value": "商务要求内容", "confidence": "85%"},
+          "投标人须知": {"value": "投标人须知关键要求", "confidence": "85%"}
         }
         ```
 
-        待解析文本(截取前20000字以防超出长度)：
-        """ + text[:20000]
+待解析文本(截取前40000字，规则引擎已处理结构化字段，你专注于复杂语义提取)：
+        """ + text[:40000]
 
         system_prompt = "你是一个专业的招投标解析AI助手。"
         user_prompt = prompt
@@ -155,14 +178,45 @@ class LLMParsingClient:
         json_str = match.group(1) if match else content
         try:
             return json.loads(json_str)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning(f"[LLM] Initial JSON parse failed: {e}")
             match2 = re.search(r"\{.*\}", json_str, re.DOTALL)
             if match2:
                 try:
                     return json.loads(match2.group(0))
-                except Exception:
-                    pass
-            return {}
+                except Exception as e2:
+                    logger.warning(f"[LLM] Fallback JSON parse also failed: {e2}")
+            # Regex fallback: extract key-value pairs from malformed output
+            return self._regex_fallback_extract(content)
+
+    def _regex_fallback_extract(self, content: str) -> dict[str, Any]:
+        logger.info("[LLM] Attempting regex fallback extraction")
+        result: dict[str, Any] = {}
+        known_fields = [
+            "项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
+            "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额",
+            "保证金形式", "必备资质", "付款条款", "交付周期", "评分重点",
+            "技术要求", "服务承诺", "是否需要签字盖章", "是否有项目澄清会",
+            "项目澄清会时间", "项目澄清会链接", "废标条款", "合同条款",
+            "商务条款", "投标人须知",
+        ]
+        for field in known_fields:
+            pattern = rf'"{field}"\s*:\s*\{{\s*"value"\s*:\s*"([^"]*)"'
+            m = re.search(pattern, content)
+            if m:
+                result[field] = {"value": m.group(1), "confidence": "60%"}
+        star_pattern = r'"name"\s*:\s*"([^"]*)"[^}]*"content"\s*:\s*"([^"]*)"'
+        star_matches = re.findall(star_pattern, content)
+        if star_matches:
+            result["星标项列表"] = [
+                {"name": name, "content": content_val, "source_section": "", "symbol": "★", "confidence": "60%"}
+                for name, content_val in star_matches
+            ]
+        if result:
+            logger.info(f"[LLM] Regex fallback extracted {len(result)} fields")
+        else:
+            logger.warning("[LLM] Regex fallback extracted nothing")
+        return result
 
 
     def summarize_text(self, text: str, title: str = "", max_words: int = 2000) -> str:
