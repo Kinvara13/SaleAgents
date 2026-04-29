@@ -29,3 +29,6 @@ backend-v2/exports/
 # SQLite temp files
 *.db-shm
 *.db-wal
+
+# Git worktrees
+.worktrees/
