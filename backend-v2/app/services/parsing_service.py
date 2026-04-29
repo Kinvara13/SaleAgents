@@ -12,6 +12,7 @@ from app.models.project import Project
 from app.schemas.parsing import ParsingSectionSummary, ParsingSectionDetail, ParsingSectionUpdateRequest
 from app.schemas.workspace import ParseSection
 from app.services.llm_parsing_client import llm_parsing_client
+from app.services.rule_based_extractor import rule_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -313,6 +314,10 @@ class ParsingService:
             logger.warning("No text extracted from %s", filename)
             return self._create_placeholder_sections(db, project_id, filename)
 
+        # Rule-based pre-extraction (fast, deterministic)
+        rule_results = rule_extractor.extract_fields(full_text)
+        logger.info(f"[RuleExtractor] Extracted fields: {list(rule_results.keys())}, star_items: {len(rule_results.get('star_items', []))}")
+
         # 1. Chunk by headings
         chunks = _chunk_by_headings(pages)
 
@@ -327,6 +332,9 @@ class ParsingService:
         tender_info = llm_parsing_client.extract_tender_fields(curated_text)
         if not tender_info:
             logger.warning(f"No tender fields extracted for {filename} - LLM extraction returned empty")
+
+        # Merge: rule-based takes priority for structured fields, LLM for complex fields
+        merged_info = self._merge_extraction_results(rule_results, tender_info or {})
 
         # 6. Persist
         if clear_existing:
@@ -348,28 +356,36 @@ class ParsingService:
             db.add(section)
             created.append(section)
 
-        # Key-field sections from LLM extraction
-        if tender_info:
-            scoring_text = self._extract_field_value(tender_info, "评分重点")
+        # Key-field sections from merged extraction
+        if merged_info:
+            scoring_text = self._extract_field_value(merged_info, "评分重点")
             if scoring_text and len(scoring_text) > 20:
                 created.append(self._add_section(
                     db, project_id, "评分规则解析", "评审", scoring_text, True, filename
                 ))
 
-            tech_req = self._extract_field_value(tender_info, "技术要求")
+            tech_req = self._extract_field_value(merged_info, "技术要求")
             if tech_req and len(tech_req) > 20:
                 created.append(self._add_section(
                     db, project_id, "技术要求", "评审", tech_req, True, filename
                 ))
 
-            qual_req = self._extract_field_value(tender_info, "必备资质")
+            qual_req = self._extract_field_value(merged_info, "必备资质")
             if qual_req and len(qual_req) > 20:
                 created.append(self._add_section(
                     db, project_id, "资质要求", "评审", qual_req, True, filename
                 ))
 
-            # Extract star items from LLM response
-            star_items_list = tender_info.get("星标项列表", [])
+            # New fields from rule-based extraction
+            for field_name in ["废标条款", "合同条款", "商务条款", "投标人须知"]:
+                field_val = self._extract_field_value(merged_info, field_name)
+                if field_val and len(field_val) > 20:
+                    created.append(self._add_section(
+                        db, project_id, field_name, "评审", field_val, True, filename
+                    ))
+
+            # Extract star items from merged response
+            star_items_list = merged_info.get("星标项列表", [])
             if isinstance(star_items_list, list):
                 for star_item in star_items_list:
                     if isinstance(star_item, dict):
@@ -387,10 +403,22 @@ class ParsingService:
                 for key in ["项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
                             "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额", "保证金形式",
                             "必备资质", "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺",
-                            "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接"]:
-                    val = self._extract_field_value(tender_info, key)
+                            "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接",
+                            "废标条款", "合同条款", "商务条款", "投标人须知"]:
+                    val = self._extract_field_value(merged_info, key)
                     if val:
                         extracted.append({"label": key, "value": val, "confidence": "85%"})
+
+                # Add star items as structured list
+                star_items_list = merged_info.get("星标项列表", [])
+                if star_items_list and isinstance(star_items_list, list):
+                    star_summary = "; ".join([
+                        f"{item.get('name', '星标项')}: {item.get('content', '')[:100]}"
+                        for item in star_items_list if isinstance(item, dict)
+                    ])
+                    if star_summary:
+                        extracted.append({"label": "星标项", "value": star_summary, "confidence": "90%"})
+
                 if extracted:
                     project.extracted_fields = extracted
 
@@ -433,6 +461,85 @@ class ParsingService:
             return str(item.get("value", ""))
         return str(item) if item else ""
 
+    def _merge_extraction_results(self, rule_results: dict, llm_results: dict) -> dict:
+        """Merge rule-based and LLM extraction results. Rule-based takes priority for structured fields."""
+        merged = dict(llm_results) if llm_results else {}
+
+        # Structured fields: use rule_results if confidence > 0.5
+        structured_fields = ["project_name", "bid_number", "deadline"]
+        for fld in structured_fields:
+            rule_val = rule_results.get(fld)
+            if rule_val and isinstance(rule_val, dict) and rule_val.get("confidence", 0) > 0.5:
+                merged[fld] = rule_val
+            elif rule_val and not isinstance(rule_val, dict) and rule_val:
+                merged[fld] = rule_val
+
+        # Complex fields: use rule_results section text if available
+        complex_fields = {
+            "scoring_criteria": "评分规则",
+            "technical_requirements": "技术要求",
+            "contract_terms": "合同条款",
+        }
+        for key, display_name in complex_fields.items():
+            rule_val = rule_results.get(key)
+            if rule_val and isinstance(rule_val, str) and len(rule_val) > 20:
+                merged[display_name] = rule_val
+            elif rule_val and isinstance(rule_val, dict) and rule_val.get("content"):
+                merged[display_name] = rule_val["content"]
+
+        # Additional fields from rule_extractor
+        additional_fields = {
+            "废标条款": "废标条款",
+            "商务条款": "商务条款",
+            "投标人须知": "投标人须知",
+        }
+        for rule_key, merged_key in additional_fields.items():
+            rule_val = rule_results.get(rule_key)
+            if rule_val and isinstance(rule_val, str) and len(rule_val) > 20:
+                merged[merged_key] = rule_val
+            elif rule_val and isinstance(rule_val, dict) and rule_val.get("content"):
+                merged[merged_key] = rule_val["content"]
+
+        # Star items: combine both sources, deduplicate by content similarity
+        rule_star_items = rule_results.get("star_items", [])
+        llm_star_items = llm_results.get("星标项列表", []) if llm_results else []
+
+        combined_stars = []
+        seen_contents = set()
+
+        # Add rule-based star items first (higher priority)
+        for item in rule_star_items:
+            if isinstance(item, dict):
+                content = item.get("content", "")
+                name = item.get("name", "")
+            elif isinstance(item, str):
+                content = item
+                name = "星标项"
+            else:
+                continue
+            # Simple dedup by first 50 chars
+            content_key = content[:50].strip()
+            if content_key and content_key not in seen_contents:
+                seen_contents.add(content_key)
+                combined_stars.append({"name": name, "content": content})
+
+        # Add LLM star items as supplement
+        for item in llm_star_items:
+            if isinstance(item, dict):
+                content = item.get("content", "")
+                name = item.get("name", "")
+            else:
+                continue
+            content_key = content[:50].strip()
+            if content_key and content_key not in seen_contents:
+                seen_contents.add(content_key)
+                combined_stars.append({"name": name, "content": content})
+
+        if combined_stars:
+            merged["星标项列表"] = combined_stars
+
+        return merged
+
     def _curate_text_for_llm(self, full_text: str, max_chars: int = 40000) -> str:
         """Curate text for LLM field extraction: include head, tail, and keyword-rich paragraphs."""
         if len(full_text) <= max_chars:
@@ -440,8 +547,7 @@ class ParsingService:
 
         # Strategy: head + keyword-rich middle + tail
         keywords = ["评分", "评标", "技术要求", "资质", "资格", "废标", "无效", "星标", "★",
-                    "合同", "付款", "交付", "保证金", "保修", "质保"]
-        paragraphs = full_text.split("\n")
+                    "合同", "付款", "交付", "保证金", "保修", "质保", "关键条款", "实质性要求", "否决"]
         head_len = max_chars // 3
         tail_len = max_chars // 3
         middle_budget = max_chars - head_len - tail_len
