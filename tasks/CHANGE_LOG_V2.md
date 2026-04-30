@@ -11,8 +11,8 @@
   - `TEST_PLAN_V2.md`
   - `TEST_REPORT_V2.md`
   - `AGENT_WORKFLOW.md`
-- 创建 `specs/` 规范目录和 `memory-bank/agent-worklogs/`
-- 将 `frontend-v2/SPEC.md`、`frontend-v2/memory-bank/PROGRESS.md`、`frontend-v2/memory-bank/ARCHITECTURE.md` 标记为历史参考
+- 创建 `specs/` 规范目录和 `tasks/worklogs/`
+- 将 `frontend-v2/SPEC.md`、`frontend-v2/tasks/PROGRESS.md`、`frontend-v2/tasks/ARCHITECTURE.md` 标记为历史参考
 
 ### 23:28 运行态验证结论
 
