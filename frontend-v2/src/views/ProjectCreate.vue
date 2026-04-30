@@ -606,8 +606,15 @@
           <!-- 左侧：回标文件清单 -->
           <div class="lg:col-span-2">
             <div class="border border-gray-200 rounded-lg overflow-hidden">
-              <div class="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <div class="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
                 <h4 class="font-medium text-gray-800">回标文件清单</h4>
+                <button
+                  v-if="bidFiles.some((f: any) => f.selected)"
+                  class="text-xs px-3 py-1.5 bg-primary text-white rounded hover:bg-primary/90 transition-all"
+                  @click="openAssignModal(null)"
+                >
+                  批量设置负责人
+                </button>
               </div>
               <div class="p-4 space-y-3">
                 <div 
@@ -628,9 +635,9 @@
                     <div class="flex items-center justify-between">
                       <span class="text-sm font-medium text-gray-800">{{ file.name }}</span>
                       <div class="flex items-center space-x-2">
-                        <span 
+                        <span
                           class="text-xs px-2 py-1 rounded-full"
-                          :class="file.status === '解析完成' ? 'bg-success/10 text-success' : 'bg-gray-100 text-gray-500'"
+                          :class="file.status === '已分配' ? 'bg-success/10 text-success' : 'bg-gray-100 text-gray-500'"
                         >
                           {{ file.status }}
                         </span>
@@ -779,9 +786,21 @@
           </div>
         </div>
 
+        <!-- 生成完成状态 -->
+        <div v-else-if="hasGenerated" class="flex flex-col items-center justify-center py-12 space-y-4">
+          <div class="text-4xl">✅</div>
+          <p class="text-gray-600 font-medium">回标文件已生成</p>
+          <button
+            class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300 text-lg font-medium"
+            @click="regenerateDocx"
+          >
+            重新下载 Word 文档
+          </button>
+        </div>
+
         <!-- 生成按钮 -->
         <div v-else class="flex justify-center py-12">
-          <button 
+          <button
             class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300 text-lg font-medium"
             @click="startGeneration"
           >
@@ -809,21 +828,22 @@
     <div v-if="assignModalVisible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-800">指派负责人</h3>
+          <h3 class="text-lg font-semibold text-gray-800">{{ isBatchAssignMode ? '批量设置负责人' : '指派负责人' }}</h3>
           <button class="text-gray-400 hover:text-gray-600" @click="assignModalVisible = false">
             ✕
           </button>
         </div>
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 mb-2">文件</label>
-          <p class="text-sm text-gray-600">{{ selectedFileForAssign?.name }}</p>
+          <p v-if="isBatchAssignMode" class="text-sm text-gray-600">已选中 {{ bidFiles.filter((f: any) => f.selected).length }} 个文件</p>
+          <p v-else class="text-sm text-gray-600">{{ selectedFileForAssign?.name }}</p>
         </div>
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 mb-2">负责人姓名</label>
-          <input 
-            type="text" 
-            v-model="assignResponsibleName" 
-            placeholder="请输入负责人姓名" 
+          <input
+            type="text"
+            v-model="assignResponsibleName"
+            placeholder="请输入负责人姓名"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
           >
         </div>
@@ -843,7 +863,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { createProject, uploadAndParseTender, getProject, getTenderSections, listKnowledgeAssets, uploadBidTemplate } from '../services/project'
+import { createProject, uploadAndParseTender, getProject, getTenderSections, getTenderSectionDetail, listKnowledgeAssets, uploadBidTemplate, updateBidTemplateFiles, previewBidTemplateFile } from '../services/project'
 import { createGenerationJob, exportGenerationJobDocx, getLatestJobByProject } from '../services/generation'
 
 const router = useRouter()
@@ -875,6 +895,20 @@ const selectedSourceFile = ref('')
 const selectedFileContent = ref('')
 const fileContentMap = ref<Record<string, string>>({})
 
+const loadSectionDetails = async (sections: any[]) => {
+  if (!currentProjectId.value) return sections
+  return Promise.all(sections.map(async (section: any) => {
+    if (section.content !== undefined) return section
+    try {
+      const detail = await getTenderSectionDetail(currentProjectId.value, section.id)
+      return { ...section, content: detail.content || '' }
+    } catch (e) {
+      console.error('Failed to load section detail:', section.id, e)
+      return { ...section, content: '' }
+    }
+  }))
+}
+
 const onSourceFileChange = async () => {
   if (!currentProjectId.value || !selectedSourceFile.value) return
   
@@ -887,9 +921,9 @@ const onSourceFileChange = async () => {
   try {
     // 从sections中查找对应文件的内容
     const sections = await getTenderSections(currentProjectId.value)
-    const fileSections = sections.filter((s: any) => s.source_file === selectedSourceFile.value)
+    const fileSections = await loadSectionDetails(sections.filter((s: any) => s.source_file === selectedSourceFile.value))
     if (fileSections.length > 0) {
-      const content = fileSections.map((s: any) => `【${s.section_name}】\n${s.content}`).join('\n\n')
+      const content = fileSections.map((s: any) => `【${s.section_name}】\n${s.content || ''}`).join('\n\n')
       selectedFileContent.value = content
       fileContentMap.value[selectedSourceFile.value] = content
     } else {
@@ -992,21 +1026,48 @@ const addCustomFile = () => {
 const assignModalVisible = ref(false)
 const selectedFileForAssign = ref<any>(null)
 const assignResponsibleName = ref('')
+const isBatchAssignMode = ref(false)
 
-const openAssignModal = (fileId: number) => {
-  selectedFileForAssign.value = bidFiles.value.find((file: any) => file.id === fileId)
-  assignResponsibleName.value = selectedFileForAssign.value?.responsible || ''
+const openAssignModal = (fileId: number | null) => {
+  isBatchAssignMode.value = fileId === null
+  if (fileId !== null) {
+    selectedFileForAssign.value = bidFiles.value.find((file: any) => file.id === fileId)
+    assignResponsibleName.value = selectedFileForAssign.value?.responsible || ''
+  } else {
+    selectedFileForAssign.value = null
+    assignResponsibleName.value = ''
+  }
   assignModalVisible.value = true
 }
 
-const assignResponsible = () => {
-  if (selectedFileForAssign.value && assignResponsibleName.value) {
+const assignResponsible = async () => {
+  if (!assignResponsibleName.value) return
+
+  if (isBatchAssignMode.value) {
+    bidFiles.value.forEach((file: any) => {
+      if (file.selected) {
+        file.responsible = assignResponsibleName.value
+        file.status = '已分配'
+      }
+    })
+  } else if (selectedFileForAssign.value) {
     const file = bidFiles.value.find((file: any) => file.id === selectedFileForAssign.value.id)
     if (file) {
       file.responsible = assignResponsibleName.value
+      file.status = '已分配'
     }
-    assignModalVisible.value = false
   }
+
+  // 保存到后端
+  if (currentProjectId.value) {
+    try {
+      await updateBidTemplateFiles(currentProjectId.value, bidFiles.value)
+    } catch (e) {
+      console.error('Failed to save template files:', e)
+    }
+  }
+
+  assignModalVisible.value = false
 }
 
 // 处理文件选择
@@ -1063,9 +1124,9 @@ const onFileSelected = async (event: any) => {
             if (proj.file_list.length > 0) {
               selectedSourceFile.value = proj.file_list[0].name
               // Auto-load first file content
-              const firstFileSections = sections.filter((s: any) => s.source_file === proj.file_list[0].name)
+              const firstFileSections = await loadSectionDetails(sections.filter((s: any) => s.source_file === proj.file_list[0].name))
             if (firstFileSections.length > 0) {
-              selectedFileContent.value = firstFileSections.map((s: any) => s.content).join('\n\n')
+              selectedFileContent.value = firstFileSections.map((s: any) => `【${s.section_name}】\n${s.content || ''}`).join('\n\n')
               fileContentMap.value[proj.file_list[0].name] = selectedFileContent.value
             }
             }
@@ -1138,14 +1199,15 @@ const onFileSelected = async (event: any) => {
     // Populate star items from sections with is_star_item=true
     starItems.value = []
     let starId = 1
-    sections.filter((s: any) => s.is_star_item).forEach((s: any) => {
+    const starSections = await loadSectionDetails(sections.filter((s: any) => s.is_star_item))
+    starSections.forEach((s: any) => {
       starItems.value.push({
         id: starId++,
         name: s.section_name,
         type: s.section_type === '评审' ? '评审规则' : '技术规范',
         source: s.source_file,
         status: '需关注',
-        content: s.content
+        content: s.content || ''
       })
     })
 
@@ -1221,7 +1283,10 @@ const formatFileSize = (bytes: number) => {
 // 格式化日期
 const formatDate = (dateString: string) => {
   if (!dateString) return ''
-  const date = new Date(dateString)
+  const normalized = String(dateString).trim()
+  if (!normalized || normalized === '待补充') return ''
+  const date = new Date(normalized.replace(/年|月/g, '-').replace(/日/g, '').replace(/时/g, ':').replace(/分/g, ''))
+  if (Number.isNaN(date.getTime())) return normalized
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -1281,8 +1346,7 @@ const loadFilePreview = async (file: any) => {
   
   loadingPreview.value = true
   try {
-    const res = await fetch(`/api/v1/bid-template/${currentProjectId.value}/template-files/${encodeURIComponent(file.path)}/preview`)
-    const data = await res.json()
+    const data = await previewBidTemplateFile(currentProjectId.value, file.path)
     if (data.status === 'success') {
       templateFilePreview.value = data.content
     } else {
@@ -1307,6 +1371,7 @@ const selectFile = async (id: number) => {
 
 // 生成状态
 const isGenerating = ref(false)
+const hasGenerated = ref(false)
 const generationProgress = ref(0)
 const generationLogs = ref<string[]>([])
 
@@ -1321,32 +1386,42 @@ const startGeneration = async () => {
   generationLogs.value = ['正在创建生成任务...']
 
   try {
-    const job = await createGenerationJob(currentProjectId.value)
+    const job = await createGenerationJob(currentProjectId.value, currentProjectName.value || '未命名项目')
     generationLogs.value.push(`任务已创建: ${job.id}`)
     generationProgress.value = 30
 
-    generationLogs.value.push('正在生成回标文件内容...')
-    generationProgress.value = 60
+    let targetJob = job
+    // 如果返回的 job 已经是 completed，跳过轮询直接导出
+    if (job.status === 'completed') {
+      generationLogs.value.push('生成任务已完成')
+      generationProgress.value = 60
+    } else {
+      generationLogs.value.push('正在生成回标文件内容...')
+      generationProgress.value = 60
 
-    let latestJob = job
-    let retries = 0
-    while (retries < 60) {
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      latestJob = await getLatestJobByProject(currentProjectId.value)
-      if (latestJob && latestJob.status === 'completed') {
-        break
+      let retries = 0
+      while (retries < 60) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        targetJob = await getLatestJobByProject(currentProjectId.value)
+        if (targetJob && targetJob.status === 'completed') {
+          break
+        }
+        if (targetJob && targetJob.status === 'failed') {
+          throw new Error('生成任务失败')
+        }
+        retries++
+        generationProgress.value = Math.min(60 + Math.floor(retries * 0.5), 95)
       }
-      if (latestJob && latestJob.status === 'failed') {
-        throw new Error('生成任务失败')
+
+      if (!targetJob || targetJob.status !== 'completed') {
+        throw new Error('生成任务超时')
       }
-      retries++
-      generationProgress.value = Math.min(60 + Math.floor(retries * 0.5), 95)
     }
 
     generationProgress.value = 95
     generationLogs.value.push('正在导出Word文档...')
 
-    const blob = await exportGenerationJobDocx(latestJob.id)
+    const blob = await exportGenerationJobDocx(targetJob.id)
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1358,17 +1433,41 @@ const startGeneration = async () => {
 
     generationProgress.value = 100
     generationLogs.value.push('回标文件生成完成！Word文档已下载')
+    hasGenerated.value = true
 
     setTimeout(() => {
       isGenerating.value = false
       alert('回标文件生成完成！Word文档已下载')
-      router.push('/bid-list')
     }, 1000)
   } catch (e: any) {
     console.error(e)
     generationLogs.value.push(`错误: ${e.message}`)
     isGenerating.value = false
     alert(`生成失败: ${e.message}`)
+  }
+}
+
+// 重新下载已生成的文档
+const regenerateDocx = async () => {
+  if (!currentProjectId.value) return
+  try {
+    const latestJob = await getLatestJobByProject(currentProjectId.value)
+    if (!latestJob) {
+      alert('未找到生成记录')
+      return
+    }
+    const blob = await exportGenerationJobDocx(latestJob.id)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `回标文件_${currentProjectName.value || '项目'}.docx`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  } catch (e: any) {
+    console.error(e)
+    alert(`下载失败: ${e.message}`)
   }
 }
 
@@ -1526,29 +1625,33 @@ onMounted(async () => {
         if (project.company_address) basicInfo.value.address = project.company_address
         if (project.bank_name) basicInfo.value.bankInfo = project.bank_name
 
-        if (project.status === '解析完成' || project.parse_status === '已解析') {
+        if (project.node_status && project.node_status.generation === 'completed') {
+          hasGenerated.value = true
+          currentStep.value = 2
+        } else if (project.status === '解析完成' || project.parse_status === '已解析') {
           uploadStatus.value = '文件解析成功'
           const sections = await getTenderSections(projectId)
           if (sections && sections.length > 0) {
             starItems.value = []
             let starId = 1
-            sections.filter((s: any) => s.is_star_item).forEach((s: any) => {
+            const starSections = await loadSectionDetails(sections.filter((s: any) => s.is_star_item))
+            starSections.forEach((s: any) => {
               starItems.value.push({
                 id: starId++,
                 name: s.section_name,
                 type: s.section_type === '评审' ? '评审规则' : '技术规范',
                 source: s.source_file,
                 status: '需关注',
-                content: s.content
+                content: s.content || ''
               })
             })
           }
           if (project.file_list && Array.isArray(project.file_list) && project.file_list.length > 0) {
             projectFileList.value = project.file_list
             selectedSourceFile.value = project.file_list[0].name
-            const firstFileSections = sections.filter((s: any) => s.source_file === project.file_list[0].name)
+            const firstFileSections = await loadSectionDetails(sections.filter((s: any) => s.source_file === project.file_list[0].name))
             if (firstFileSections.length > 0) {
-              selectedFileContent.value = firstFileSections.map((s: any) => s.content).join('\n\n')
+              selectedFileContent.value = firstFileSections.map((s: any) => `【${s.section_name}】\n${s.content || ''}`).join('\n\n')
               fileContentMap.value[project.file_list[0].name] = selectedFileContent.value
             }
           }

@@ -25,10 +25,10 @@ UNZIP_DIR = Path(settings.storage_path or Path(__file__).resolve().parents[4] / 
 
 def _decode_zip_filename(name: str) -> str:
     """Decode ZIP filename with Chinese encoding fallback.
-    
-    Python's zipfile uses Latin-1 (ISO-8859-1) by default for non-UTF-8 flag entries.
+
+    Python's zipfile uses cp437 by default for non-UTF-8 flag entries.
     Chinese tools (WinRAR, 360压缩) on Windows use GBK encoding.
-    We need to re-encode from Latin-1 back to bytes, then decode with GBK.
+    We must try cp437 first (not latin-1) to recover original bytes.
     """
     if not isinstance(name, str):
         name = str(name)
@@ -46,42 +46,34 @@ def _decode_zip_filename(name: str) -> str:
     except (UnicodeEncodeError, UnicodeDecodeError):
         pass
     
-    # The filename was decoded by Python's zipfile using Latin-1 (ISO-8859-1)
-    # We need to encode it back to bytes using Latin-1, then decode with Chinese encodings
-    try:
-        # Step 1: Re-encode the garbled string back to original bytes using Latin-1
-        original_bytes = name.encode('latin-1')
-        
-        # Step 2: Try decoding with GBK (most common for Chinese Windows)
+    def score(candidate: str) -> int:
+        chinese = sum(1 for c in candidate if '\u4e00' <= c <= '\u9fff')
+        ascii_count = sum(1 for c in candidate if c.isascii() and c.isprintable())
+        mojibake = sum(1 for c in candidate if c in "ÃÂÄÅÆÇÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿµ")
+        replacement = candidate.count('\ufffd')
+        return chinese * 10 + ascii_count - mojibake * 3 - replacement * 20
+
+    candidates = [name]
+
+    # Python's zipfile uses cp437 by default for non-UTF-8 entries.
+    # We must try cp437 first (not latin-1) to recover original bytes.
+    for source_enc in ('cp437', 'latin-1'):
         try:
-            decoded = original_bytes.decode('gbk')
-            # Verify it contains Chinese characters
-            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
-                return decoded
-        except (UnicodeDecodeError, UnicodeEncodeError):
+            original_bytes = name.encode(source_enc)
+            for target_enc in ('utf-8', 'gbk', 'gb18030', 'gb2312'):
+                try:
+                    decoded = original_bytes.decode(target_enc)
+                    if decoded and decoded not in candidates:
+                        candidates.append(decoded)
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    pass
+        except (UnicodeEncodeError, UnicodeDecodeError):
             pass
-        
-        # Step 3: Try GB18030 (superset of GBK)
-        try:
-            decoded = original_bytes.decode('gb18030')
-            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
-                return decoded
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            pass
-        
-        # Step 4: Try GB2312
-        try:
-            decoded = original_bytes.decode('gb2312')
-            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
-                return decoded
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            pass
-        
-    except (UnicodeEncodeError, UnicodeDecodeError) as e:
-        logger.warning(f"Failed to decode filename '{name}': {e}")
-    
-    # Fallback: return original
-    return name
+
+    best = max(candidates, key=score)
+    if best != name:
+        logger.info("Decoded archive filename: %s -> %s", name, best)
+    return best
 
 
 @router.post("/{project_id}/upload", response_model=TaskSubmitResponse)
@@ -295,7 +287,7 @@ def _handle_archive_async(project_id: str, archive_path: Path, ext: str, task_id
                 
                 # Skip small files and obvious attachments
                 file_size = fpath.stat().st_size if fpath.exists() else 0
-                is_attachment = any(kw in fname.lower() for kw in ["附件", "证明", "证书", "资质", "执照", "授权", "承诺", "偏离", "格式", "模板", "样本"])
+                is_attachment = any(kw in fname.lower() for kw in ["附件", "证明", "证书", "资质", "执照", "授权", "承诺", "偏离", "格式", "模板", "样本", "澄清", "反馈"])
                 if file_size < 10000 or is_attachment:
                     skipped_files.append(f"{fname} (attachment/small, skip LLM)")
                     continue

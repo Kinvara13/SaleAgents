@@ -104,10 +104,39 @@ export async function scoreProposal(projectId: string): Promise<ProposalScoreRes
 }
 
 /**
+ * 人工修改后重新评分
+ */
+export async function rescoreProposal(projectId: string): Promise<ProposalScoreResponse> {
+  const res = await api.post<ProposalScoreResponse>(`/proposal-editor/${projectId}/rescore`)
+  return res.data
+}
+
+/**
  * 确认全部章节
  */
 export async function confirmProposal(projectId: string): Promise<ProposalSectionSummary[]> {
   const res = await api.post<ProposalSectionSummary[]>(`/proposal-editor/${projectId}/confirm`)
+  return res.data
+}
+
+export async function exportProposalDocx(projectId: string): Promise<Blob> {
+  const res = await api.get(`/proposal-editor/${projectId}/export/docx`, {
+    responseType: 'blob',
+  })
+  return res.data
+}
+
+export interface TaskStatusResponse {
+  id: string
+  task_type: string
+  project_id: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  result?: Record<string, unknown> | null
+  error_message?: string | null
+}
+
+export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
+  const res = await api.get<TaskStatusResponse>(`/tasks/${taskId}`)
   return res.data
 }
 

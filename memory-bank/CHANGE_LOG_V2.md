@@ -134,3 +134,11 @@
   - Added `service_commitment: str | None` field to `TenderSummary` schema with validator.
   - Created and ran Alembic migration `62b79a85dd46_add_service_commitment_to_tenders`.
 
+## 2026-04-30 FULL-001 回标文件与技术建议书闭环
+
+- 新增 `bid_template_service.py`：统一清洗回标模板文件，按文件名/模板包路径归类为商务、技术、方案/报价或其他，过滤招标文件并去除重复路径。
+- 修改 `bid_template.py` 与 `project_service.get_project_bid_progress`：上传和读取模板清单时均执行清洗；回标完成情况优先展示 `Project.bid_template_files`，不再把招标文件和业务文档模板混入文件目录。
+- 修改 `proposal_editor.py` / `proposal_service.py`：新增 `GET /api/v1/proposal-editor/{project_id}/export/docx`，支持技术建议书 Word 导出；LLM 不可用时使用结构化兜底内容保证生成链路可闭环。
+- 修改 `ProposalEditor.vue` / `proposal.ts`：补齐生成任务轮询、草稿保存、重新打分、一键确认、Word 导出、项目路由自动选择和错误/成功反馈。
+- 修改 `TenderDetail.vue`：一键下载接入最新回标生成任务 Word 导出。
+- 验证：`py_compile` 通过；`npm run build` 通过；临时 SQLite smoke 覆盖回标模板过滤去重、技术建议书生成/编辑/rescore/confirm/export。

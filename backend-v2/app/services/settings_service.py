@@ -43,6 +43,10 @@ def list_ai_configs(db: Session) -> list[AIConfig]:
     return db.query(AIConfig).order_by(AIConfig.updated_at.desc()).all()
 
 
+def get_ai_config_by_id(db: Session, config_id: str) -> AIConfig | None:
+    return db.query(AIConfig).filter(AIConfig.id == config_id).first()
+
+
 def create_ai_config(
     db: Session,
     name: str,

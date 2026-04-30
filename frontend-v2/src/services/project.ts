@@ -12,6 +12,19 @@ export interface Project {
   bidding_company: string
   description: string
   module_progress: Record<string, string>
+  parse_status?: string
+  node_status?: Record<string, string>
+  bid_template_files?: Array<{
+    id: string
+    name: string
+    path: string
+    status?: string
+    selected?: boolean
+    icon?: string
+    section_type?: string
+    section_name?: string
+    responsible?: string
+  }>
   extracted_fields?: Array<{label: string; value: string; confidence?: string}>
 }
 
@@ -173,5 +186,15 @@ export async function uploadBidTemplate(projectId: string, file: File): Promise<
       'Content-Type': 'multipart/form-data',
     },
   })
+  return res.data
+}
+
+export async function updateBidTemplateFiles(projectId: string, files: any[]): Promise<any> {
+  const res = await api.put(`/bid-template/${projectId}/template-files`, files)
+  return res.data
+}
+
+export async function previewBidTemplateFile(projectId: string, filePath: string): Promise<{status: string; filename: string; content: string}> {
+  const res = await api.get(`/bid-template/${projectId}/template-files/${encodeURIComponent(filePath)}/preview`)
   return res.data
 }

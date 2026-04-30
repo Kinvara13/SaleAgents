@@ -41,6 +41,7 @@
 | task_id | 来源功能点 | 问题类型 | 目标结果 | owner | status | depends_on | 验收标准 | 记录文件 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | E2E-001 | F051-F054, F067, F069-F071, F074, F076-F079, F081-F082 | 端到端验收 | 用真实样本走通 上传→解析→生成→打分→修改→重打分 全流程 | QA Agent | todo | BE-011 | 至少 1 份真实招标文件的上传/解析/生成/打分全链路有运行态证据 | `memory-bank/agent-worklogs/qa-agent.md` |
+| FULL-001 | F052,F067-F082 | 端到端功能闭环 | 修复回标文件页面模板分类/去重，并补齐技术建议书生成、编辑、评分、确认、导出闭环 | Codex Agent | done | BE-013,BE-014,BE-015,FE-008 | 回标文件清单只展示回标模板且按商务/技术/方案分类去重；技术建议书可选项目、生成、保存、重打分、确认、导出 Word；前后端最小验证通过 | `memory-bank/agent-worklogs/codex-agent.md` |
 | BE-012 | F049 | 后端 | 招标信息定时抓取任务（APScheduler/Celery Beat），含失败告警 | Backend Agent | **done** | BE-011 | 招标清单可按设定周期自动刷新，失败时有日志/告警留痕 | `memory-bank/agent-worklogs/backend-agent.md` |
 ||| BE-013 | F054, F067, F076-F079 | 后端 | 实现打分计算引擎：最高得分计算 + 人工修改后二次重算 | Backend Agent | **done** | BE-011 | 文档生成后能计算客观分；人工修改内容后能触发重算并返回新得分 | `memory-bank/agent-worklogs/backend-agent.md` |
 ||| BE-014 | F069-F071, F077-F078 | 后端 | 素材库自动匹配闭环：CMMI/软著/项目数量/人员能力素材检索并填充 | Backend Agent | **done** | BE-011 | 技术文档生成时能从素材库检索匹配的资质/案例/人员并自动注入 | `memory-bank/agent-worklogs/backend-agent.md` |

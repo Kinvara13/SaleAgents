@@ -243,6 +243,10 @@ import {
   type ScoringCriteriaItem,
   type ProjectActivity,
 } from '../services/project'
+import {
+  getLatestJobByProject,
+  exportGenerationJobDocx,
+} from '../services/generation'
 
 const route = useRoute()
 const projectId = route.params.id as string
@@ -293,8 +297,22 @@ const openPreview = (file: BidSection['files'][0]) => {
   previewModalVisible.value = true
 }
 
-const downloadAllFiles = () => {
-  alert('正在下载全部已完成的文件...')
+const downloadAllFiles = async () => {
+  error.value = ''
+  try {
+    const job = await getLatestJobByProject(projectId)
+    const blob = await exportGenerationJobDocx(job.id)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `回标文件_${displayProject.value?.name || projectId}.docx`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  } catch (e: any) {
+    error.value = e.message || '未找到可下载的回标文件，请先在标书制作页生成'
+  }
 }
 
 async function loadDetail() {

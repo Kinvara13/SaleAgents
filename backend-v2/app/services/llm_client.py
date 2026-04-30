@@ -692,7 +692,13 @@ class LLMProposalClient(_BaseLLMClient):
         technical_cases: list[str] | None = None,
     ) -> str:
         if not self.is_llm_ready:
-            return f"[{section_name}] LLM 未配置或不可用，无法生成内容。"
+            return self._fallback_generate_section(
+                section_name=section_name,
+                context=context,
+                scoring_hints=scoring_hints,
+                routed_assets=routed_assets or [],
+                technical_cases=technical_cases or [],
+            )
 
         system_prompt = (
             "你是资深的售前解决方案架构师。你的任务是根据项目背景、公司优势、素材库资料和招标评分要求，"
@@ -746,7 +752,49 @@ class LLMProposalClient(_BaseLLMClient):
             return (content or "").strip()
         except Exception as exc:
             logger.error("LLM generate_section failed: %s", exc)
-            return f"[{section_name}] 内容生成失败: {exc}"
+            return self._fallback_generate_section(
+                section_name=section_name,
+                context=context,
+                scoring_hints=scoring_hints,
+                routed_assets=routed_assets or [],
+                technical_cases=technical_cases or [],
+            )
+
+    def _fallback_generate_section(
+        self,
+        *,
+        section_name: str,
+        context: dict[str, Any],
+        scoring_hints: list[str],
+        routed_assets: list[str],
+        technical_cases: list[str],
+    ) -> str:
+        project_name = context.get("project_name") or "本项目"
+        client = context.get("client") or "招标方"
+        company = context.get("bidding_company") or "投标单位"
+        hints = scoring_hints[:4] or ["完整响应招标文件技术要求", "保障方案可落地、可验收、可运维"]
+        assets = routed_assets[:3] or ["待补充企业资质、人员能力和项目案例证明材料"]
+        cases = technical_cases[:2] or ["待补充同类项目案例"]
+        return (
+            f"## {section_name}\n\n"
+            f"### 编制目标\n"
+            f"围绕“{project_name}”的建设目标，{company} 面向 {client} 提供本章节方案。"
+            "本章节用于支撑技术评审、现场实施和后续验收，内容将结合评分点、素材库和人工确认信息持续完善。\n\n"
+            f"### 响应要点\n"
+            + "\n".join(f"- {item}" for item in hints)
+            + "\n\n"
+            f"### 实施说明\n"
+            "方案采用分阶段推进方式：首先完成需求复核和差异确认，其次完成技术设计、资源配置和实施计划，"
+            "最后进入联调测试、上线保障和验收交付。每个阶段均设置责任人、交付物和复核节点，确保内容可追踪、可审计。\n\n"
+            f"### 可引用资料\n"
+            + "\n".join(f"- {item}" for item in assets)
+            + "\n\n"
+            f"### 案例与证明材料\n"
+            + "\n".join(f"- {item}" for item in cases)
+            + "\n\n"
+            "### 待人工确认\n"
+            "如招标文件对本章节有强制格式、签章、证明材料或客观分阈值要求，请在导出前完成复核并补齐附件。"
+        )
 
     def score_section(
         self,

@@ -144,6 +144,17 @@ class GenerationService:
                 routed_assets=generated.get("routed_assets", []),
             )
 
+        if payload.project_id:
+            from app.models.project import Project
+            project = db.query(Project).filter(Project.id == payload.project_id).first()
+            if project:
+                if isinstance(project.node_status, dict):
+                    project.node_status["generation"] = "completed"
+                else:
+                    project.node_status = {"generation": "completed"}
+                project.status = "已生成"
+                db.add(project)
+
         db.commit()
         db.refresh(job)
         return GenerationJobResponse.model_validate(job)

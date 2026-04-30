@@ -1,5 +1,7 @@
 import logging
 import re
+import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -36,13 +38,19 @@ TECH_SECTIONS = [
     "封面",
 ]
 
-BUSINESS_STAR = {"商务偏离表", "应答承诺函", "授权委托书"}
-TECH_STAR = {"技术条款偏离表", "项目案例", "自查确认单"}
-
 # Chunking constants
 MAX_CHUNK_CHARS = 12000
 SUMMARIZE_THRESHOLD = 15000
 MIN_CHUNK_CHARS = 200
+MAX_STAR_ITEMS = 20
+
+FIELD_LABELS = [
+    "项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
+    "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额", "保证金形式",
+    "必备资质", "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺",
+    "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接",
+    "废标条款", "合同条款", "商务条款", "投标人须知",
+]
 
 # Heading patterns for Chinese tender documents
 HEADING_PATTERNS = [
@@ -82,6 +90,145 @@ def _is_heading(line: str) -> bool:
     return False
 
 
+def _normalize_text(text: str) -> str:
+    text = re.sub(r"\r\n?", "\n", text or "")
+    text = re.sub(r"[ \t\u3000]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _extract_docx_text(file_path: Path) -> str:
+    from docx import Document
+
+    doc = Document(str(file_path))
+    lines: list[str] = []
+    for paragraph in doc.paragraphs:
+        if paragraph.text and paragraph.text.strip():
+            lines.append(paragraph.text.strip())
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text and cell.text.strip()]
+            if cells:
+                lines.append(" | ".join(cells))
+    return "\n".join(lines)
+
+
+def _extract_office_text_with_textutil(file_path: Path, ext: str) -> str:
+    if ext not in {".doc", ".rtf"}:
+        return ""
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / f"{file_path.stem}.txt"
+            subprocess.run(
+                ["textutil", "-convert", "txt", "-output", str(out_path), str(file_path)],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
+            return out_path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        logger.warning("textutil extraction failed for %s: %s", file_path, exc)
+        return ""
+
+
+def _extract_excel_text(file_path: Path) -> str:
+    import openpyxl
+
+    wb = openpyxl.load_workbook(str(file_path), data_only=True, read_only=True)
+    lines: list[str] = []
+    for sheet in wb.sheetnames:
+        ws = wb[sheet]
+        lines.append(f"【工作表：{sheet}】")
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+            if cells:
+                lines.append(" | ".join(cells))
+    return "\n".join(lines)
+
+
+def _extract_pdf_pages(file_path: Path) -> list[tuple[int, str]]:
+    pages: list[tuple[int, str]] = []
+
+    try:
+        import fitz
+
+        with fitz.open(str(file_path)) as doc:
+            for i, page in enumerate(doc, start=1):
+                text = page.get_text("text") or ""
+                if text.strip():
+                    pages.append((i, text))
+    except Exception as exc:
+        logger.warning("PyMuPDF extraction failed for %s: %s", file_path, exc)
+
+    if pages and sum(len(text.strip()) for _, text in pages) >= 80:
+        return pages
+
+    try:
+        import pypdf
+
+        reader = pypdf.PdfReader(str(file_path))
+        pages = []
+        for i, page in enumerate(reader.pages, start=1):
+            text = page.extract_text() or ""
+            if text.strip():
+                pages.append((i, text))
+    except Exception as exc:
+        logger.warning("pypdf extraction failed for %s: %s", file_path, exc)
+
+    if pages and sum(len(text.strip()) for _, text in pages) >= 80:
+        return pages
+
+    return _ocr_pdf_pages(file_path)
+
+
+def _ocr_pdf_pages(file_path: Path) -> list[tuple[int, str]]:
+    pages: list[tuple[int, str]] = []
+    try:
+        import fitz
+
+        try:
+            from ocrmac import ocrmac
+
+            with fitz.open(str(file_path)) as doc:
+                for i, page in enumerate(doc, start=1):
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    with tempfile.NamedTemporaryFile(suffix=".png") as image_file:
+                        image_file.write(pix.tobytes("png"))
+                        image_file.flush()
+                        result = ocrmac.OCR(str(image_file.name), language_preference=["zh-Hans", "en"]).recognize()
+                    text = "\n".join(item[0] for item in result if item and item[0]).strip()
+                    if text:
+                        pages.append((i, text))
+            if pages:
+                logger.info("OCR extracted %d pages from %s using ocrmac", len(pages), file_path)
+                return pages
+        except Exception as exc:
+            logger.warning("ocrmac extraction failed for %s: %s", file_path, exc)
+
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+
+            engine = RapidOCR()
+            with fitz.open(str(file_path)) as doc:
+                for i, page in enumerate(doc, start=1):
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    with tempfile.NamedTemporaryFile(suffix=".png") as image_file:
+                        image_file.write(pix.tobytes("png"))
+                        image_file.flush()
+                        result, _ = engine(str(image_file.name))
+                    text = "\n".join(row[1] for row in (result or []) if len(row) > 1 and row[1]).strip()
+                    if text:
+                        pages.append((i, text))
+            if pages:
+                logger.info("OCR extracted %d pages from %s using rapidocr", len(pages), file_path)
+        except Exception as exc:
+            logger.warning("RapidOCR extraction failed for %s: %s", file_path, exc)
+    except Exception as exc:
+        logger.warning("PDF OCR setup failed for %s: %s", file_path, exc)
+
+    return pages
+
+
 def _extract_text_from_file(file_path: Path, ext: str) -> tuple[str, list[tuple[int, str]]]:
     """Extract text from a file. Returns (full_text, list_of(page_num, page_text))."""
     pages: list[tuple[int, str]] = []
@@ -90,58 +237,36 @@ def _extract_text_from_file(file_path: Path, ext: str) -> tuple[str, list[tuple[
     try:
         if ext == ".txt":
             text = file_path.read_text(encoding="utf-8", errors="replace")
-            pages.append((1, text))
-            full_text = text
+            pages.append((1, _normalize_text(text)))
+            full_text = pages[0][1]
         elif ext == ".docx":
             try:
-                from docx import Document
-                doc = Document(str(file_path))
-                text = "\n".join([p.text for p in doc.paragraphs])
+                text = _normalize_text(_extract_docx_text(file_path))
                 pages.append((1, text))
                 full_text = text
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("DOCX extraction failed for %s: %s", file_path, exc)
+        elif ext == ".doc":
+            text = _normalize_text(_extract_office_text_with_textutil(file_path, ext))
+            if text:
+                pages.append((1, text))
+                full_text = text
         elif ext == ".xlsx":
             try:
-                import openpyxl
-                wb = openpyxl.load_workbook(str(file_path), data_only=True)
-                lines = []
-                for sheet in wb.sheetnames:
-                    ws = wb[sheet]
-                    for row in ws.iter_rows(values_only=True):
-                        line = " ".join([str(c) if c else "" for c in row])
-                        if line.strip():
-                            lines.append(line)
-                text = "\n".join(lines)
+                text = _normalize_text(_extract_excel_text(file_path))
                 pages.append((1, text))
                 full_text = text
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("XLSX extraction failed for %s: %s", file_path, exc)
+        elif ext == ".xls":
+            logger.warning("Legacy XLS extraction is unavailable without xlrd/libreoffice: %s", file_path)
         elif ext == ".pdf":
-            # Try pypdf first (faster), fallback to pdfplumber (better extraction)
-            try:
-                import pypdf
-                reader = pypdf.PdfReader(str(file_path))
-                for i, page in enumerate(reader.pages, start=1):
-                    pt = page.extract_text() or ""
-                    if pt.strip():
-                        pages.append((i, pt))
-            except Exception:
-                logger.warning("pypdf extraction failed, trying pdfplumber for %s", file_path)
-                try:
-                    import pdfplumber
-                    with pdfplumber.open(str(file_path)) as pdf:
-                        for i, page in enumerate(pdf.pages, start=1):
-                            pt = page.extract_text() or ""
-                            if pt.strip():
-                                pages.append((i, pt))
-                except Exception:
-                    pass
+            pages = [(p, _normalize_text(text)) for p, text in _extract_pdf_pages(file_path) if text.strip()]
             full_text = "\n\n".join(f"--- Page {p[0]} ---\n{p[1]}" for p in pages)
         else:
             text = file_path.read_text(encoding="utf-8", errors="replace")
-            pages.append((1, text))
-            full_text = text
+            pages.append((1, _normalize_text(text)))
+            full_text = pages[0][1]
     except Exception as e:
         logger.error("Text extraction failed for %s: %s", file_path, e)
         full_text = f"[文件读取失败: {e}]"
@@ -312,7 +437,7 @@ class ParsingService:
 
         if not full_text or len(full_text.strip()) < 50:
             logger.warning("No text extracted from %s", filename)
-            return self._create_placeholder_sections(db, project_id, filename)
+            return self._create_placeholder_sections(db, project_id, filename, clear_existing=clear_existing)
 
         # Rule-based pre-extraction (fast, deterministic)
         rule_results = rule_extractor.extract_fields(full_text)
@@ -327,14 +452,15 @@ class ParsingService:
         # 4. Merge tiny chunks with neighbors
         chunks = self._merge_tiny_chunks(chunks)
 
-        # 5. Extract tender fields via LLM (using curated text: head + tail + important paragraphs)
+        # 5. Extract tender fields via LLM using curated local text only.
         curated_text = self._curate_text_for_llm(full_text)
         tender_info = llm_parsing_client.extract_tender_fields(curated_text)
         if not tender_info:
-            logger.warning(f"No tender fields extracted for {filename} - LLM extraction returned empty")
+            logger.warning("No LLM tender fields extracted for %s; using local rules only", filename)
 
         # Merge: rule-based takes priority for structured fields, LLM for complex fields
-        merged_info = self._merge_extraction_results(rule_results, tender_info or {})
+        merged_info = self._merge_extraction_results(rule_results, tender_info or {}, full_text)
+        self._fill_from_filename(merged_info, filename)
 
         # 6. Persist
         if clear_existing:
@@ -387,7 +513,7 @@ class ParsingService:
             # Extract star items from merged response
             star_items_list = merged_info.get("星标项列表", [])
             if isinstance(star_items_list, list):
-                for star_item in star_items_list:
+                for star_item in star_items_list[:MAX_STAR_ITEMS]:
                     if isinstance(star_item, dict):
                         star_name = star_item.get("name", "")
                         star_content = star_item.get("content", "")
@@ -399,45 +525,77 @@ class ParsingService:
             # Update project extracted_fields
             project = db.query(Project).filter(Project.id == project_id).first()
             if project:
-                extracted = []
-                for key in ["项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
-                            "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额", "保证金形式",
-                            "必备资质", "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺",
-                            "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接",
-                            "废标条款", "合同条款", "商务条款", "投标人须知"]:
-                    val = self._extract_field_value(merged_info, key)
-                    if val:
-                        extracted.append({"label": key, "value": val, "confidence": "85%"})
-
-                # Add star items as structured list
-                star_items_list = merged_info.get("星标项列表", [])
-                if star_items_list and isinstance(star_items_list, list):
-                    star_summary = "; ".join([
-                        f"{item.get('name', '星标项')}: {item.get('content', '')[:100]}"
-                        for item in star_items_list if isinstance(item, dict)
-                    ])
-                    if star_summary:
-                        extracted.append({"label": "星标项", "value": star_summary, "confidence": "90%"})
-
-                if extracted:
-                    project.extracted_fields = extracted
+                extracted = self._merge_project_extracted_fields(project.extracted_fields or [], merged_info)
+                project.extracted_fields = extracted
 
         # Placeholder business/tech sections expected by the frontend
         for name in BUSINESS_SECTIONS:
             created.append(self._add_section(
                 db, project_id, name, "商务",
                 f"【{name}】\n\n解析自招标文件 {filename}，请根据招标要求及公司实际情况填写。",
-                name in BUSINESS_STAR, filename
+                False, filename
             ))
         for name in TECH_SECTIONS:
             created.append(self._add_section(
                 db, project_id, name, "技术",
                 f"【{name}】\n\n解析自招标文件 {filename}，请根据技术规范书要求填写。",
-                name in TECH_STAR, filename
+                False, filename
             ))
 
         db.commit()
         return [ParsingSectionSummary.model_validate(s) for s in created]
+
+    def _merge_project_extracted_fields(self, existing_fields: list | dict, merged_info: dict) -> list[dict[str, str]]:
+        existing: dict[str, dict[str, str]] = {}
+        if isinstance(existing_fields, list):
+            for item in existing_fields:
+                if isinstance(item, dict) and item.get("label"):
+                    existing[str(item["label"])] = {
+                        "label": str(item["label"]),
+                        "value": str(item.get("value", "")),
+                        "confidence": str(item.get("confidence", "70%")),
+                    }
+
+        for key in FIELD_LABELS:
+            val = self._extract_field_value(merged_info, key)
+            if self._is_useful_value(val):
+                confidence = self._extract_confidence(merged_info, key) or "85%"
+                current = existing.get(key, {})
+                if not self._is_useful_value(current.get("value")) or self._confidence_score(confidence) >= self._confidence_score(current.get("confidence", "")):
+                    existing[key] = {"label": key, "value": val, "confidence": confidence}
+
+        star_items_list = merged_info.get("星标项列表", [])
+        if star_items_list and isinstance(star_items_list, list):
+            star_summary = "; ".join([
+                f"{item.get('name', '星标项')}: {item.get('content', '')[:100]}"
+                for item in star_items_list[:MAX_STAR_ITEMS] if isinstance(item, dict)
+            ])
+            if star_summary:
+                current = existing.get("星标项", {})
+                merged_star = star_summary
+                if self._is_useful_value(current.get("value")) and star_summary not in current.get("value", ""):
+                    merged_star = f"{current['value']}; {star_summary}"
+                existing["星标项"] = {"label": "星标项", "value": merged_star[:3000], "confidence": "90%"}
+
+        return [existing[key] for key in [*FIELD_LABELS, "星标项"] if key in existing]
+
+    @staticmethod
+    def _confidence_score(confidence: str) -> int:
+        match = re.search(r"\d+", str(confidence or ""))
+        return int(match.group(0)) if match else 0
+
+    def _fill_from_filename(self, merged_info: dict, filename: str) -> None:
+        if self._is_useful_value(self._extract_field_value(merged_info, "项目名称")):
+            return
+        stem = Path(filename).stem
+        stem = re.sub(r"^\d+[-_]", "", stem)
+        stem = re.sub(r"[-_ ]?\d{8,14}$", "", stem)
+        stem = re.sub(r"(采购合同|招标文件|采购文件|应答文件|投标文件)$", "", stem).strip("-_ ")
+        if len(stem) >= 8 and re.search(r"[\u4e00-\u9fa5]", stem):
+            merged_info["项目名称"] = {"value": stem, "confidence": "60%"}
+
+    def _deprecated_noop(self) -> None:
+        return None
 
     def _add_section(
         self, db: Session, project_id: str, name: str, sec_type: str,
@@ -461,44 +619,51 @@ class ParsingService:
             return str(item.get("value", ""))
         return str(item) if item else ""
 
-def _merge_extraction_results(self, rule_results: dict, llm_results: dict) -> dict:
-        """Merge rule-based and LLM extraction results. Rule-based takes priority for structured fields."""
-        merged = dict(llm_results) if llm_results else {}
+    def _extract_confidence(self, tender_info: dict, key: str) -> str:
+        item = tender_info.get(key)
+        if isinstance(item, dict):
+            return str(item.get("confidence", ""))
+        return ""
 
-        # Structured fields: use rule_results if confidence > 0.5
-        structured_fields = ["project_name", "bid_number", "deadline"]
-        for fld in structured_fields:
-            rule_val = rule_results.get(fld)
-            if rule_val and isinstance(rule_val, dict) and rule_val.get("confidence", 0) > 0.5:
-                merged[fld] = rule_val
-            elif rule_val and not isinstance(rule_val, dict) and rule_val:
-                merged[fld] = rule_val
+    def _merge_extraction_results(self, rule_results: dict, llm_results: dict, full_text: str = "") -> dict:
+        """Merge rule-based and LLM extraction results. Rule-based takes priority for structured fields."""
+        merged = self._normalize_llm_results(llm_results or {})
+
+        confidence = rule_results.get("confidence", {}) if isinstance(rule_results, dict) else {}
+
+        structured_fields = {
+            "project_name": "项目名称",
+            "bid_number": "招标编号",
+            "deadline": "投标截止时间",
+        }
+        for rule_key, label in structured_fields.items():
+            rule_val = rule_results.get(rule_key)
+            if self._is_useful_value(rule_val) and float(confidence.get(rule_key, 0) or 0) >= 0.4:
+                merged[label] = {
+                    "value": str(rule_val).strip(),
+                    "confidence": f"{int(float(confidence.get(rule_key, 0.8)) * 100)}%",
+                }
 
         # Complex fields: use rule_results section text if available
         complex_fields = {
-            "scoring_criteria": "评分规则",
+            "scoring_criteria": "评分重点",
             "technical_requirements": "技术要求",
+            "qualification_requirements": "必备资质",
+            "disqualification_clauses": "废标条款",
             "contract_terms": "合同条款",
+            "commercial_terms": "商务条款",
+            "bidder_instructions": "投标人须知",
         }
         for key, display_name in complex_fields.items():
             rule_val = rule_results.get(key)
-            if rule_val and isinstance(rule_val, str) and len(rule_val) > 20:
-                merged[display_name] = rule_val
+            if rule_val and isinstance(rule_val, str) and len(rule_val.strip()) > 8:
+                merged[display_name] = {"value": rule_val, "confidence": f"{int(float(confidence.get(key, 0.8)) * 100)}%"}
             elif rule_val and isinstance(rule_val, dict) and rule_val.get("content"):
-                merged[display_name] = rule_val["content"]
+                merged[display_name] = {"value": rule_val["content"], "confidence": "80%"}
 
-        # Additional fields from rule_extractor
-        additional_fields = {
-            "废标条款": "废标条款",
-            "商务条款": "商务条款",
-            "投标人须知": "投标人须知",
-        }
-        for rule_key, merged_key in additional_fields.items():
-            rule_val = rule_results.get(rule_key)
-            if rule_val and isinstance(rule_val, str) and len(rule_val) > 20:
-                merged[merged_key] = rule_val
-            elif rule_val and isinstance(rule_val, dict) and rule_val.get("content"):
-                merged[merged_key] = rule_val["content"]
+        for key, value in self._extract_local_basic_fields(full_text).items():
+            if self._is_useful_value(value) and not self._is_useful_value(self._extract_field_value(merged, key)):
+                merged[key] = {"value": value, "confidence": "70%"}
 
         # Star items: combine both sources, deduplicate by content similarity
         rule_star_items = rule_results.get("star_items", [])
@@ -536,9 +701,150 @@ def _merge_extraction_results(self, rule_results: dict, llm_results: dict) -> di
                 combined_stars.append({"name": name, "content": content})
 
         if combined_stars:
-            merged["星标项列表"] = combined_stars
+            merged["星标项列表"] = combined_stars[:MAX_STAR_ITEMS]
 
         return merged
+
+    def _normalize_llm_results(self, llm_results: dict) -> dict:
+        merged: dict[str, Any] = {}
+        aliases = {
+            "评分规则": "评分重点",
+            "项目预算": "预算金额",
+            "截止时间": "投标截止时间",
+            "资质要求": "必备资质",
+        }
+        for key, value in llm_results.items():
+            label = aliases.get(key, key)
+            if label == "星标项列表":
+                merged[label] = value
+                continue
+            if label in FIELD_LABELS:
+                if isinstance(value, dict):
+                    raw = str(value.get("value", "")).strip()
+                    if self._is_useful_value(raw):
+                        merged[label] = {
+                            "value": raw,
+                            "confidence": str(value.get("confidence", "80%")),
+                        }
+                elif self._is_useful_value(value):
+                    merged[label] = {"value": str(value).strip(), "confidence": "75%"}
+        return merged
+
+    def _extract_local_basic_fields(self, text: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+
+        bid_type_patterns = [
+            (r"(公开招标|邀请招标|竞争性谈判|竞争性磋商|询价采购|单一来源)", 1),
+            (r"(?:采购方式|招标方式|标书类型)\s*[：:]\s*([^\n；;，, ]{2,20})", 1),
+        ]
+        for pattern, group in bid_type_patterns:
+            m = re.search(pattern, text)
+            if m:
+                result["标书类型"] = m.group(group).strip()
+                break
+
+        budget_patterns = [
+            r"(?:预算金额|采购预算|项目预算|最高限价|控制价)\s*[：:]?\s*((?:人民币|￥|¥)?\s*[\d,，.]+(?:\s*[万亿]?元)?)",
+            r"((?:人民币|￥|¥)?\s*[\d,，.]+(?:\s*[万亿]?元)?)\s*(?:预算|最高限价|控制价)",
+        ]
+        for pattern in budget_patterns:
+            m = re.search(pattern, text)
+            if m:
+                result["预算金额"] = re.sub(r"\s+", "", m.group(1))
+                break
+
+        sale_range = self._extract_date_range(
+            text,
+            ["招标文件获取时间", "获取招标文件", "发售时间", "购买标书时间", "报名时间"],
+        )
+        if sale_range:
+            result["标书起始时间"], result["标书结束时间"] = sale_range
+
+        guarantee_context = self._find_context(text, ["投标保证金", "保证金"])
+        if guarantee_context:
+            result["是否有保证金"] = "否" if re.search(r"不收取|无需|不要求|免收", guarantee_context) else "是"
+            guarantee_idx = guarantee_context.find("保证金")
+            amount_scope = guarantee_context[max(0, guarantee_idx):] if guarantee_idx >= 0 else guarantee_context
+            amount_match = re.search(r"((?:人民币|￥|¥)?\s*[\d,，.]+(?:\s*[万亿]?元))", amount_scope)
+            if amount_match:
+                result["保证金金额"] = re.sub(r"\s+", "", amount_match.group(1))
+            form_match = re.search(r"(银行转账|电汇|保函|银行保函|现金|支票|汇票|担保)", guarantee_context)
+            if form_match:
+                result["保证金形式"] = form_match.group(1)
+        elif "保证金" not in text[:20000]:
+            result["是否有保证金"] = "否"
+
+        if re.search(r"(签字|签章|盖章|公章|电子章)", text[:50000]):
+            result["是否需要签字盖章"] = "是"
+
+        clarification = self._find_context(text, ["澄清会", "答疑会", "投标预备会"])
+        if clarification:
+            result["是否有项目澄清会"] = "否" if re.search(r"不召开|无|不组织", clarification) else "是"
+            date = self._extract_first_datetime(clarification)
+            if date:
+                result["项目澄清会时间"] = date
+            link = re.search(r"(https?://\S+|腾讯会议[：:]?\S+|会议号[：:]?\s*\S+)", clarification)
+            if link:
+                result["项目澄清会链接"] = link.group(1).strip()
+        else:
+            result["是否有项目澄清会"] = "否"
+
+        delivery = self._find_context(text, ["服务期", "工期", "交付期", "交付周期", "合同履行期限"])
+        if delivery:
+            m = re.search(r"((?:合同签订|项目启动|中标通知书发出|采购人通知)?[^\n。；;]{0,20}(?:\d+\s*(?:个)?(?:日历日|工作日|天|个月|年)|至\s*\d{4}年\d{1,2}月\d{1,2}日)[^\n。；;]{0,30})", delivery)
+            if m:
+                result["交付周期"] = m.group(1).strip()
+
+        payment = self._find_context(text, ["付款", "支付", "结算"])
+        if payment and len(payment) > 20:
+            result["付款条款"] = payment[:800]
+
+        service = self._find_context(text, ["售后服务", "服务承诺", "质保", "维保"])
+        if service and len(service) > 20:
+            result["服务承诺"] = service[:800]
+
+        return result
+
+    def _extract_date_range(self, text: str, keywords: list[str]) -> tuple[str, str] | None:
+        context = self._find_context(text, keywords, radius=250)
+        if not context:
+            return None
+        dates = [self._format_date_match(m) for m in re.finditer(r"\d{4}\s*[年\-/\.]\s*\d{1,2}\s*[月\-/\.]\s*\d{1,2}\s*日?(?:\s*\d{1,2}\s*[：:时]\s*\d{1,2})?", context)]
+        dates = [d for d in dates if d]
+        if len(dates) >= 2:
+            return dates[0], dates[1]
+        return None
+
+    def _extract_first_datetime(self, text: str) -> str:
+        m = re.search(r"\d{4}\s*[年\-/\.]\s*\d{1,2}\s*[月\-/\.]\s*\d{1,2}\s*日?(?:\s*\d{1,2}\s*[：:时]\s*\d{1,2})?", text)
+        return self._format_date_match(m) if m else ""
+
+    def _format_date_match(self, match: re.Match[str] | None) -> str:
+        if not match:
+            return ""
+        raw = match.group(0)
+        m = re.search(r"(\d{4})\s*[年\-/\.]\s*(\d{1,2})\s*[月\-/\.]\s*(\d{1,2})", raw)
+        if not m:
+            return raw.strip()
+        value = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        t = re.search(r"(\d{1,2})\s*[：:时]\s*(\d{1,2})", raw)
+        if t:
+            value += f" {int(t.group(1)):02d}:{int(t.group(2)):02d}:00"
+        return value
+
+    def _find_context(self, text: str, keywords: list[str], radius: int = 500) -> str:
+        for keyword in keywords:
+            idx = text.find(keyword)
+            if idx >= 0:
+                return text[max(0, idx - radius): idx + radius]
+        return ""
+
+    @staticmethod
+    def _is_useful_value(value: Any) -> bool:
+        if value is None:
+            return False
+        text = str(value).strip()
+        return bool(text and text not in {"待补充", "无", "None", "null", "未能识别"})
 
     def _curate_text_for_llm(self, full_text: str, max_chars: int = 40000) -> str:
         """Curate text for LLM field extraction: include head, tail, and keyword-rich paragraphs."""
@@ -586,9 +892,12 @@ def _merge_extraction_results(self, rule_results: dict, llm_results: dict) -> di
                 merged.append(chunk.copy())
         return merged
 
-    def _create_placeholder_sections(self, db: Session, project_id: str, filename: str) -> list[ParsingSectionSummary]:
+    def _create_placeholder_sections(
+        self, db: Session, project_id: str, filename: str, clear_existing: bool = True
+    ) -> list[ParsingSectionSummary]:
         """Fallback when no text could be extracted."""
-        db.query(ParsingSection).filter(ParsingSection.project_id == project_id).delete()
+        if clear_existing:
+            db.query(ParsingSection).filter(ParsingSection.project_id == project_id).delete()
         created: list[ParsingSection] = []
         for name in BUSINESS_SECTIONS:
             created.append(self._add_section(

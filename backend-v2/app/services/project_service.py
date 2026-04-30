@@ -90,6 +90,45 @@ def _doc_icon(doc_type: str) -> str:
 
 def get_project_bid_progress(db: Session, project_id: str) -> dict:
     """聚合项目回标文件完成情况"""
+    from app.services.bid_template_service import normalize_template_files, template_section_label
+
+    project = get_project(db, project_id)
+    template_files = [item for item in normalize_template_files(project.bid_template_files) if item.get("selected", True)]
+    if template_files:
+        section_order = ["business", "technical", "proposal", "other"]
+        section_icons = {
+            "business": "📁",
+            "technical": "📄",
+            "proposal": "💰",
+            "other": "📋",
+        }
+        sections = []
+        for idx, section_type in enumerate(section_order, start=1):
+            files = [item for item in template_files if item.get("section_type") == section_type]
+            if not files:
+                continue
+            progress_files = []
+            for item in files:
+                status = str(item.get("status") or "待分配")
+                display_status = _map_status(status) if status in {"pending", "filled", "confirmed"} else status
+                progress_files.append({
+                    "id": str(item.get("id") or item.get("path") or item.get("name")),
+                    "name": str(item.get("name") or item.get("path") or "回标模板文件"),
+                    "status": display_status,
+                    "icon": str(item.get("icon") or _doc_icon(str(item.get("doc_type") or ""))),
+                    "responsible": str(item.get("responsible") or ""),
+                })
+            completed = sum(1 for item in progress_files if item["status"] in ("已完成", "confirmed"))
+            sections.append({
+                "id": idx,
+                "name": template_section_label(section_type),
+                "icon": section_icons.get(section_type, "📋"),
+                "completed": completed,
+                "total": len(progress_files),
+                "files": progress_files,
+            })
+        return {"sections": sections}
+
     from app.services.business_document_service import ensure_business_documents
     from app.services.technical_document_service import ensure_technical_documents
     from app.services.proposal_plan_service import ensure_proposal_plans

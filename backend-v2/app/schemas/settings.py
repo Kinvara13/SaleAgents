@@ -4,10 +4,10 @@ from pydantic import BaseModel
 class AIConfigResponse(BaseModel):
     id: str | None = None
     name: str = "未命名配置"
-    provider: str = "zhipu"
+    provider: str = "anthropic"
     api_key: str = ""
     base_url: str = ""
-    model: str = "glm-4"
+    model: str = "kimi-for-coding"
     temperature: float = 0.7
     max_tokens: int = 4096
     is_active: bool = False
@@ -15,20 +15,20 @@ class AIConfigResponse(BaseModel):
 
 class AIConfigUpdateRequest(BaseModel):
     name: str = "未命名配置"
-    provider: str = "zhipu"
+    provider: str = "anthropic"
     api_key: str = ""
     base_url: str = ""
-    model: str = "glm-4"
+    model: str = "kimi-for-coding"
     temperature: float = 0.7
     max_tokens: int = 4096
 
 
 class AIConfigCreateRequest(BaseModel):
     name: str = "未命名配置"
-    provider: str = "zhipu"
+    provider: str = "anthropic"
     api_key: str = ""
     base_url: str = ""
-    model: str = "glm-4"
+    model: str = "kimi-for-coding"
     temperature: float = 0.7
     max_tokens: int = 4096
 
@@ -53,3 +53,10 @@ class RuleCreateRequest(BaseModel):
     name: str
     rule_type: str = "general"
     content: str = ""
+
+
+class AIConfigTestResponse(BaseModel):
+    success: bool
+    message: str
+    model_used: str = ""
+    latency_ms: int = 0

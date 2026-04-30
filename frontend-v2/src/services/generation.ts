@@ -51,9 +51,10 @@ export async function getGenerationJobSections(jobId: string): Promise<Generatio
   return res.data
 }
 
-export async function createGenerationJob(projectId: string, templateName?: string): Promise<GenerationJob> {
+export async function createGenerationJob(projectId: string, projectName: string, templateName?: string): Promise<GenerationJob> {
   const res = await api.post<GenerationJob>('/generation/jobs', {
     project_id: projectId,
+    project_name: projectName,
     template_name: templateName || '默认模板',
   })
   return res.data

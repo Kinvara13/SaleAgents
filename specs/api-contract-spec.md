@@ -58,6 +58,7 @@
 
 - `sections` 列表已返回空数组
 - 真实样本上传与章节详情待回归
+- 2026-04-30：解析链路保持原接口不变，后端改为本地 PDF/OCR、Word、Excel 文本提取优先；LLM 仅基于本地抽取文本补充字段匹配，失败时降级为规则/关键词抽取。`extracted_fields` 继续返回 `{label,value,confidence}` 列表；压缩包内多文件解析会按字段增量合并，后续附件不得清空前序文件已抽取的基本信息。星标项来源限定为真实关键/星标条款，模板占位章节不再标记为星标。
 
 ### 商务文档
 
@@ -96,10 +97,23 @@
 - `POST /api/v1/proposal-editor/{project_id}/rescore`
 - `POST /api/v1/proposal-editor/{project_id}/confirm`
 - `GET /api/v1/proposal-editor/{project_id}/scoring-rules`
+- `GET /api/v1/proposal-editor/{project_id}/export/docx`
 
 当前结论：
 
 - `generate`、`score` 已运行态通过
+- 2026-04-30：`generate`、章节编辑、`rescore`、`confirm`、`export/docx` 使用临时 SQLite smoke 通过
+
+### 回标模板
+
+- `POST /api/v1/bid-template/{project_id}/upload-template`
+- `GET /api/v1/bid-template/{project_id}/template-files`
+- `GET /api/v1/bid-template/{project_id}/template-files/{file_path}/preview`
+- `PUT /api/v1/bid-template/{project_id}/template-files`
+
+当前结论：
+
+- 2026-04-30：模板文件清洗会过滤招标文件、按文件名/路径分类到商务/技术/方案/其他，并对重复路径去重；`GET /projects/{project_id}/bid-progress` 优先展示清洗后的回标模板文件。
 
 ### 报价
 

@@ -27,7 +27,7 @@
 | F049 | 49 | 招标信息推送 | 定时刷新招标清单 | `TenderInfoList.vue` | `GET /tenders`; `tender_service.list_tenders` | 部分完成 | 招标信息列表页存在；`GET /api/v1/tenders` 2026-04-21 smoke pass | 缺少定时抓取、刷新任务、推送留痕与失败告警 | P1 | FE+BE+QA |
 | F050 | 50 | 招标信息详情页 | 展示标题、截止时间、链接等关键信息 | `TenderInfoDetail.vue` | `GET /tenders/{id}` | 部分完成 | 详情页与详情接口存在；路由已接入 | 未验证页面交互；网页抽取逻辑未见实现；字段质量依赖种子数据 | P1 | FE+BE |
 || F051 | 51 | 招标信息处理 | 投标/不投、上传标书、是否保证金、项目类型 | `TenderInfoDetail.vue` | `POST /tenders/{id}/decision`; `POST /tenders/{id}/upload` | 部分完成 | 决策与上传接口存在；上传会创建项目并绑定 `project_id`；QA-002 走查：保证金/项目类型填写正常 | 前端已覆盖保证金/项目类型（QA-002）；上传后自动触发解析并更新 `parse_status`（BE-010）；但缺少真实样本上传解析的端到端验收 | P0 | FE+BE+QA |
-|| F052 | 52 | 标书制作 | 任务清单按账号区分；上传标书自动解析 | `BidList.vue`; `TenderDetail.vue` | `GET /projects?mine=true`; `POST /parsing/{project_id}/upload` | 部分完成 | 项目列表支持 `mine`；上传解析接口存在；BE-010 实现了上传后自动触发解析并更新 `parse_status` | 任务清单仅停留在项目列表；缺少真实样本的上传解析端到端验收；工作台未完全闭环（缺少人工确认节点验证） | P0 | FE+BE+QA |
+|| F052 | 52 | 标书制作 | 任务清单按账号区分；上传标书自动解析 | `BidList.vue`; `TenderDetail.vue` | `GET /projects?mine=true`; `POST /parsing/{project_id}/upload`; `GET /projects/{id}/bid-progress` | 部分完成 | 项目列表支持 `mine`；上传解析接口存在；FULL-001 修复回标进度只展示回标模板文件并按商务/技术/方案分类去重，smoke 通过 | 仍缺少真实样本上传解析全链路验收和多人任务派发验证 | P0 | FE+BE+QA |
 || F053 | 53 | 投标项目清单 | 重点信息、确认、文件清单、节点工作台 | `BidList.vue` | `/projects` CRUD; `/projects/{id}/confirm` | 部分完成 | 项目 CRUD 2026-04-21 smoke pass；列表页可创建/更新/删除项目；BE-010 实现了真实数据驱动；FE-007 增加了解析状态/节点工作台列；QA-002 走查：列表展示最新项目 | 时间倒排待验证；任务派发未验证；缺少真实样本的文件清单和人工确认节点走查 | P0 | FE+BE |
 || F054 | 54 | 商务部分总览 | 商务文件清单、规则、打分点 | `TenderDetail.vue` | `GET /projects/{id}/business-documents` | 部分完成 | `TenderDetail.vue` 已接商务清单；列表 smoke pass；BE-011 实现了真实参数填充（从 Project/Tender/ParsingSection 实时抽取）；QA-002 走查：商务区 AI 自动填充可用 | 页面级商务文档详情保存未验证；打分点来源与人工修改后重算未闭环；缺少真实样本的端到端验收 | P0 | FE+BE |
 | F055 | 55 | 商务偏离表 | 原文预览、识别填写、人工修改 | `TenderDetail.vue` 商务区 | `GET/PATCH /projects/{id}/business-documents/{doc_id}` | 部分完成 | 文档详情/更新接口存在；商务区支持编辑态 | 未验证具体文档详情和保存；识别填写规则未见专门实现 | P1 | FE+BE |
@@ -42,7 +42,7 @@
 | F064 | 64 | 应答保函 | 无保证金保持原文；有保证金标红人工处理 | 同上 | 同上 | 部分完成 | 文档模板入口存在 | 缺少保证金字段输入、标红规则和人工处理节点 | P0 | FE+BE |
 | F065 | 65 | 代理服务费支付承诺函 | 自动填写项目名、开票、邮寄信息 | 同上 | 同上 | 部分完成 | 商务模板入口存在 | 无专属字段抽取与填充证据 | P1 | FE+BE |
 | F066 | 66 | 商务封面 | 自动填应答人和时间，支持修改 | 同上 | 同上 | 部分完成 | 商务模板入口存在 | 未验证封面回填、预览与人工修改保存 | P1 | FE+BE |
-| F067 | 67 | 技术部分总览 | 技术文件清单、规则、打分点、重算 | `TenderDetail.vue` 技术区 | `GET /projects/{id}/technical-documents` | 部分完成 | 技术文档列表 smoke pass；前端已接入技术区 | 仍是模板化数据；打分来源与人工修改后重算未闭环 | P0 | FE+BE |
+| F067 | 67 | 技术部分总览 | 技术文件清单、规则、打分点、重算 | `TenderDetail.vue` 技术区 | `GET /projects/{id}/technical-documents`; `GET /projects/{id}/bid-progress` | 部分完成 | 技术文档列表 smoke pass；FULL-001 回标进度按模板文件名/路径识别技术部分并去重 | 仍需真实样本证明模板包与技术文档详情、评分规则完全一致 | P0 | FE+BE |
 | F068 | 68 | 技术条款偏离表 | 识别填写、预览、人工修改 | `TenderDetail.vue` | `GET/PATCH /projects/{id}/technical-documents/{doc_id}` | 部分完成 | 技术文档详情/更新接口存在 | 未验证具体文档详情和编辑保存 | P1 | FE+BE |
 | F069 | 69 | CMMI 认证证书 | 素材检索、评分规则、客观分预计得分 | 同上 | 同上；`settings/materials`; `technical_case search` | 部分完成 | 技术文档模板覆盖该文档；列表可返回 | 未看到素材匹配、验真截图标红、客观分计算 | P0 | FE+BE |
 | F070 | 70 | 软件著作权证书 | 素材检索、文档填充、评分规则 | 同上 | 同上 | 部分完成 | 技术文档模板覆盖该文档 | 缺少软著素材注入与评分展示闭环 | P0 | FE+BE |
@@ -51,13 +51,13 @@
 | F073 | 73 | 服务承诺书 | 识别填写、预览、人工修改 | 同上 | 同上 | 部分完成 | 文档模板入口存在 | 缺少专项规则与运行态验证 | P1 | FE+BE |
 | F074 | 74 | 其他阐述内容 | 整合星标项原文、人工修改、审核节点 | 同上 | 同上；`parsing sections` | 部分完成 | 技术文档模板存在；解析章节接口存在 | 星标项整合与审核节点未实现闭环 | P0 | FE+BE |
 | F075 | 75 | 技术封面 | 自动填基础信息，支持修改 | 同上 | 同上 | 部分完成 | 技术模板入口存在 | 未验证回填与保存 | P1 | FE+BE |
-| F076 | 76 | 方案建议书-维保期限 | 最高得分方案、预览、二次计算 | `TenderDetail.vue` 方案区 | `GET/PATCH /projects/{id}/proposal-plans/{doc_id}` | 部分完成 | 方案建议书列表 smoke pass；前端已接入 | 缺少最高得分计算和修改后二次重算验证 | P0 | FE+BE |
+| F076 | 76 | 方案建议书-维保期限 | 最高得分方案、预览、二次计算 | `TenderDetail.vue` 方案区 | `GET/PATCH /projects/{id}/proposal-plans/{doc_id}` | 部分完成 | 方案建议书列表 smoke pass；FULL-001 回标进度可按模板路径识别方案/报价部分 | 仍需真实样本验证最高得分方案、修改后二次重算和导出内容一致性 | P0 | FE+BE |
 | F077 | 77 | 方案建议书-项目经理能力 | 人员匹配、预览、二次计算 | 同上 | 同上 | 部分完成 | 方案建议书模板存在 | 未看到人员素材检索与复核逻辑 | P0 | FE+BE |
 | F078 | 78 | 方案建议书-人员能力 | 人员匹配、预览、二次计算 | 同上 | 同上 | 部分完成 | 同上 | 缺少人员能力素材回填与打分计算 | P0 | FE+BE |
 | F079 | 79 | 硬件资源占用情况 | 最高得分配置、预览、二次计算 | 同上 | 同上 | 部分完成 | 同上 | 缺少硬件资源计算与重算闭环 | P0 | FE+BE |
 | F080 | 80 | 报价策略 | 填写报价表并计算得分 | `PricingStrategy.vue` | `POST /pricing/calculate`; `pricing_service` | 已完成 | 报价页接 `pricing.ts`；`POST /api/v1/pricing/calculate` 2026-04-21 smoke pass | 仍需页面级回归，但当前无关键阻塞 | P1 | FE+QA |
 | F081 | 81 | 技术案例 | 检索技术案例并填充证明材料 | `TenderDetail.vue` 技术案例区 | `GET/POST/PATCH/DELETE /projects/{id}/technical-cases`; `search` | 部分完成 | 技术案例列表和 CRUD/search 接口存在；列表 smoke pass | 自动从素材库检索并生成文档未闭环；列表当前为空 | P0 | FE+BE |
-|| F082 | 82 | 技术建议书打分 | 生成结果预打分、人工修改后二次打分 | `ProposalEditor.vue` | `POST /proposal-editor/{id}/generate|score|rescore|confirm` | 部分完成 | `generate`、`score` 2026-04-21 smoke pass；FE-001 已修复 `ProposalEditor.vue` 中 axios/fetch 混用和动态路径问题 | 页面级生成、评分、重评分、确认的端到端验收尚未完成；缺少真实样本的人工修改后二次打分验证 | P0 | FE+BE |
+|| F082 | 82 | 技术建议书打分 | 生成结果预打分、人工修改后二次打分 | `ProposalEditor.vue` | `POST /proposal-editor/{id}/generate|score|rescore|confirm`; `GET /proposal-editor/{id}/export/docx` | 部分完成 | FULL-001 smoke 通过：生成 10 个章节、编辑保存、rescore、confirm、导出 docx；页面补齐生成轮询、重打分、确认、导出和错误反馈 | 仍需使用真实招标样本和真实 AI 配置进行页面级人工验收 | P0 | FE+BE |
 
 ## 支撑能力审计（不计入 34 条）
 

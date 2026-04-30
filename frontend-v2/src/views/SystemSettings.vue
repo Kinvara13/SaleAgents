@@ -38,11 +38,19 @@
               </div>
               <div class="flex items-center space-x-2">
                 <button v-if="!cfg.is_active" class="text-xs px-2 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100" @click="activateConfig(cfg.id)">启用</button>
+                <button class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100" :disabled="testingId === cfg.id" @click="runTest(cfg.id)">
+                  {{ testingId === cfg.id ? '测试中...' : '测试' }}
+                </button>
                 <button class="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100" @click="openAIModal('edit', cfg)">编辑</button>
                 <button class="text-danger hover:text-danger/80 text-xs px-2 py-1" @click="deleteConfig(cfg.id)">删除</button>
               </div>
             </div>
             <p class="text-xs text-gray-400 mt-1 ml-[88px]">{{ cfg.base_url || '默认地址' }}</p>
+            <div v-if="testResults[cfg.id] && testingId !== cfg.id" class="mt-2 ml-[88px] text-xs px-2 py-1.5 rounded" :class="testResults[cfg.id].success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'">
+              <span class="font-medium">{{ testResults[cfg.id].success ? '✓ 测试通过' : '✗ 测试失败' }}</span>
+              <span class="ml-1">{{ testResults[cfg.id].message }}</span>
+              <span v-if="testResults[cfg.id].latency_ms > 0" class="ml-1 text-gray-400">({{ testResults[cfg.id].latency_ms }}ms)</span>
+            </div>
           </div>
           <div v-if="aiConfigs.length === 0" class="py-8 text-center text-gray-400 text-sm">暂无配置</div>
         </div>
@@ -111,12 +119,10 @@
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">消息协议</label>
               <select v-model="aiModalForm.provider" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                <option value="zhipu">智谱 AI</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="ollama">Ollama (本地)</option>
+                <option value="anthropic">Anthropic Messages</option>
+                <option value="openai">OpenAI Completions</option>
               </select>
             </div>
             <div>
@@ -126,7 +132,7 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">API Base URL</label>
-            <input v-model="aiModalForm.base_url" type="text" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="https://open.bigmodel.cn/api/paas/v4" />
+            <input v-model="aiModalForm.base_url" type="text" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="https://api.moonshot.cn/v1" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
@@ -183,6 +189,7 @@
 
 <script setup lang="ts">
 import api from '../services/api'
+import { testAIConfig, type AIConfigTestResult } from '../services/settings'
 import { ref, onMounted } from 'vue'
 
 const tabs = [
@@ -197,8 +204,10 @@ const aiConfigs = ref<any[]>([])
 const showAIModal = ref(false)
 const aiModalMode = ref<'create' | 'edit'>('create')
 const aiEditingId = ref<string>('')
-const aiModalForm = ref({ name: '未命名配置', provider: 'zhipu', api_key: '', base_url: '', model: 'glm-4', temperature: 0.7, max_tokens: 4096 })
+const aiModalForm = ref({ name: '未命名配置', provider: 'anthropic', api_key: '', base_url: 'https://api.moonshot.cn/v1', model: 'kimi-for-coding', temperature: 0.7, max_tokens: 4096 })
 const savingAI = ref(false)
+const testingId = ref<string>('')
+const testResults = ref<Record<string, AIConfigTestResult>>({})
 
 // Materials & Rules
 const materials = ref<any[]>([])
@@ -220,7 +229,7 @@ function openAIModal(mode: 'create' | 'edit', cfg?: any) {
     aiModalForm.value = { ...cfg }
   } else {
     aiEditingId.value = ''
-    aiModalForm.value = { name: '未命名配置', provider: 'zhipu', api_key: '', base_url: '', model: 'glm-4', temperature: 0.7, max_tokens: 4096 }
+    aiModalForm.value = { name: '未命名配置', provider: 'anthropic', api_key: '', base_url: 'https://api.moonshot.cn/v1', model: 'kimi-for-coding', temperature: 0.7, max_tokens: 4096 }
   }
   showAIModal.value = true
 }
@@ -254,6 +263,23 @@ async function activateConfig(id: string) {
   } catch (e) {
     console.error(e)
     alert('启用配置失败')
+  }
+}
+
+async function runTest(id: string) {
+  testingId.value = id
+  try {
+    const result = await testAIConfig(id)
+    testResults.value[id] = result
+    if (!result.success) {
+      alert(`测试失败：${result.message}`)
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.detail || e?.message || '未知错误'
+    testResults.value[id] = { success: false, message: msg, model_used: '', latency_ms: 0 }
+    alert(`测试失败：${msg}`)
+  } finally {
+    testingId.value = ''
   }
 }
 

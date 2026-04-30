@@ -5,6 +5,7 @@ from app.db.session import get_db
 from pydantic import BaseModel
 from app.schemas.settings import (
     AIConfigResponse, AIConfigUpdateRequest, AIConfigCreateRequest,
+    AIConfigTestResponse,
     MaterialResponse, RuleResponse, RuleCreateRequest,
 )
 from app.services import settings_service
@@ -165,6 +166,84 @@ def activate_ai_config(config_id: str, db: Session = Depends(get_db)) -> AIConfi
         max_tokens=cfg.max_tokens,
         is_active=cfg.is_active,
     )
+
+
+@router.post("/ai-configs/{config_id}/test", response_model=AIConfigTestResponse)
+def test_ai_config(config_id: str, db: Session = Depends(get_db)) -> AIConfigTestResponse:
+    cfg = settings_service.get_ai_config_by_id(db, config_id)
+    if not cfg:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+    if not cfg.api_key:
+        return AIConfigTestResponse(success=False, message="API Key 未配置")
+
+    import time
+
+    start = time.time()
+    try:
+        if cfg.provider == "anthropic":
+            import httpx
+            base_url = (cfg.base_url or "https://api.anthropic.com/v1").rstrip("/") + "/messages"
+            resp = httpx.post(
+                base_url,
+                headers={
+                    "x-api-key": cfg.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": cfg.model,
+                    "max_tokens": 20,
+                    "messages": [{"role": "user", "content": "请回复：测试成功"}],
+                },
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            latency = int((time.time() - start) * 1000)
+            content = data.get("content", [{}])[0].get("text", "")
+            return AIConfigTestResponse(
+                success=True,
+                message=f"连接正常，响应：{content[:50]}",
+                model_used=data.get("model", cfg.model),
+                latency_ms=latency,
+            )
+        else:
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=cfg.api_key,
+                base_url=cfg.base_url or None,
+                timeout=30.0,
+            )
+            resp = client.chat.completions.create(
+                model=cfg.model,
+                messages=[{"role": "user", "content": "请回复：测试成功"}],
+                max_tokens=20,
+            )
+            latency = int((time.time() - start) * 1000)
+            content = resp.choices[0].message.content or ""
+            return AIConfigTestResponse(
+                success=True,
+                message=f"连接正常，响应：{content[:50]}",
+                model_used=resp.model or cfg.model,
+                latency_ms=latency,
+            )
+    except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        err_msg = str(e)
+        if "403" in err_msg or "access_terminated" in err_msg:
+            err_msg = "API Key 无权访问该模型（403）"
+        elif "401" in err_msg:
+            err_msg = "API Key 无效（401）"
+        elif "404" in err_msg:
+            err_msg = "模型不存在（404）"
+        elif "Connection" in err_msg:
+            err_msg = "无法连接到 API 服务器"
+        return AIConfigTestResponse(
+            success=False,
+            message=err_msg,
+            latency_ms=latency,
+        )
 
 
 # ---- Materials ----

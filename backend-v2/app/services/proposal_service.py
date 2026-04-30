@@ -1,5 +1,6 @@
 from uuid import uuid4
 import json
+from io import BytesIO
 
 from sqlalchemy.orm import Session
 from app.services.llm_client import llm_proposal_client
@@ -298,7 +299,7 @@ def _generate_section_content(
         limit=3,
     )
     routed_asset_payloads = [
-        f"{item.asset_title}�{item.chunk_title}�{item.snippet}"
+        f"{item.asset_title} - {item.chunk_title}: {item.snippet}"
         for item in routed_assets
     ]
 
@@ -306,7 +307,7 @@ def _generate_section_content(
     from app.services.technical_case_service import search_technical_cases
     cases = search_technical_cases(db, project_id, keyword=section_name)
     case_payloads = [
-        f"案例名称：{case.title}�合同：{case.contract_name}�摘要：{case.summary}"
+        f"案例名称：{case.title}；合同：{case.contract_name}；摘要：{case.summary}"
         for case in cases[:3]
     ]
 
@@ -388,3 +389,56 @@ def confirm_all(db: Session, project_id: str) -> list[ProposalSectionSummary]:
         s.is_confirmed = True
     db.commit()
     return [ProposalSectionSummary.model_validate(s) for s in sections]
+
+
+def export_proposal_docx(db: Session, project_id: str) -> bytes:
+    """导出技术建议书为 Word 文档。"""
+    project = get_or_create_project(db, project_id)
+    sections = (
+        db.query(ProposalSection)
+        .filter(ProposalSection.project_id == project_id, ProposalSection.is_generated == True)
+        .order_by(ProposalSection.created_at.asc())
+        .all()
+    )
+    if not sections:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="暂无技术建议书章节，无法导出")
+
+    from docx import Document
+    from docx.shared import Pt
+    from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+
+    doc = Document()
+    normal = doc.styles["Normal"]
+    normal.font.name = "宋体"
+    normal.font.size = Pt(10.5)
+
+    title = doc.add_heading(f"{project.name} 技术建议书", level=0)
+    title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    meta = doc.add_paragraph()
+    meta.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    meta.add_run(f"投标人：{project.bidding_company or project.owner or '待补充'}")
+
+    for index, section in enumerate(sections, start=1):
+        doc.add_heading(f"{index}. {section.section_name}", level=1)
+        content = section.content or ""
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith("### "):
+                doc.add_heading(line[4:], level=3)
+            elif line.startswith("## "):
+                doc.add_heading(line[3:], level=2)
+            elif line.startswith("# "):
+                doc.add_heading(line[2:], level=1)
+            elif line.startswith(("- ", "* ")):
+                doc.add_paragraph(line[2:], style="List Bullet")
+            else:
+                doc.add_paragraph(line)
+        score_line = doc.add_paragraph()
+        score_line.add_run(f"章节预估得分：{section.score}").bold = True
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()

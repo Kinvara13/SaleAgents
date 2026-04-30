@@ -7,6 +7,11 @@ import zipfile, os, shutil, logging
 from app.db.session import get_db
 from app.models.project import Project
 from app.core.config import settings
+from app.services.bid_template_service import (
+    classify_template_file,
+    normalize_template_files,
+    should_include_template_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,37 +22,30 @@ MAX_TEMPLATE_SIZE = 50 * 1024 * 1024
 
 
 def _decode_zip_filename(name: str) -> str:
-    """Decode ZIP filename with Chinese encoding fallback."""
+    """Decode ZIP filename with Chinese encoding fallback.
+
+    Python's zipfile uses cp437 by default for non-UTF-8 entries.
+    We must encode with cp437 (not latin-1) to recover original bytes.
+    """
     if not isinstance(name, str):
         name = str(name)
-    
+
     if any('\u4e00' <= c <= '\u9fff' for c in name):
         return name
-    
-    try:
-        name.encode('utf-8')
-        if '\ufffd' not in name and not any(ord(c) > 127 and c.isprintable() for c in name[:20]):
-            return name
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
-    
-    try:
-        original_bytes = name.encode('latin-1')
+
+    for source_enc in ('cp437', 'latin-1'):
         try:
-            decoded = original_bytes.decode('gbk')
-            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
-                return decoded
-        except (UnicodeDecodeError, UnicodeEncodeError):
+            original_bytes = name.encode(source_enc)
+            for target_enc in ('utf-8', 'gbk', 'gb18030'):
+                try:
+                    decoded = original_bytes.decode(target_enc)
+                    if any('\u4e00' <= c <= '\u9fff' for c in decoded):
+                        return decoded
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    pass
+        except (UnicodeEncodeError, UnicodeDecodeError):
             pass
-        try:
-            decoded = original_bytes.decode('gb18030')
-            if any('\u4e00' <= c <= '\u9fff' for c in decoded):
-                return decoded
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            pass
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
-    
+
     return name
 
 
@@ -246,22 +244,22 @@ async def upload_bid_template(
     if ext == ".zip":
         extract_dir = upload_dir / "extracted"
         extract_dir.mkdir(parents=True, exist_ok=True)
-        _extract_zip_recursive(template_path, extract_dir)
-        for root, dirs, files in os.walk(extract_dir):
-            for fname in files:
-                decoded_name = _decode_zip_filename(fname)
-                file_ext = Path(decoded_name).suffix.lower()
-                if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
-                    rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
-                    bid_files.append({
-                        "id": f"tpl_{uuid4().hex[:8]}",
-                        "name": decoded_name,
-                        "path": rel_path,
-                        "status": "待分配",
-                        "selected": True,
-                        "icon": "📄",
-                    })
-        shutil.rmtree(extract_dir, ignore_errors=True)
+        extracted_files = _extract_zip_recursive(template_path, extract_dir)
+        for file_path in extracted_files:
+            file_ext = file_path.suffix.lower()
+            rel_path = str(file_path.relative_to(extract_dir))
+            if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"} and should_include_template_file(file_path.name, rel_path):
+                bid_files.append({
+                    "id": f"tpl_{uuid4().hex[:8]}",
+                    "name": file_path.name,
+                    "path": rel_path,
+                    "status": "待分配",
+                    "selected": True,
+                    "icon": "📄",
+                    "section_type": classify_template_file(file_path.name, rel_path),
+                })
+        # Keep extracted files for preview; only remove the original archive
+        template_path.unlink(missing_ok=True)
 
     elif ext == ".rar":
         extract_dir = upload_dir / "extracted"
@@ -273,6 +271,8 @@ async def upload_bid_template(
                 file_ext = Path(decoded_name).suffix.lower()
                 if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
                     rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
+                    if not should_include_template_file(decoded_name, rel_path):
+                        continue
                     bid_files.append({
                         "id": f"tpl_{uuid4().hex[:8]}",
                         "name": decoded_name,
@@ -280,8 +280,10 @@ async def upload_bid_template(
                         "status": "待分配",
                         "selected": True,
                         "icon": "📄",
+                        "section_type": classify_template_file(decoded_name, rel_path),
                     })
-        shutil.rmtree(extract_dir, ignore_errors=True)
+        # Keep extracted files for preview; only remove the original archive
+        template_path.unlink(missing_ok=True)
 
     elif ext == ".7z":
         extract_dir = upload_dir / "extracted"
@@ -293,6 +295,8 @@ async def upload_bid_template(
                 file_ext = Path(decoded_name).suffix.lower()
                 if file_ext in {".docx", ".doc", ".pdf", ".txt", ".xlsx", ".xls"}:
                     rel_path = os.path.relpath(os.path.join(root, decoded_name), extract_dir)
+                    if not should_include_template_file(decoded_name, rel_path):
+                        continue
                     bid_files.append({
                         "id": f"tpl_{uuid4().hex[:8]}",
                         "name": decoded_name,
@@ -300,8 +304,10 @@ async def upload_bid_template(
                         "status": "待分配",
                         "selected": True,
                         "icon": "📄",
+                        "section_type": classify_template_file(decoded_name, rel_path),
                     })
-        shutil.rmtree(extract_dir, ignore_errors=True)
+        # Keep extracted files for preview; only remove the original archive
+        template_path.unlink(missing_ok=True)
 
     elif ext in {".docx", ".doc", ".pdf"}:
         bid_files.append({
@@ -311,8 +317,10 @@ async def upload_bid_template(
             "status": "待分配",
             "selected": True,
             "icon": "📄",
+            "section_type": classify_template_file(filename, filename),
         })
 
+    bid_files = normalize_template_files(bid_files)
     project.bid_template_files = bid_files
     db.commit()
 
@@ -332,7 +340,7 @@ def get_template_files(project_id: str, db: Session = Depends(get_db)) -> dict:
     
     return {
         "status": "success",
-        "files": project.bid_template_files or [],
+        "files": normalize_template_files(project.bid_template_files),
     }
 
 
@@ -343,8 +351,10 @@ def preview_template_file(project_id: str, file_path: str, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     
     upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_templates"
+    # Files from archives are kept in "extracted/"; single uploads stay at root
     target_file = upload_dir / file_path
-    
+    if not target_file.exists():
+        target_file = upload_dir / "extracted" / file_path
     if not target_file.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
     
@@ -354,4 +364,24 @@ def preview_template_file(project_id: str, file_path: str, db: Session = Depends
         "status": "success",
         "filename": target_file.name,
         "content": content,
+    }
+
+
+@router.put("/{project_id}/template-files")
+def update_template_files(
+    project_id: str,
+    payload: list[dict],
+    db: Session = Depends(get_db),
+) -> dict:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+
+    project.bid_template_files = normalize_template_files(payload)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "文件列表已更新",
+        "files": project.bid_template_files,
     }

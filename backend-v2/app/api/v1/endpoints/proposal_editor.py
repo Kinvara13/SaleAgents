@@ -1,4 +1,7 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -156,3 +159,19 @@ def get_scoring_rules(project_id: str, db: Session = Depends(get_db)):
             "criteria": rule_info["criteria"],
         })
     return {"total_max": 100, "sections": rules}
+
+
+@router.get("/{project_id}/export/docx")
+def export_proposal_docx(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    """导出技术建议书 Word 文档"""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    docx_bytes = proposal_service.export_proposal_docx(db, project_id)
+    safe_name = quote(f"{project.name if project else project_id}_技术建议书.docx")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+    )

@@ -224,10 +224,10 @@ class RuleBasedExtractor:
         """
         items: list[dict[str, str]] = []
 
-        star_pattern = re.compile(r"[★\*]\s*(.+?)(?:\n|$)", re.MULTILINE)
+        star_pattern = re.compile(r"^\s*(?:★|[*]{1,2})\s*(.+?)(?:\n|$)", re.MULTILINE)
         for m in star_pattern.finditer(text):
             content = m.group(1).strip()
-            if not content:
+            if not self._looks_like_star_content(content):
                 continue
             source = self._find_nearest_section(text, m.start())
             items.append({
@@ -244,7 +244,7 @@ class RuleBasedExtractor:
             if section_content:
                 for line in section_content.split("\n"):
                     line = line.strip()
-                    if line and len(line) > 5:
+                    if self._looks_like_star_content(line):
                         items.append({
                             "name": section_kw,
                             "content": line,
@@ -258,6 +258,8 @@ class RuleBasedExtractor:
             if key not in seen:
                 seen.add(key)
                 unique_items.append(item)
+            if len(unique_items) >= 20:
+                break
 
         confidence = 0.8 if unique_items else 0.0
         if unique_items:
@@ -424,6 +426,21 @@ class RuleBasedExtractor:
         if m:
             return m.group(1).strip()
         return content[:30].strip()
+
+    def _looks_like_star_content(self, content: str) -> bool:
+        content = content.strip(" -*\t")
+        if len(content) < 6 or len(content) > 500:
+            return False
+        if re.fullmatch(r"[\d\s\.\-_/]+", content):
+            return False
+        if not re.search(r"[\u4e00-\u9fa5]", content):
+            return False
+        strong_keywords = [
+            "必须", "不得", "应当", "须", "否决", "废标", "无效", "实质性",
+            "关键", "保证金", "资质", "资格", "评分", "分值", "技术", "签字",
+            "盖章", "响应", "承诺", "不满足", "低于",
+        ]
+        return any(keyword in content for keyword in strong_keywords)
 
     def _truncate_section(self, text: str, max_chars: int) -> str:
         """Truncate *text* preserving head and tail."""

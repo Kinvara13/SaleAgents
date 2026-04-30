@@ -134,6 +134,12 @@ interface Props extends /* @vue-ignore */ UseLLMChatOptions {
   showState?: boolean
   inputRows?: number
   autoFocus?: boolean
+  /** @vue-ignore 显式声明避免模板访问警告 */
+  projectId?: string
+  apiEndpoint?: string
+  headers?: Record<string, string>
+  body?: Record<string, unknown>
+  autoLoadHistory?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {

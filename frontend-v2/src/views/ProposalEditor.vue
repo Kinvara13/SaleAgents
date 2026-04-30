@@ -35,7 +35,7 @@
           @click="handleGenerate"
           :disabled="isGenerating || !selectedProjectId"
         >
-          {{ isGenerating ? '生成中...' : 'AI生成' }}
+          {{ isGenerating ? generationTaskStatus || '生成中...' : 'AI生成' }}
         </button>
         <button
           class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all"
@@ -44,13 +44,35 @@
         >
           {{ isSaving ? '保存中...' : '保存草稿' }}
         </button>
-        <button class="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all">
-          一键完成
+        <button
+          class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-all"
+          @click="handleRescore"
+          :disabled="isScoring || !selectedProjectId || sections.length === 0"
+        >
+          {{ isScoring ? '评分中...' : '重新打分' }}
         </button>
-        <button class="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all">
-          导出文档
+        <button
+          class="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50"
+          @click="handleConfirm"
+          :disabled="isConfirming || !selectedProjectId || sections.length === 0"
+        >
+          {{ isConfirming ? '确认中...' : '一键完成' }}
+        </button>
+        <button
+          class="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50"
+          @click="handleExport"
+          :disabled="isExporting || !selectedProjectId || sections.length === 0"
+        >
+          {{ isExporting ? '导出中...' : '导出文档' }}
         </button>
       </div>
+    </div>
+
+    <div v-if="pageError" class="mb-4 rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+      {{ pageError }}
+    </div>
+    <div v-if="pageMessage" class="mb-4 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+      {{ pageMessage }}
     </div>
 
     <!-- Tab 切换 -->
@@ -328,6 +350,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   listProjects,
   getTenderSections,
@@ -341,6 +364,10 @@ import {
   updateProposalSection,
   generateProposal,
   scoreProposal,
+  rescoreProposal,
+  confirmProposal,
+  exportProposalDocx,
+  getTaskStatus,
   type ProposalSectionSummary,
   type ProposalSectionDetail,
 } from '../services/proposal'
@@ -348,12 +375,15 @@ import { listAIConfigs, type AIConfig } from '../services/settings'
 import LLMChatPanel from '../components/LLMChatPanel.vue'
 
 // ============ 项目选择 ============
+const route = useRoute()
 const selectedProjectSearch = ref('')
 const selectedProjectId = ref('')
 const selectedProjectName = ref('')
 const showProjectDropdown = ref(false)
 const projects = ref<Project[]>([])
 const loadingProjects = ref(false)
+const pageError = ref('')
+const pageMessage = ref('')
 
 const filteredProjects = computed(() => {
   if (!selectedProjectSearch.value) return projects.value
@@ -364,10 +394,19 @@ const filteredProjects = computed(() => {
 
 async function loadProjects() {
   loadingProjects.value = true
+  pageError.value = ''
   try {
     projects.value = await listProjects()
+    const routeProjectId = route.params.projectId as string | undefined
+    if (routeProjectId && !selectedProjectId.value) {
+      const matched = projects.value.find(p => p.id === routeProjectId)
+      if (matched) {
+        selectProject(matched)
+      }
+    }
   } catch (e: any) {
     console.error('加载项目列表失败:', e)
+    pageError.value = e.message || '加载项目列表失败'
   } finally {
     loadingProjects.value = false
   }
@@ -396,6 +435,10 @@ const loadingSections = ref(false)
 const loadingDetail = ref(false)
 const isSaving = ref(false)
 const isGenerating = ref(false)
+const isScoring = ref(false)
+const isConfirming = ref(false)
+const isExporting = ref(false)
+const generationTaskStatus = ref('')
 const scoreInfo = ref<{ sections: ProposalSectionSummary[]; total_score: number } | null>(null)
 
 const sectionTitle = computed(() => sectionDetail.value?.section_name || '')
@@ -426,6 +469,7 @@ async function loadProposalSections(projectId: string) {
     }
   } catch (e: any) {
     console.error('加载章节列表失败:', e)
+    pageError.value = e.message || '加载章节列表失败'
   } finally {
     loadingSections.value = false
   }
@@ -440,6 +484,7 @@ async function selectSection(sectionId: string) {
     sectionContent.value = sectionDetail.value.content || ''
   } catch (e: any) {
     console.error('加载章节详情失败:', e)
+    pageError.value = e.message || '加载章节详情失败'
   } finally {
     loadingDetail.value = false
   }
@@ -448,6 +493,8 @@ async function selectSection(sectionId: string) {
 async function handleSave() {
   if (!selectedProjectId.value || !selectedSectionId.value) return
   isSaving.value = true
+  pageError.value = ''
+  pageMessage.value = ''
   try {
     const updated = await updateProposalSection(
       selectedProjectId.value,
@@ -458,11 +505,35 @@ async function handleSave() {
     // 更新列表中的章节信息
     const idx = sections.value.findIndex(s => s.id === selectedSectionId.value)
     if (idx >= 0) {
-      sections.value[idx] = { ...sections.value[idx], is_confirmed: updated.is_confirmed }
+      sections.value[idx] = { ...sections.value[idx], is_confirmed: updated.is_confirmed, score: updated.score }
     }
+    pageMessage.value = '草稿已保存'
   } catch (e: any) {
     console.error('保存失败:', e)
-    alert('保存失败: ' + (e.message || '未知错误'))
+    pageError.value = '保存失败: ' + (e.message || '未知错误')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function saveCurrentSection(): Promise<boolean> {
+  if (!selectedProjectId.value || !selectedSectionId.value) return true
+  isSaving.value = true
+  try {
+    const updated = await updateProposalSection(
+      selectedProjectId.value,
+      selectedSectionId.value,
+      { content: sectionContent.value }
+    )
+    sectionDetail.value = updated
+    const idx = sections.value.findIndex(s => s.id === selectedSectionId.value)
+    if (idx >= 0) {
+      sections.value[idx] = { ...sections.value[idx], is_confirmed: updated.is_confirmed, score: updated.score }
+    }
+    return true
+  } catch (e: any) {
+    pageError.value = '保存失败: ' + (e.message || '未知错误')
+    return false
   } finally {
     isSaving.value = false
   }
@@ -470,19 +541,109 @@ async function handleSave() {
 
 async function handleGenerate() {
   if (!selectedProjectId.value) return
+  if (!window.confirm('生成会覆盖当前 AI 已生成章节，确认继续？')) return
   isGenerating.value = true
+  pageError.value = ''
+  pageMessage.value = ''
+  generationTaskStatus.value = '提交中...'
   try {
     const result = await generateProposal(selectedProjectId.value)
-    alert(result.message + '\n任务ID: ' + result.task_id)
-    // 重新加载章节列表
-    setTimeout(() => {
-      loadProposalSections(selectedProjectId.value)
-    }, 2000)
+    generationTaskStatus.value = result.message || '处理中...'
+    let completed = false
+    for (let i = 0; i < 60; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      const task = await getTaskStatus(result.task_id)
+      if (task.status === 'completed') {
+        completed = true
+        break
+      }
+      if (task.status === 'failed') {
+        throw new Error(task.error_message || '生成任务失败')
+      }
+      generationTaskStatus.value = `生成中 ${i + 1}/60`
+    }
+    if (!completed) {
+      throw new Error('生成任务超时，请稍后刷新查看结果')
+    }
+    await loadProposalSections(selectedProjectId.value)
+    pageMessage.value = '技术建议书已生成'
   } catch (e: any) {
     console.error('生成失败:', e)
-    alert('生成失败: ' + (e.message || '未知错误'))
+    pageError.value = '生成失败: ' + (e.message || '未知错误')
   } finally {
     isGenerating.value = false
+    generationTaskStatus.value = ''
+  }
+}
+
+async function handleRescore() {
+  if (!selectedProjectId.value) return
+  isScoring.value = true
+  pageError.value = ''
+  pageMessage.value = ''
+  try {
+    if (selectedSectionId.value) {
+      const saved = await saveCurrentSection()
+      if (!saved) return
+    }
+    scoreInfo.value = await rescoreProposal(selectedProjectId.value)
+    sections.value = scoreInfo.value.sections
+    if (selectedSectionId.value) {
+      await selectSection(selectedSectionId.value)
+    }
+    pageMessage.value = '已完成重新打分'
+  } catch (e: any) {
+    pageError.value = '重新打分失败: ' + (e.message || '未知错误')
+  } finally {
+    isScoring.value = false
+  }
+}
+
+async function handleConfirm() {
+  if (!selectedProjectId.value) return
+  if (!window.confirm('确认后将把全部章节标记为已完成，是否继续？')) return
+  isConfirming.value = true
+  pageError.value = ''
+  pageMessage.value = ''
+  try {
+    if (selectedSectionId.value) {
+      const saved = await saveCurrentSection()
+      if (!saved) return
+    }
+    sections.value = await confirmProposal(selectedProjectId.value)
+    scoreInfo.value = await scoreProposal(selectedProjectId.value)
+    pageMessage.value = '全部章节已确认'
+  } catch (e: any) {
+    pageError.value = '确认失败: ' + (e.message || '未知错误')
+  } finally {
+    isConfirming.value = false
+  }
+}
+
+async function handleExport() {
+  if (!selectedProjectId.value) return
+  isExporting.value = true
+  pageError.value = ''
+  pageMessage.value = ''
+  try {
+    if (selectedSectionId.value) {
+      const saved = await saveCurrentSection()
+      if (!saved) return
+    }
+    const blob = await exportProposalDocx(selectedProjectId.value)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${selectedProjectName.value || '项目'}_技术建议书.docx`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    pageMessage.value = '技术建议书已导出'
+  } catch (e: any) {
+    pageError.value = '导出失败: ' + (e.message || '未知错误')
+  } finally {
+    isExporting.value = false
   }
 }
 
