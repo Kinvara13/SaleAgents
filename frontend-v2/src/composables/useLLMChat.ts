@@ -100,6 +100,8 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
     const trimmed = text.trim().slice(0, 2000)
     if (!trimmed || isLoading.value) return
 
+    console.log('[useLLMChat] 发送消息:', trimmed)
+
     // 添加用户消息
     const userMsg: ChatMessage = {
       id: makeId('user'),
@@ -130,7 +132,13 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
         status: 'streaming',
       }
       messages.value.push(assistantMsg)
-      userMsg.status = 'confirmed'
+      
+      // 更新用户消息状态 - 使用替换的方式确保响应式
+      const userIndex = messages.value.findIndex(m => m.id === userMsg.id)
+      if (userIndex !== -1) {
+        messages.value[userIndex] = { ...userMsg, status: 'confirmed' }
+      }
+      
       state.value = 'streaming'
       isStreaming.value = true
 
@@ -138,17 +146,46 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatReturn {
       await readChatStream(
         reader,
         (chunk) => {
-          assistantMsg.content += chunk
+          // 使用替换方式确保响应式更新
+          const assistantIndex = messages.value.findIndex(m => m.id === assistantMsg.id)
+          if (assistantIndex !== -1) {
+            const currentMsg = messages.value[assistantIndex]
+            messages.value[assistantIndex] = {
+              ...currentMsg,
+              content: currentMsg.content + chunk
+            }
+          }
         },
         () => {
-          assistantMsg.status = 'confirmed'
+          // 完成时更新状态
+          const assistantIndex = messages.value.findIndex(m => m.id === assistantMsg.id)
+          if (assistantIndex !== -1) {
+            const currentMsg = messages.value[assistantIndex]
+            messages.value[assistantIndex] = {
+              ...currentMsg,
+              status: 'confirmed'
+            }
+          }
           state.value = 'confirmed'
           isStreaming.value = false
         }
       )
 
-      assistantMsg.content = assistantMsg.content.trim()
-      options.onComplete?.(assistantMsg)
+      // 最终修整
+      const finalIndex = messages.value.findIndex(m => m.id === assistantMsg.id)
+      if (finalIndex !== -1) {
+        const currentMsg = messages.value[finalIndex]
+        const finalMsg = {
+          ...currentMsg,
+          content: currentMsg.content.trim()
+        }
+        messages.value[finalIndex] = finalMsg
+        options.onComplete?.(finalMsg)
+      }
+
+      // 完成后重置状态为 idle
+      console.log('[useLLMChat] 消息完成，重置状态为 idle')
+      state.value = 'idle'
     } catch (e: any) {
       console.error('[useLLMChat] 发送失败:', e)
       messages.value.push({

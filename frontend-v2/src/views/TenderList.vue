@@ -97,8 +97,8 @@
         </div>
 
         <div class="mb-4">
-          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 pr-6">{{ project.name }}</h3>
-          <p class="text-sm text-gray-500 mb-2">招标方：{{ project.client || '-' }}</p>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 pr-6">{{ getProjectDisplayName(project) }}</h3>
+          <p class="text-sm text-gray-500 mb-2">招标方：{{ getProjectClient(project) }}</p>
           <p class="text-sm text-gray-600">应标方：{{ project.owner || '-' }}</p>
         </div>
 
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { listProjects, deleteProject } from '../services/project'
 import type { Project } from '../types'
@@ -158,6 +158,35 @@ const loading = ref(false)
 const error = ref('')
 const mineFilter = ref(false)
 const showDeleteConfirm = ref<string | null>(null)
+
+// 获取项目的实际名称（优先从解析的项目名称字段获取）
+const getProjectDisplayName = (project: Project) => {
+  if (!project) return ''
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const nameField = project.extracted_fields.find((f: any) => f.label === '项目名称')
+    if (nameField && nameField.value) {
+      return nameField.value
+    }
+  }
+  
+  return project.name || ''
+}
+
+// 获取项目的实际招标方（优先从解析的字段获取）
+const getProjectClient = (project: Project) => {
+  if (!project) return '-'
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const clientField = project.extracted_fields.find((f: any) => f.label === '招标人') ||
+                       project.extracted_fields.find((f: any) => f.label === '招标方')
+    if (clientField && clientField.value) {
+      return clientField.value
+    }
+  }
+  
+  return project.client || '-'
+}
 
 function toggleMineFilter() {
   mineFilter.value = !mineFilter.value
@@ -185,13 +214,10 @@ const handleProjectClick = (id: string) => {
   if (!project) return
 
   const hasTemplate = project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0
-  const isGenerationDone = project.node_status && (project.node_status as any).generation === 'completed'
 
   if (project.status === '草稿' || project.status === '解析中' || project.status === '解析失败') {
     router.push(`/project-create/${id}`)
-  } else if (project.status === '解析完成' && !hasTemplate) {
-    router.push(`/project-create/${id}`)
-  } else if (hasTemplate && !isGenerationDone) {
+  } else if (!hasTemplate) {
     router.push(`/project-create/${id}`)
   } else {
     router.push(`/tender-detail/${id}`)

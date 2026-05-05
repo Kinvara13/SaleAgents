@@ -37,7 +37,7 @@
         </button>
         <h2 class="text-2xl font-bold text-gray-800">新增项目</h2>
       </div>
-      <button class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-all duration-300">
+      <button class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-all duration-300" @click="saveProject">
         保存项目
       </button>
     </div>
@@ -740,7 +740,14 @@
           <button class="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-all duration-300" @click="prevStep">
             上一步
           </button>
-          <button 
+          <button
+            class="px-4 py-2 border border-success text-success rounded-lg hover:bg-success/10 transition-all duration-300"
+            :disabled="templateUploadStatus !== 'success'"
+            @click="finishStep2"
+          >
+            完成
+          </button>
+          <button
             class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300"
             :disabled="templateUploadStatus !== 'success'"
             @click="nextStep"
@@ -813,10 +820,10 @@
           <button class="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-all duration-300" @click="prevStep">
             上一步
           </button>
-          <button 
-            class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-300"
+          <button
+            class="px-4 py-2 border border-success text-success rounded-lg hover:bg-success/10 transition-all duration-300"
             :disabled="isGenerating"
-            @click="nextStep"
+            @click="finishProject"
           >
             完成
           </button>
@@ -863,7 +870,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { createProject, uploadAndParseTender, getProject, getTenderSections, getTenderSectionDetail, listKnowledgeAssets, uploadBidTemplate, updateBidTemplateFiles, previewBidTemplateFile } from '../services/project'
+import { createProject, uploadAndParseTender, getProject, getTenderSections, getTenderSectionDetail, listKnowledgeAssets, uploadBidTemplate, updateBidTemplateFiles, previewBidTemplateFile, updateProject } from '../services/project'
 import { createGenerationJob, exportGenerationJobDocx, getLatestJobByProject } from '../services/generation'
 
 const router = useRouter()
@@ -1375,8 +1382,25 @@ const hasGenerated = ref(false)
 const generationProgress = ref(0)
 const generationLogs = ref<string[]>([])
 
-// 开始生成
+// 开始生成回标文件：跳转到回标文件编辑页面
 const startGeneration = async () => {
+  if (!currentProjectId.value) {
+    alert('请先创建项目')
+    return
+  }
+  try {
+    await updateProject(currentProjectId.value, {
+      status: '回标中',
+      node_status: { decision: 'done', parsing: 'done', generation: 'in_progress' },
+    })
+    router.push(`/bid-list?projectId=${currentProjectId.value}`)
+  } catch (e: any) {
+    alert('跳转失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// 保留原始生成逻辑供需要时调用
+const _doGenerate = async () => {
   if (!currentProjectId.value) {
     alert('请先创建项目')
     return
@@ -1468,6 +1492,83 @@ const regenerateDocx = async () => {
   } catch (e: any) {
     console.error(e)
     alert(`下载失败: ${e.message}`)
+  }
+}
+
+// 通用保存项目信息的函数
+const saveProjectInfo = async () => {
+  if (!currentProjectId.value) return false
+  try {
+    await updateProject(currentProjectId.value, {
+      name: currentProjectName.value || keyInfo.value.projectName.value || '未命名项目',
+      client: basicInfo.value.companyName,
+      agent_name: basicInfo.value.agent,
+      agent_phone: basicInfo.value.phone,
+      agent_email: basicInfo.value.email,
+      company_address: basicInfo.value.address,
+      bank_name: basicInfo.value.bankInfo,
+      amount: keyInfo.value.budget.value,
+      deadline: keyInfo.value.bidDeadline.value,
+      bidding_company: basicInfo.value.companyName,
+    })
+    return true
+  } catch (e: any) {
+    console.error('保存项目信息失败:', e)
+    return false
+  }
+}
+
+// 保存项目
+const saveProject = async () => {
+  if (!currentProjectId.value) {
+    alert('请先创建项目')
+    return
+  }
+  try {
+    const success = await saveProjectInfo()
+    if (success) {
+      alert('项目保存成功')
+    } else {
+      alert('保存失败，请重试')
+    }
+  } catch (e: any) {
+    alert('保存失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// 步骤2完成：跳转到回标文件编辑页面
+const finishStep2 = async () => {
+  if (!currentProjectId.value) {
+    alert('请先创建项目')
+    return
+  }
+  try {
+    await saveProjectInfo()
+    await updateProject(currentProjectId.value, {
+      status: '回标中',
+      node_status: { decision: 'done', parsing: 'done', generation: 'in_progress' },
+    })
+    router.push(`/bid-list?projectId=${currentProjectId.value}`)
+  } catch (e: any) {
+    alert('操作失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// 步骤3完成：标记状态并跳转
+const finishProject = async () => {
+  if (!currentProjectId.value) {
+    alert('请先创建项目')
+    return
+  }
+  try {
+    await saveProjectInfo()
+    await updateProject(currentProjectId.value, {
+      status: '回标中',
+      node_status: { decision: 'done', parsing: 'done', generation: 'completed' },
+    })
+    router.push(`/tender-detail/${currentProjectId.value}`)
+  } catch (e: any) {
+    alert('操作失败: ' + (e.message || '未知错误'))
   }
 }
 

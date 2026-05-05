@@ -19,7 +19,7 @@
               class="px-3 py-1.5 hover:bg-gray-100 cursor-pointer transition-all text-sm"
               @click="selectProject(project)"
             >
-              {{ project.name }}
+              {{ getProjectDisplayName(project) }}
             </div>
             <div v-if="filteredProjects.length === 0" class="px-3 py-2 text-sm text-gray-400 text-center">
               无匹配项目
@@ -385,11 +385,27 @@ const loadingProjects = ref(false)
 const pageError = ref('')
 const pageMessage = ref('')
 
+// 获取项目的实际名称（优先从解析的项目名称字段获取）
+const getProjectDisplayName = (project: Project): string => {
+  if (!project) return ''
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const nameField = project.extracted_fields.find(f => f.label === '项目名称')
+    if (nameField && nameField.value) {
+      return nameField.value
+    }
+  }
+  
+  return project.name || ''
+}
+
 const filteredProjects = computed(() => {
   if (!selectedProjectSearch.value) return projects.value
-  return projects.value.filter(p =>
-    p.name.toLowerCase().includes(selectedProjectSearch.value.toLowerCase())
-  )
+  const searchLower = selectedProjectSearch.value.toLowerCase()
+  return projects.value.filter(p => {
+    const displayName = getProjectDisplayName(p)
+    return displayName.toLowerCase().includes(searchLower) || p.name.toLowerCase().includes(searchLower)
+  })
 })
 
 async function loadProjects() {
@@ -413,8 +429,9 @@ async function loadProjects() {
 }
 
 function selectProject(project: Project) {
-  selectedProjectSearch.value = project.name
-  selectedProjectName.value = project.name
+  const displayName = getProjectDisplayName(project)
+  selectedProjectSearch.value = displayName
+  selectedProjectName.value = displayName
   selectedProjectId.value = project.id
   showProjectDropdown.value = false
   loadProposalSections(project.id)

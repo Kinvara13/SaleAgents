@@ -1,5 +1,20 @@
 # SaleAgents v2 变更留痕
 
+## 2026-05-05
+
+### 项目创建流程交互修复（BUG-001 ~ BUG-003）
+
+- `frontend-v2/src/views/ProjectCreate.vue`
+  - 顶部"保存项目"按钮：新增 `saveProject` 方法，调用 `updateProject` 保存基础信息（应标公司、代理人、电话、邮箱、地址、银行信息）
+  - 步骤2（回标文件框架）：新增"完成"按钮，调用 `finishStep2` 更新项目状态为"回标中"并跳转到 `/bid-list`
+  - 步骤3（全文编写）："开始生成回标文件"按钮改为调用 `startGeneration` 跳转 `/bid-list`，不再直接触发后端生成任务
+  - 步骤3"完成"按钮：新增 `finishProject` 方法，更新 `node_status.generation` 为 `completed` 并跳转到 `/tender-detail/{id}`
+  - 保留原始 `_doGenerate` 生成逻辑供未来需要时调用
+- `frontend-v2/src/services/project.ts`
+  - 扩展 `ProjectUpdateRequest` 接口：新增 `name`, `client`, `agent_name`, `agent_phone`, `agent_email`, `company_address`, `bank_name`, `node_status` 等字段
+- `frontend-v2/src/views/TenderList.vue`
+  - 简化 `handleProjectClick` 逻辑：只要有 `bid_template_files` 即跳转到 `tender-detail`，不再因 `generation` 未完成而回到 `project-create`
+
 ## 2026-04-21
 
 ### 23:20 初始审计落地

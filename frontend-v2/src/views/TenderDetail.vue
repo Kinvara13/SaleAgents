@@ -259,10 +259,69 @@ const bidSections = ref<BidSection[]>([])
 const scoringCriteria = ref<ScoringCriteriaItem[]>([])
 const activities = ref<ProjectActivity[]>([])
 
+// 获取项目的实际名称（优先从解析的项目名称字段获取）
+const getProjectDisplayName = (project: any) => {
+  if (!project) return ''
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const nameField = project.extracted_fields.find((f: any) => f.label === '项目名称')
+    if (nameField && nameField.value) {
+      return nameField.value
+    }
+  }
+  
+  return project.name || ''
+}
+
+// 获取项目的实际招标方（优先从解析的字段获取）
+const getProjectClient = (project: any) => {
+  if (!project) return '-'
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const clientField = project.extracted_fields.find((f: any) => f.label === '招标人') ||
+                       project.extracted_fields.find((f: any) => f.label === '招标方')
+    if (clientField && clientField.value) {
+      return clientField.value
+    }
+  }
+  
+  return project.client || '-'
+}
+
+// 获取项目的实际预算金额（优先从解析的字段获取）
+const getProjectBudget = (project: any) => {
+  if (!project) return '-'
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const budgetField = project.extracted_fields.find((f: any) => f.label === '预算金额')
+    if (budgetField && budgetField.value) {
+      let amount = budgetField.value
+      return amount.startsWith('¥') ? amount : `¥ ${amount}`
+    }
+  }
+  
+  return project.amount ? (project.amount.startsWith('¥') ? project.amount : `¥ ${project.amount}`) : '-'
+}
+
+// 获取项目的实际截止时间（优先从解析的字段获取）
+const getProjectDeadline = (project: any) => {
+  if (!project) return '-'
+  
+  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
+    const deadlineField = project.extracted_fields.find((f: any) => f.label === '投标截止时间')
+    if (deadlineField && deadlineField.value) {
+      return deadlineField.value
+    }
+  }
+  
+  return project.deadline || '-'
+}
+
 const displayProject = computed(() => {
   if (!project.value) return null
   const p = project.value
-  const end = p.deadline ? new Date(p.deadline) : null
+  const deadlineStr = getProjectDeadline(p)
+  const end = deadlineStr && deadlineStr !== '-' ? new Date(deadlineStr) : null
   const now = new Date()
   let countdown = '未设置'
   if (end) {
@@ -276,8 +335,11 @@ const displayProject = computed(() => {
   }
   return {
     ...p,
+    name: getProjectDisplayName(p),
+    client: getProjectClient(p),
     bidder: p.bidding_company || p.owner || '-',
-    budget: p.amount ? (p.amount.startsWith('¥') ? p.amount : `¥ ${p.amount}`) : '-',
+    budget: getProjectBudget(p),
+    deadline: deadlineStr,
     countdown,
   }
 })

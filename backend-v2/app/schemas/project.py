@@ -30,7 +30,7 @@ class ProjectSummary(BaseModel):
     tender_id: str | None = None
     parse_status: str | None = None
     file_list: list | None = None
-    node_status: dict | None = None
+    node_status: list | dict | None = None
     extracted_fields: list | None = None
     bid_template_files: list | None = None
     created_at: datetime | None = None

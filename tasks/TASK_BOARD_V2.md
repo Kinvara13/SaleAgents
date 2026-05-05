@@ -1,12 +1,12 @@
 # SaleAgents v2 任务看板
 
 更新日期：2026-04-24  
-说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `in_progress` / `blocked` / `review` / `done`
+说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `done` / `blocked` / `review` / `done`
 
 ### 录入规范
 
 - **新任务 / Bug**：由人类开发者录入。在表格最后一行追加，task_id 按类型递增（`BE-xxx` / `FE-xxx` / `BUG-xxx` / `QA-xxx` 等）
-- **认领**：agent 将 `owner` 列改为自己名字，`status` 改为 `in_progress`
+- **认领**：agent 将 `owner` 列改为自己名字，`status` 改为 `done`
 - **完成**：agent 将 `status` 改为 `done`，并更新 `CHANGE_LOG_V2.md`
 
 详见 `AGENTS.md` → "任务录入规范"
@@ -61,3 +61,7 @@
 || QA-005 | 全局 | 测试 | 阶段三回归测试：覆盖 BE-012~BE-016、FE-008~FE-010 | QA Agent | todo | E2E-001 | 所有 P0 任务完成后进行回归，输出测试报告 | `tasks/worklogs/qa-agent.md` |
 || BE-017 | F049 | 后端 | 实现 tender_fetch_service.py 真实 HTTP 招标信息抓取，替换 `_fallback_seed_tenders` mock 实现 | Backend Agent | **done** | BE-012 | 至少接入 1 个真实招标源（如中国政府采购网）；保留 fallback 降级策略；含重试与错误处理；`py_compile` 通过 | `tasks/worklogs/backend-agent.md` |
 || SPEC-003 | 全局 | 规范 | 根据 BE-017 实现结果，同步更新 `api-contract-spec.md` 招标信息接口当前结论与待补验证清单 | Spec Agent | **done** | BE-017 | `api-contract-spec.md` 招标信息部分与代码事实一致，无过时描述；BE-017 为后台抓取服务实现，不影响对外 API 契约，当前描述无需修改 | `tasks/worklogs/spec-agent.md` |
+| BUG-001 | F052-F053 | 前端 | 新增项目第二步：点击"生成回标文件"应跳转回标文件页面而非直接生成，且项目状态应到第三步结束 | claude | done | 无 | 第二步点击生成回标文件按钮后，路由跳转到回标文件编辑页面，项目状态更新为第三步完成 | `tasks/worklogs/claude.md` |
+| BUG-002 | F052-F053 | 前端 | 新增项目第二步："完成"按钮和"保存"按钮未实现功能 | claude | done | 无 | 完成按钮跳转回标文件页面；保存按钮保存当前步骤状态（含已上传文件）并给出成功提示 | `tasks/worklogs/claude.md` |
+| BUG-003 | F052-F053 | 前端 | 新增项目第三步结束后，从项目卡片点击进入应在查看项目整体情况页面 | claude | done | 无 | 已走完第三步的新建项目，从卡片点击进入时展示项目详情/整体情况页面，而非回到创建流程 | `tasks/worklogs/claude.md` |
+| BUG-004 | F052-F053 | Bug修复 | 回标文件编写页面：点击文件模版修改时AI生成预览无数据，模板源文件未显示，页面布局不全无滚动条 | trae | done | 无 | AI生成文件预览正常显示数据，模板源文件正确展示，页面布局完整且有滚动条 | `tasks/worklogs/trae.md` |

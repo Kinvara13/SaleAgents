@@ -40,6 +40,30 @@ export interface ProjectCreateRequest {
 
 export interface ProjectUpdateRequest {
   status?: string
+  name?: string
+  owner?: string
+  client?: string
+  deadline?: string
+  amount?: string
+  risk?: string
+  bidding_company?: string
+  agent_name?: string
+  agent_phone?: string
+  agent_email?: string
+  company_address?: string
+  bank_name?: string
+  bank_account?: string
+  description?: string
+  confirm_status?: string
+  confirm_feedback?: string
+  confirmed_by?: string
+  confirmed_at?: string
+  tender_id?: string
+  parse_status?: string
+  file_list?: any[]
+  node_status?: Record<string, string> | any
+  extracted_fields?: any[]
+  bid_template_files?: any[]
 }
 
 export async function listProjects(status?: string, mine?: boolean): Promise<Project[]> {

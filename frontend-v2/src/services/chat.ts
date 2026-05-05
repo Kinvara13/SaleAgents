@@ -91,33 +91,57 @@ export async function readChatStream(
   const decoder = new TextDecoder()
   let buffer = ''
   let fullText = ''
+  let isDone = false
 
-  while (true) {
+  console.log('[readChatStream] 开始读取流')
+
+  while (!isDone) {
     const { done, value } = await reader.read()
-    if (done) break
+    
+    if (done) {
+      console.log('[readChatStream] 流完成')
+      isDone = true
+      break
+    }
 
-    buffer += decoder.decode(value, { stream: true })
+    const decoded = decoder.decode(value, { stream: true })
+    buffer += decoded
+    console.log('[readChatStream] 收到数据:', decoded)
+
     const lines = buffer.split('\n\n')
     buffer = lines.pop() || ''
 
     for (const line of lines) {
       const data = line.replace(/^data: /, '').trim()
-      if (data && data !== '[DONE]') {
+      
+      if (data === '[DONE]') {
+        console.log('[readChatStream] 收到 DONE 标记')
+        isDone = true
+        continue
+      }
+      
+      if (data) {
         try {
           const parsed = JSON.parse(data)
           const text = parsed.content || ''
           if (text) {
+            console.log('[readChatStream] 解析到内容:', text)
             fullText += text
             onChunk?.(text)
           }
-        } catch {
-          fullText += data
-          onChunk?.(data)
+        } catch (e) {
+          console.error('[readChatStream] 解析失败:', e, data)
+          // 如果不是 JSON，可能是纯文本
+          if (data && !data.startsWith('{') && !data.startsWith('[')) {
+            fullText += data
+            onChunk?.(data)
+          }
         }
       }
     }
   }
 
+  console.log('[readChatStream] 完成，总文本:', fullText)
   onDone?.()
   return fullText.trim()
 }

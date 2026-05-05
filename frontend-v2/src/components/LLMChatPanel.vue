@@ -184,9 +184,11 @@ const {
   body: props.body,
   autoLoadHistory: props.autoLoadHistory,
   onError: (err) => {
+    console.log('LLMChatPanel: 错误事件', err)
     emit('error', err)
   },
   onComplete: (msg) => {
+    console.log('LLMChatPanel: 完成事件触发', msg.content)
     emit('complete', msg.content)
   },
 })
@@ -195,25 +197,36 @@ async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isLoading.value) return
 
+  console.log('[LLMChatPanel] 发送消息:', text)
   emit('send', text)
   inputText.value = ''
   await sendMessage(text, { body: props.body })
   await scrollToBottom(messagesEl.value)
 }
 
-// 发送/流式输出时自动滚动
+// 监听消息变化，确保每有新内容都滚动到底部
 watch(
-  () => messages.value.length,
+  () => messages.value,
   async () => {
+    console.log('[LLMChatPanel] 消息更新，滚动到底部')
     await scrollToBottom(messagesEl.value)
-  }
+  },
+  { deep: true }
 )
 
-watch(isStreaming, async () => {
+// 监听流式状态
+watch(isStreaming, async (newVal) => {
+  console.log('[LLMChatPanel] 流式状态变化:', newVal)
   await scrollToBottom(messagesEl.value)
 })
 
+// 监听状态变化
+watch(state, async (newVal) => {
+  console.log('[LLMChatPanel] 状态变化:', newVal)
+})
+
 onMounted(() => {
+  console.log('[LLMChatPanel] 组件挂载')
   if (props.autoFocus) {
     inputEl.value?.focus()
   }
