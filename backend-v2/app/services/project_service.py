@@ -1,3 +1,4 @@
+from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -6,7 +7,66 @@ from app.models.project import Project
 from app.schemas.project import ProjectCreateRequest, ProjectSummary, ProjectUpdateRequest
 
 
-def list_projects(db: Session, status: str | None = None, user_id: str | None = None) -> list[ProjectSummary]:
+def extracted_fields_to_map(extracted_fields: Union[List, dict, None]) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    if not isinstance(extracted_fields, list):
+        return result
+    for item in extracted_fields:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        value = str(item.get("value") or "").strip()
+        if label and value:
+            result[label] = value
+    return result
+
+
+def _pick_first_non_empty(*values: object) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def sync_project_core_fields(
+    project: Project,
+    *,
+    tender: Optional[object] = None,
+    bidder_name: Optional[str] = None,
+) -> Project:
+    field_map = extracted_fields_to_map(project.extracted_fields)
+
+    parsed_name = _pick_first_non_empty(field_map.get("项目名称"))
+    if parsed_name and (not project.name or project.name.startswith("投标项目_")):
+        project.name = parsed_name
+
+    project.client = _pick_first_non_empty(
+        project.client,
+        field_map.get("招标人"),
+        field_map.get("采购人"),
+    )
+    project.deadline = _pick_first_non_empty(
+        project.deadline,
+        field_map.get("投标截止时间"),
+        getattr(tender, "deadline", ""),
+    )
+    project.amount = _pick_first_non_empty(
+        project.amount,
+        field_map.get("预算金额"),
+        getattr(tender, "amount", ""),
+    )
+    project.bidding_company = _pick_first_non_empty(
+        project.bidding_company,
+        field_map.get("投标人"),
+        field_map.get("投标单位"),
+        bidder_name,
+        project.owner,
+    )
+    return project
+
+
+def list_projects(db: Session, status: str | None = None, user_id: str | None = None) -> List[ProjectSummary]:
     query = db.query(Project)
     if status:
         query = query.filter(Project.status == status)
@@ -28,12 +88,12 @@ def create_project(db: Session, payload: ProjectCreateRequest) -> ProjectSummary
     project = Project(
         id=f"proj_{uuid4().hex[:12]}",
         name=payload.name,
+        owner=payload.owner or "admin",
         client=payload.client or "",
         deadline=payload.deadline or "",
         amount=payload.amount or "",
         risk=payload.risk or "P2",
         status="待决策",
-        owner="admin",
         bidding_company=payload.bidding_company or "",
         agent_name=payload.agent_name or "",
         agent_phone=payload.agent_phone or "",

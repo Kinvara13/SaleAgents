@@ -37,7 +37,7 @@ class ProposalResponse(BaseModel):
     content: str = ""
     sections: list[ProposalSection] = []
     metadata: ProposalMetadata = Field(default_factory=ProposalMetadata)
-    star_items: list[dict] = []  # 星标项列表
+    star_items: list[dict] = []  # 列表
     star_responses: dict[str, dict] = {}  # 星标项应答内容
 
 

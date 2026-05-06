@@ -14,6 +14,7 @@ from app.models.project import Project
 from app.schemas.parsing import ParsingSectionSummary, ParsingSectionDetail, ParsingSectionUpdateRequest
 from app.schemas.workspace import ParseSection
 from app.services.llm_parsing_client import llm_parsing_client
+from app.services.project_service import sync_project_core_fields
 from app.services.rule_based_extractor import rule_extractor
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ MAX_STAR_ITEMS = 20
 
 FIELD_LABELS = [
     "项目名称", "招标编号", "标书类型", "投标截止时间", "预算金额",
+    "招标人", "采购人", "投标人", "投标单位",
     "标书起始时间", "标书结束时间", "是否有保证金", "保证金金额", "保证金形式",
     "必备资质", "付款条款", "交付周期", "评分重点", "技术要求", "服务承诺",
     "是否需要签字盖章", "是否有项目澄清会", "项目澄清会时间", "项目澄清会链接",
@@ -527,30 +529,7 @@ class ParsingService:
             if project:
                 extracted = self._merge_project_extracted_fields(project.extracted_fields or [], merged_info)
                 project.extracted_fields = extracted
-                
-                # Update project name from extracted field if available
-                project_name_val = self._extract_field_value(merged_info, "项目名称")
-                if self._is_useful_value(project_name_val):
-                    # Only update if project name is still default or file name
-                    if (not project.name or 
-                        project.name == "未命名项目" or 
-                        project.name == Path(filename).stem):
-                        project.name = project_name_val
-                
-                # Update client (招标方) from extracted field if available
-                client_val = self._extract_field_value(merged_info, "招标人") or self._extract_field_value(merged_info, "招标方")
-                if self._is_useful_value(client_val):
-                    project.client = client_val
-                
-                # Update budget (预算金额) from extracted field if available
-                amount_val = self._extract_field_value(merged_info, "预算金额")
-                if self._is_useful_value(amount_val):
-                    project.amount = amount_val
-                
-                # Update deadline (截止时间) from extracted field if available
-                deadline_val = self._extract_field_value(merged_info, "投标截止时间")
-                if self._is_useful_value(deadline_val):
-                    project.deadline = deadline_val
+                sync_project_core_fields(project)
 
         # Placeholder business/tech sections expected by the frontend
         for name in BUSINESS_SECTIONS:
@@ -756,6 +735,24 @@ class ParsingService:
 
     def _extract_local_basic_fields(self, text: str) -> dict[str, str]:
         result: dict[str, str] = {}
+
+        buyer_patterns = [
+            ("招标人", r"(?:招标人|招标方|招标单位)\s*[：:]\s*([^\n；;]{2,80})"),
+            ("采购人", r"(?:采购人|采购单位|采购方)\s*[：:]\s*([^\n；;]{2,80})"),
+        ]
+        for label, pattern in buyer_patterns:
+            m = re.search(pattern, text)
+            if m:
+                result[label] = m.group(1).strip()
+
+        bidder_patterns = [
+            ("投标人", r"(?:投标人|投标单位|应标方|响应供应商)\s*[：:]\s*([^\n；;]{2,80})"),
+            ("投标单位", r"(?:投标单位|应答单位|响应单位)\s*[：:]\s*([^\n；;]{2,80})"),
+        ]
+        for label, pattern in bidder_patterns:
+            m = re.search(pattern, text)
+            if m:
+                result[label] = m.group(1).strip()
 
         bid_type_patterns = [
             (r"(公开招标|邀请招标|竞争性谈判|竞争性磋商|询价采购|单一来源)", 1),

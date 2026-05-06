@@ -871,7 +871,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createProject, uploadAndParseTender, getProject, getTenderSections, getTenderSectionDetail, listKnowledgeAssets, uploadBidTemplate, updateBidTemplateFiles, previewBidTemplateFile, updateProject } from '../services/project'
-import { createGenerationJob, exportGenerationJobDocx, getLatestJobByProject } from '../services/generation'
+import { createGenerationJob, exportGenerationJobDocx, getLatestJobByProject, GenerationJob } from '../services/generation'
 
 const router = useRouter()
 const route = useRoute()
@@ -1414,7 +1414,7 @@ const _doGenerate = async () => {
     generationLogs.value.push(`任务已创建: ${job.id}`)
     generationProgress.value = 30
 
-    let targetJob = job
+    let targetJob: GenerationJob | null = job
     // 如果返回的 job 已经是 completed，跳过轮询直接导出
     if (job.status === 'completed') {
       generationLogs.value.push('生成任务已完成')
@@ -1456,13 +1456,16 @@ const _doGenerate = async () => {
     document.body.removeChild(a)
 
     generationProgress.value = 100
-    generationLogs.value.push('回标文件生成完成！Word文档已下载')
+    generationLogs.value.push('回标文件生成完成，正在跳转到回标文件页面...')
     hasGenerated.value = true
 
     setTimeout(() => {
       isGenerating.value = false
-      alert('回标文件生成完成！Word文档已下载')
-    }, 1000)
+      router.push({
+        path: '/bid-list',
+        query: { projectId: currentProjectId.value },
+      })
+    }, 600)
   } catch (e: any) {
     console.error(e)
     generationLogs.value.push(`错误: ${e.message}`)
@@ -1756,7 +1759,7 @@ onMounted(async () => {
               fileContentMap.value[project.file_list[0].name] = selectedFileContent.value
             }
           }
-          currentStep.value = project.bid_template_files?.length > 0 ? 1 : 0
+          currentStep.value = (project.bid_template_files?.length ?? 0) > 0 ? 1 : 0
         } else if (project.status === '解析失败' || project.parse_status === '解析失败') {
           uploadStatus.value = 'error'
           formErrors.value.companyName = '解析失败，请重新上传招标文件'

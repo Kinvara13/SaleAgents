@@ -81,6 +81,7 @@ def upload_bid_document(
     from pathlib import Path
 
     from app.core.config import settings
+    from app.services.project_service import sync_project_core_fields
 
     upload_dir = getattr(settings, "upload_dir", "/tmp/saleagents/uploads")
     os.makedirs(upload_dir, exist_ok=True)
@@ -96,13 +97,20 @@ def upload_bid_document(
     from app.schemas.project import ProjectCreateRequest
     from app.services import project_service
 
+    tender = tender_service.get_tender(db, tender_id)
+    initial_name = (
+        str(tender.title or "").strip()
+        or Path(file.filename or "").stem.strip()
+        or f"投标项目_{tender_id}"
+    )
     project = project_service.create_project(
         db,
         ProjectCreateRequest(
-            name=f"投标项目_{tender_id}",
+            name=initial_name,
             owner=current_user.username,
-            deadline="",
-            amount="",
+            deadline=tender.deadline or "",
+            amount=tender.amount or "",
+            bidding_company=current_user.username,
             user_id=current_user.id,
         ),
     )
@@ -118,10 +126,10 @@ def upload_bid_document(
         "generation": "pending",
         "review": "pending",
     }
+    sync_project_core_fields(project, tender=tender, bidder_name=current_user.username)
     db.commit()
     
     # Update tender margin and project_type
-    tender = tender_service.get_tender(db, tender_id)
     if margin:
         tender.margin = margin
     if project_type:

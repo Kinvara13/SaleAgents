@@ -97,19 +97,19 @@
         </div>
 
         <div class="mb-4">
-          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 pr-6">{{ getProjectDisplayName(project) }}</h3>
-          <p class="text-sm text-gray-500 mb-2">招标方：{{ getProjectClient(project) }}</p>
-          <p class="text-sm text-gray-600">应标方：{{ project.owner || '-' }}</p>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 pr-6">{{ getProjectName(project) }}</h3>
+          <p class="text-sm text-gray-500 mb-2">招标方：{{ getClientName(project) }}</p>
+          <p class="text-sm text-gray-600">应标方：{{ getBidderName(project) }}</p>
         </div>
 
         <div class="space-y-3 mb-4">
           <div class="flex justify-between">
             <span class="text-sm text-gray-500">预算金额</span>
-            <span class="text-sm font-semibold text-gray-800">{{ formatAmount(project.amount) }}</span>
+            <span class="text-sm font-semibold text-gray-800">{{ formatAmount(getBudgetAmount(project)) }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-sm text-gray-500">截止时间</span>
-            <span class="text-sm font-semibold text-gray-800">{{ project.deadline || '-' }}</span>
+            <span class="text-sm font-semibold text-gray-800">{{ getDeadline(project) }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-sm text-gray-500">创建时间</span>
@@ -131,7 +131,7 @@
           </span>
           <div class="flex items-center text-sm text-danger">
             <span class="mr-1">⏰</span>
-            {{ formatCountdown(project.deadline) }}
+            {{ formatCountdown(getDeadline(project)) }}
           </div>
         </div>
       </div>
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listProjects, deleteProject } from '../services/project'
 import type { Project } from '../types'
@@ -159,33 +159,37 @@ const error = ref('')
 const mineFilter = ref(false)
 const showDeleteConfirm = ref<string | null>(null)
 
-// 获取项目的实际名称（优先从解析的项目名称字段获取）
-const getProjectDisplayName = (project: Project) => {
-  if (!project) return ''
-  
-  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
-    const nameField = project.extracted_fields.find((f: any) => f.label === '项目名称')
-    if (nameField && nameField.value) {
-      return nameField.value
-    }
-  }
-  
-  return project.name || ''
+const getExtractedFieldMap = (project: Project) => {
+  return Object.fromEntries(
+    (project.extracted_fields || [])
+      .filter(item => item?.label)
+      .map(item => [item.label, item.value || ''])
+  )
 }
 
-// 获取项目的实际招标方（优先从解析的字段获取）
-const getProjectClient = (project: Project) => {
-  if (!project) return '-'
-  
-  if (project.extracted_fields && Array.isArray(project.extracted_fields)) {
-    const clientField = project.extracted_fields.find((f: any) => f.label === '招标人') ||
-                       project.extracted_fields.find((f: any) => f.label === '招标方')
-    if (clientField && clientField.value) {
-      return clientField.value
-    }
-  }
-  
-  return project.client || '-'
+const getProjectName = (project: Project) => {
+  const fieldMap = getExtractedFieldMap(project)
+  return fieldMap['项目名称'] || project.name || '-'
+}
+
+const getClientName = (project: Project) => {
+  const fieldMap = getExtractedFieldMap(project)
+  return project.client || fieldMap['招标人'] || fieldMap['采购人'] || '-'
+}
+
+const getBidderName = (project: Project) => {
+  const fieldMap = getExtractedFieldMap(project)
+  return project.bidding_company || project.owner || fieldMap['投标人'] || fieldMap['投标单位'] || '-'
+}
+
+const getBudgetAmount = (project: Project) => {
+  const fieldMap = getExtractedFieldMap(project)
+  return project.amount || fieldMap['预算金额'] || ''
+}
+
+const getDeadline = (project: Project) => {
+  const fieldMap = getExtractedFieldMap(project)
+  return project.deadline || fieldMap['投标截止时间'] || '-'
 }
 
 function toggleMineFilter() {
@@ -214,10 +218,13 @@ const handleProjectClick = (id: string) => {
   if (!project) return
 
   const hasTemplate = project.bid_template_files && Array.isArray(project.bid_template_files) && project.bid_template_files.length > 0
+  const isGenerationDone = project.node_status && (project.node_status as any).generation === 'completed'
 
   if (project.status === '草稿' || project.status === '解析中' || project.status === '解析失败') {
     router.push(`/project-create/${id}`)
-  } else if (!hasTemplate) {
+  } else if (project.status === '解析完成' && !hasTemplate) {
+    router.push(`/project-create/${id}`)
+  } else if (hasTemplate && !isGenerationDone) {
     router.push(`/project-create/${id}`)
   } else {
     router.push(`/tender-detail/${id}`)
@@ -254,8 +261,9 @@ const formatDate = (dateStr: string | undefined) => {
 }
 
 const formatCountdown = (deadline: string) => {
-  if (!deadline) return '未设置'
+  if (!deadline || deadline === '-') return '未设置'
   const end = new Date(deadline)
+  if (Number.isNaN(end.getTime())) return '未设置'
   const now = new Date()
   const diff = end.getTime() - now.getTime()
   if (diff <= 0) return '已结束'

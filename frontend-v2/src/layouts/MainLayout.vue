@@ -61,7 +61,7 @@
     </aside>
 
     <div class="flex-1 flex flex-col">
-      <main class="flex-1 overflow-auto p-6 bg-background">
+      <main class="flex-1 overflow-auto p-6 bg-background min-h-0">
         <router-view />
       </main>
     </div>

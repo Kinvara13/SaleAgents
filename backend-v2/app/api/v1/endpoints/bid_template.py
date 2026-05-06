@@ -349,17 +349,35 @@ def preview_template_file(project_id: str, file_path: str, db: Session = Depends
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-    
+
     upload_dir = Path(settings.storage_path or Path(__file__).resolve().parents[4] / "storage") / "projects" / project_id / "bid_templates"
-    # Files from archives are kept in "extracted/"; single uploads stay at root
+
+    # 按优先级搜索文件：精确路径 → 根目录 → extracted/ → 递归搜索所有子目录
     target_file = upload_dir / file_path
-    if not target_file.exists():
-        target_file = upload_dir / "extracted" / file_path
-    if not target_file.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-    
+    search_candidates = [
+        target_file,
+        upload_dir / Path(file_path).name,
+        upload_dir / "extracted" / file_path,
+        upload_dir / "extracted" / Path(file_path).name,
+    ]
+
+    for candidate in search_candidates:
+        if candidate.exists():
+            target_file = candidate
+            break
+    else:
+        # 兜底：递归搜索 upload_dir 下所有子目录，按文件名匹配
+        from fnmatch import fnmatch
+        file_name = Path(file_path).name
+        for sub_path in upload_dir.rglob("*"):
+            if sub_path.is_file() and (sub_path.name == file_name or fnmatch(sub_path.name, file_name)):
+                target_file = sub_path
+                break
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
+
     content = _extract_text_from_file(target_file)
-    
+
     return {
         "status": "success",
         "filename": target_file.name,

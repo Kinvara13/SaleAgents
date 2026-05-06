@@ -1,19 +1,80 @@
 # SaleAgents v2 变更留痕
 
-## 2026-05-05
+## 2026-04-30
 
-### 项目创建流程交互修复（BUG-001 ~ BUG-003）
+### 修复 BUG-007（Backend）
 
-- `frontend-v2/src/views/ProjectCreate.vue`
-  - 顶部"保存项目"按钮：新增 `saveProject` 方法，调用 `updateProject` 保存基础信息（应标公司、代理人、电话、邮箱、地址、银行信息）
-  - 步骤2（回标文件框架）：新增"完成"按钮，调用 `finishStep2` 更新项目状态为"回标中"并跳转到 `/bid-list`
-  - 步骤3（全文编写）："开始生成回标文件"按钮改为调用 `startGeneration` 跳转 `/bid-list`，不再直接触发后端生成任务
-  - 步骤3"完成"按钮：新增 `finishProject` 方法，更新 `node_status.generation` 为 `completed` 并跳转到 `/tender-detail/{id}`
-  - 保留原始 `_doGenerate` 生成逻辑供未来需要时调用
-- `frontend-v2/src/services/project.ts`
-  - 扩展 `ProjectUpdateRequest` 接口：新增 `name`, `client`, `agent_name`, `agent_phone`, `agent_email`, `company_address`, `bank_name`, `node_status` 等字段
-- `frontend-v2/src/views/TenderList.vue`
-  - 简化 `handleProjectClick` 逻辑：只要有 `bid_template_files` 即跳转到 `tender-detail`，不再因 `generation` 未完成而回到 `project-create`
+- `bid_template.py` → `preview_template_file()`：增加递归搜索兜底逻辑
+- 原逻辑只在 `bid_templates/` 和 `bid_templates/extracted/` 根目录查找文件，但解压后的模板文件可能存放在子目录（如 `extracted/1、商务文件/`）下
+- 新增：按优先级搜索（精确路径 → 根目录 → extracted/ → 递归搜索所有子目录），通过 `rglob("*")` 遍历并匹配文件名
+- `python3.11 -m py_compile` 通过
+
+### 修复 BUG-005 / BUG-006（Frontend）
+
+**BUG-005**：回标文件页面顶部项目名称使用解析后字段
+- `BidList.vue` → `selectProject()`：引入 `getExtractedFieldMap()`，优先从 `extracted_fields` 中取"项目名称"，与 `TenderList.vue` 的展示逻辑保持一致
+
+**BUG-006**：编辑模式下切换文件时编辑内容同步更新
+- `BidList.vue` → `handleSelectFile()`：增加 `isEditing.value` 判断，若处于编辑模式则同步更新 `editableContent.value`，确保切换文件后编辑区域显示正确内容
+
+**验证**：`npm run build` 通过
+
+### 修复 BUG-008 / BUG-009（Frontend）
+
+**BUG-008**：回标文件编写页面右侧区域滚动与布局
+- `BidList.vue` → 三栏布局容器及面板：
+  - 左侧 AI 生成预览面板、中间模板原文件面板、右侧 AI 对话框面板统一添加 `h-full overflow-hidden min-w-0`
+  - 修复 flex 高度链断裂问题，确保各面板内部溢出时可滚动
+  - 调整宽度分配：`w-1/2`+`w-1/3`+`w-1/6` → `w-5/12`+`w-4/12`+`w-3/12`，避免 AI 面板过窄导致内容挤压
+
+**BUG-009**：AI 助手对话框样式与消息展示
+- `BidList.vue` → `input-suffix` 槽：
+  - select 元素增加 `w-full max-w-full truncate`，移除 `space-x-2` 避免窄宽下溢出
+  - 外层容器增加 `min-w-0` 防止 flex 子项被压缩到 0
+- 布局修复后消息区域的 `flex-1 overflow-y-auto` 可正确计算高度，流式消息应能正常展示
+
+**追加修复（滚动条未生效）**：
+- `MainLayout.vue` → `<main>`：`overflow-auto` 改为 `overflow-hidden`，并在 `<router-view>` 外包一层 `<div class="h-full">`
+- 根因：`main` 的 `overflow-auto` 使 `h-full` 子元素失去明确的高度参考，整个 flex 高度链断裂，面板内容溢出时无法触发内部滚动
+
+**验证**：`npm run build` 通过
+
+## 2026-07-09
+
+### 修复 BUG-001 ~ BUG-004
+
+**BUG-001 / BUG-002（Backend）**
+
+- 新增 `project_service.py`：
+  - `extracted_fields_to_map()`：将 `extracted_fields`（list 格式）转换为 label→value 字典
+  - `_pick_first_non_empty()`：按优先级返回第一个非空值
+  - `sync_project_core_fields()`：统一回填 `name / client / deadline / amount / bidding_company`
+- `tenders.py` → `upload_bid_document`：创建项目后立即调用 `sync_project_core_fields`
+- `parsing_service.py`：标书解析完成后再次调用 `sync_project_core_fields`，确保字段被持久化
+- `parsing.py`：在解析完成路由中补充 `sync_project_core_fields` 调用
+
+**BUG-001 / BUG-002（Frontend）**
+
+- `TenderList.vue`：
+  - 新增 `getProjectName / getClientName / getBidderName / getBudgetAmount / getDeadline / formatAmount` 计算属性
+  - 卡片展示优先使用解析字段兜底，修复应标方字段来源（`bidding_company`）
+  - 新增 `mineFilter` 状态和 `toggleMineFilter` 切换函数
+- `TenderDetail.vue`：同样增加解析字段优先的 `displayProject` computed
+
+**BUG-003（Frontend）**
+
+- `ProjectCreate.vue`：生成回标文件完成后，通过 `router.push({ path: '/bid-list', query: { projectId } })` 跳转
+- `BidList.vue`：读取 `route.query.projectId`，自动选中项目并触发 `loadSections` 展示模板清单
+- `TenderDetail.vue`：补充 `job` 空值保护
+
+**BUG-004（Frontend）**
+
+- `BidList.vue`：`loadSections` 重构为仅加载模板文件（不再拉取原投标解析章节），`fileTree` 仅展示 `section_type === '模板'` 的节点
+- 移除 `getTenderSections` 在 `loadSections` 中的调用，消除投标文件混入问题
+
+**测试覆盖**
+
+- 新增 `tests/test_project_service.py`：验证 `extracted_fields_to_map` 和 `sync_project_core_fields` 逻辑
 
 ## 2026-04-21
 

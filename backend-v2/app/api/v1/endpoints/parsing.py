@@ -11,9 +11,11 @@ logger = logging.getLogger(__name__)
 from app.schemas.parsing import ParsingSectionSummary, ParsingSectionDetail, ParsingSectionUpdateRequest
 from app.schemas.task import TaskSubmitResponse
 from app.services.parsing_service import parsing_service
+from app.services.project_service import sync_project_core_fields
 from app.services.task_service import create_task, update_task_status
 from app.models.parsing_section import ParsingSection
 from app.models.project import Project
+from app.models.tender import Tender
 from app.core.config import settings
 
 router = APIRouter()
@@ -330,6 +332,10 @@ def _handle_archive_async(project_id: str, archive_path: Path, ext: str, task_id
             project.file_list = parsed_files
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
+            tender = None
+            if project.tender_id:
+                tender = db.query(Tender).filter(Tender.id == project.tender_id).first()
+            sync_project_core_fields(project, tender=tender)
             db.commit()
 
         update_task_status(db, task_id, "completed", result={"section_count": total_sections})
@@ -373,6 +379,10 @@ def _parse_single_file_async(project_id: str, file_path: Path, filename: str, ta
             project.file_list = [{"name": filename, "path": str(file_path), "uploaded_at": str(datetime.utcnow())}]
             if isinstance(project.node_status, dict):
                 project.node_status["parsing"] = "completed"
+            tender = None
+            if project.tender_id:
+                tender = db.query(Tender).filter(Tender.id == project.tender_id).first()
+            sync_project_core_fields(project, tender=tender)
             db.commit()
 
         if task_id:

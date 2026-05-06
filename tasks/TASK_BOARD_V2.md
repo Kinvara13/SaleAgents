@@ -1,12 +1,12 @@
 # SaleAgents v2 任务看板
 
 更新日期：2026-04-24  
-说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `done` / `blocked` / `review` / `done`
+说明：所有后续工作先在本表认领，再进入实现。状态建议使用：`todo` / `in_progress` / `blocked` / `review` / `done`
 
 ### 录入规范
 
 - **新任务 / Bug**：由人类开发者录入。在表格最后一行追加，task_id 按类型递增（`BE-xxx` / `FE-xxx` / `BUG-xxx` / `QA-xxx` 等）
-- **认领**：agent 将 `owner` 列改为自己名字，`status` 改为 `done`
+- **认领**：agent 将 `owner` 列改为自己名字，`status` 改为 `in_progress`
 - **完成**：agent 将 `status` 改为 `done`，并更新 `CHANGE_LOG_V2.md`
 
 详见 `AGENTS.md` → "任务录入规范"
@@ -61,7 +61,12 @@
 || QA-005 | 全局 | 测试 | 阶段三回归测试：覆盖 BE-012~BE-016、FE-008~FE-010 | QA Agent | todo | E2E-001 | 所有 P0 任务完成后进行回归，输出测试报告 | `tasks/worklogs/qa-agent.md` |
 || BE-017 | F049 | 后端 | 实现 tender_fetch_service.py 真实 HTTP 招标信息抓取，替换 `_fallback_seed_tenders` mock 实现 | Backend Agent | **done** | BE-012 | 至少接入 1 个真实招标源（如中国政府采购网）；保留 fallback 降级策略；含重试与错误处理；`py_compile` 通过 | `tasks/worklogs/backend-agent.md` |
 || SPEC-003 | 全局 | 规范 | 根据 BE-017 实现结果，同步更新 `api-contract-spec.md` 招标信息接口当前结论与待补验证清单 | Spec Agent | **done** | BE-017 | `api-contract-spec.md` 招标信息部分与代码事实一致，无过时描述；BE-017 为后台抓取服务实现，不影响对外 API 契约，当前描述无需修改 | `tasks/worklogs/spec-agent.md` |
-| BUG-001 | F052-F053 | 前端 | 新增项目第二步：点击"生成回标文件"应跳转回标文件页面而非直接生成，且项目状态应到第三步结束 | claude | done | 无 | 第二步点击生成回标文件按钮后，路由跳转到回标文件编辑页面，项目状态更新为第三步完成 | `tasks/worklogs/claude.md` |
-| BUG-002 | F052-F053 | 前端 | 新增项目第二步："完成"按钮和"保存"按钮未实现功能 | claude | done | 无 | 完成按钮跳转回标文件页面；保存按钮保存当前步骤状态（含已上传文件）并给出成功提示 | `tasks/worklogs/claude.md` |
-| BUG-003 | F052-F053 | 前端 | 新增项目第三步结束后，从项目卡片点击进入应在查看项目整体情况页面 | claude | done | 无 | 已走完第三步的新建项目，从卡片点击进入时展示项目详情/整体情况页面，而非回到创建流程 | `tasks/worklogs/claude.md` |
-| BUG-004 | F052-F053 | Bug修复 | 回标文件编写页面：点击文件模版修改时AI生成预览无数据，模板源文件未显示，页面布局不全无滚动条 | trae | done | 无 | AI生成文件预览正常显示数据，模板源文件正确展示，页面布局完整且有滚动条 | `tasks/worklogs/trae.md` |
+| BUG-001 | 招标项目展示 | Bug修复 | 招标项目页面卡片项目名称读取解析后名称，而非文件名称 | Backend Agent | **done** | 无 | 页面正确显示解析后的项目名称 | `tasks/worklogs/backend-agent.md` |
+| BUG-002 | 招标项目展示 | Bug修复 | 补充招标方、应标方、预算金额、截止时间字段的数据填充 | Backend Agent | **done** | 无 | 上述字段能正确展示真实数据而非空白 | `tasks/worklogs/backend-agent.md` |
+| BUG-003 | 新建项目 | Bug修复 | 点击生成回标文件后自动跳转回标页面，勾选项目并展示模板清单 | Frontend Agent | **done** | 无 | 触发按钮后跳转行为正确，自动完成勾选和清单加载 | `tasks/worklogs/frontend-agent.md` |
+| BUG-004 | 回标文件 | Bug修复 | 回标文件编写页面的文件目录仅展示模板清单，不展示原投标文件内容 | Frontend Agent | **done** | 无 | 文件树中成功过滤原投标文件，只保留回标文件模板 | `tasks/worklogs/frontend-agent.md` |
+| BUG-005 | 回标文件 | Bug修复 | 回标文件页面顶部的项目名称应使用招标项目卡片里的项目名称，而非当前显示的来源 | claude | done | 无 | 页面顶部项目名称与招标项目卡片保持一致 | `tasks/worklogs/claude.md` |
+| BUG-006 | 商务部分 | Bug修复 | 商务部分点击文件列表项后，下方编辑区域应加载对应文件内容 | claude | done | 无 | 点击任意商务文件，编辑区域正确显示该文件内容和可编辑字段 | `tasks/worklogs/claude.md` |
+| BUG-007 | 回标文件 | Bug修复 | 预览/编辑模板文件时后端 404，因文件存在子目录但 path 只存了文件名 | claude | done | 无 | 点击任意模板文件的修改/预览，能正确加载文件内容，不报 404 | `tasks/worklogs/claude.md` |
+| BUG-008 | 回标文件 | 前端 | 回标文件编写页面右侧区域增加滚动条，当前页面过长时下方编辑框不可见 | claude | done | 无 | 页面内容溢出时右侧出现滚动条，编辑框始终可见且可滚动到 | `tasks/worklogs/claude.md` |
+| BUG-009 | AI助手 | 前端 | AI助手对话框样式拥挤，且发送消息后 LLM 回复未展示到前端 | claude | done | 无 | 对话框按钮和输入框布局不拥挤；发送消息后 LLM 流式回复正常展示 | `tasks/worklogs/claude.md` |
